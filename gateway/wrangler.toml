@@ -1,0 +1,7 @@
+name = "wristbrief-gateway"
+main = "src/index.ts"
+compatibility_date = "2026-02-01"
+
+[vars]
+AI_MODEL = "gpt-5-mini"
+AI_BASE_URL = "https://api.openai.com/v1"

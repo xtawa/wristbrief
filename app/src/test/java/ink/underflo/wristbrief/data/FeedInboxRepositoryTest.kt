@@ -85,6 +85,119 @@ class FeedInboxRepositoryTest {
     }
 
     @Test
+    fun addSubscription_normalizesAndPersists() {
+        val store = FakeStore()
+        val repository = FeedInboxRepository(FakeLoader(emptyMap()), store)
+
+        val result = repository.addSubscription(
+            FeedSubscription("a", "  Example Feed  ", "HTTPS://EXAMPLE.COM:443/feed/#fragment")
+        )
+
+        assertEquals(SubscriptionMutationResult.Success, result)
+        assertEquals(
+            FeedSubscription("a", "Example Feed", "https://example.com/feed"),
+            store.subscriptions().single()
+        )
+    }
+
+    @Test
+    fun addSubscription_rejectsDuplicateLogicalUrl() {
+        val store = FakeStore(
+            subscriptions = listOf(FeedSubscription("a", "Existing", "https://example.com/feed"))
+        )
+        val repository = FeedInboxRepository(FakeLoader(emptyMap()), store)
+
+        val result = repository.addSubscription(
+            FeedSubscription("b", "Duplicate", "HTTPS://EXAMPLE.COM:443/feed/#section")
+        )
+
+        assertEquals(SubscriptionMutationResult.DuplicateSubscription("a"), result)
+        assertEquals(listOf("a"), store.subscriptions().map { it.id })
+    }
+
+    @Test
+    fun addSubscription_rejectsInvalidHttpsUrlWithExplicitResult() {
+        val repository = FeedInboxRepository(FakeLoader(emptyMap()), FakeStore())
+
+        val http = repository.addSubscription(FeedSubscription("x", "Bad", "http://example.com/feed"))
+        val missingHost = repository.addSubscription(FeedSubscription("y", "Bad", "https:///feed"))
+
+        assertEquals(SubscriptionMutationResult.InvalidUrl("http://example.com/feed"), http)
+        assertEquals(SubscriptionMutationResult.InvalidUrl("https:///feed"), missingHost)
+    }
+
+    @Test
+    fun updateRenameAndEnableDisable_preserveCachedItems() {
+        val store = FakeStore(
+            subscriptions = listOf(FeedSubscription("a", "Old", "https://example.com/feed")),
+            cached = listOf(cached("cached-a", "a", "Old", 1L))
+        )
+        val repository = FeedInboxRepository(FakeLoader(emptyMap()), store)
+
+        assertEquals(SubscriptionMutationResult.Success, repository.renameSubscription("a", "  Renamed  "))
+        assertEquals(SubscriptionMutationResult.Success, repository.setSubscriptionEnabled("a", false))
+        assertTrue(repository.cachedItems().isEmpty())
+        assertEquals(1, store.cached.size)
+        assertEquals("Renamed", store.subscriptions().single().title)
+        assertFalse(store.subscriptions().single().enabled)
+
+        assertEquals(SubscriptionMutationResult.Success, repository.setSubscriptionEnabled("a", true))
+        assertEquals(listOf("cached-a"), repository.cachedItems().map { it.title })
+    }
+
+    @Test
+    fun updateSubscription_rejectsUrlOwnedByAnotherSubscription() {
+        val store = FakeStore(
+            subscriptions = listOf(
+                FeedSubscription("a", "A", "https://a.example/feed"),
+                FeedSubscription("b", "B", "https://b.example/feed")
+            )
+        )
+        val repository = FeedInboxRepository(FakeLoader(emptyMap()), store)
+
+        val result = repository.updateSubscription(
+            FeedSubscription("b", "B", "HTTPS://A.EXAMPLE:443/feed/")
+        )
+
+        assertEquals(SubscriptionMutationResult.DuplicateSubscription("a"), result)
+        assertEquals("https://b.example/feed", store.subscriptions().first { it.id == "b" }.url)
+    }
+
+    @Test
+    fun missingSubscriptionOperations_returnExplicitMissingResult() {
+        val repository = FeedInboxRepository(FakeLoader(emptyMap()), FakeStore())
+
+        assertEquals(SubscriptionMutationResult.MissingSubscription("missing"), repository.renameSubscription("missing", "Name"))
+        assertEquals(SubscriptionMutationResult.MissingSubscription("missing"), repository.setSubscriptionEnabled("missing", false))
+        assertEquals(SubscriptionMutationResult.MissingSubscription("missing"), repository.removeSubscription("missing"))
+        assertEquals(
+            SubscriptionMutationResult.MissingSubscription("missing"),
+            repository.updateSubscription(FeedSubscription("missing", "Name", "https://example.com/feed"))
+        )
+    }
+
+    @Test
+    fun removeSubscription_removesSubscriptionAndOwnedCacheOnly() {
+        val store = FakeStore(
+            subscriptions = listOf(
+                FeedSubscription("a", "A", "https://a.example/feed"),
+                FeedSubscription("b", "B", "https://b.example/feed")
+            ),
+            cached = listOf(
+                cached("old-a", "a", "A", 1L),
+                cached("old-b", "b", "B", 2L)
+            )
+        )
+        val repository = FeedInboxRepository(FakeLoader(emptyMap()), store)
+
+        val result = repository.removeSubscription("a")
+
+        assertEquals(SubscriptionMutationResult.Success, result)
+        assertEquals(listOf("b"), store.subscriptions().map { it.id })
+        assertEquals(listOf("b"), store.cached.map { it.feedId })
+    }
+
+    @Test
     fun failedFeed_keepsItsCachedItemsWhileOtherFeedsRefresh() {
         val store = FakeStore(
             subscriptions = listOf(
@@ -133,12 +246,6 @@ class FeedInboxRepositoryTest {
 
         assertEquals(listOf("new-a"), result.items.map { it.title })
         assertTrue(store.cached.any { it.feedId == "b" && it.title == "old-b" })
-    }
-
-    @Test(expected = IllegalArgumentException::class)
-    fun subscriptionRejectsNonHttpsUrl() {
-        val repository = FeedInboxRepository(FakeLoader(emptyMap()), FakeStore())
-        repository.upsertSubscription(FeedSubscription("x", "Bad", "http://example.com/feed"))
     }
 
     private fun feed(title: String, link: String, guid: String? = null) = FeedItem(

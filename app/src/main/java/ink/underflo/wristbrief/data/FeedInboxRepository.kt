@@ -1,5 +1,7 @@
 package ink.underflo.wristbrief.data
 
+import java.net.URI
+
 /** A user-selected feed that should participate in the local inbox. */
 data class FeedSubscription(
     val id: String,
@@ -119,9 +121,10 @@ private fun FeedItem.toCached(
     subscription: FeedSubscription,
     cachedAtEpochMs: Long
 ): CachedFeedItem {
-    val stableId = link?.takeIf { it.isNotBlank() }
-        ?: audioUrl?.takeIf { it.isNotBlank() }
-        ?: "${subscription.id}:${title.trim()}:${published.orEmpty().trim()}"
+    val stableId = guid?.trim()?.takeIf { it.isNotBlank() }?.let { "guid:$it" }
+        ?: normalizeIdentityUrl(link)?.let { "link:$it" }
+        ?: normalizeIdentityUrl(audioUrl)?.let { "audio:$it" }
+        ?: "fallback:${subscription.id}:${title.trim()}:${published.orEmpty().trim()}"
 
     return CachedFeedItem(
         id = stableId,
@@ -134,4 +137,34 @@ private fun FeedItem.toCached(
         audioUrl = audioUrl,
         cachedAtEpochMs = cachedAtEpochMs
     )
+}
+
+/**
+ * Normalizes only URL differences that are safe for identity comparison without
+ * network access: scheme/host casing, default ports, fragments, empty paths and
+ * a trailing root-equivalent slash. Query parameters are deliberately preserved.
+ */
+internal fun normalizeIdentityUrl(value: String?): String? {
+    val raw = value?.trim()?.takeIf { it.isNotBlank() } ?: return null
+    return runCatching {
+        val uri = URI(raw)
+        val scheme = uri.scheme?.lowercase() ?: return@runCatching raw
+        val host = uri.host?.lowercase() ?: return@runCatching raw
+        if (scheme != "http" && scheme != "https") return@runCatching raw
+
+        val port = when {
+            uri.port == -1 -> -1
+            scheme == "http" && uri.port == 80 -> -1
+            scheme == "https" && uri.port == 443 -> -1
+            else -> uri.port
+        }
+        val rawPath = uri.rawPath.orEmpty()
+        val path = when {
+            rawPath.isEmpty() -> "/"
+            rawPath.length > 1 && rawPath.endsWith('/') -> rawPath.dropLast(1)
+            else -> rawPath
+        }
+
+        URI(scheme, uri.rawUserInfo, host, port, path, uri.rawQuery, null).toASCIIString()
+    }.getOrElse { raw }
 }

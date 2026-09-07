@@ -13,10 +13,7 @@ class FeedInboxRepositoryTest {
                 FeedSubscription("a", "Feed A", "https://a.example/feed"),
                 FeedSubscription("b", "Feed B", "https://b.example/feed")
             ),
-            cached = listOf(
-                cached("old-a", "a", "Feed A", 1L),
-                cached("old-b", "b", "Feed B", 2L)
-            )
+            cached = listOf(cached("old-a", "a", "Feed A", 1L), cached("old-b", "b", "Feed B", 2L))
         )
         val loader = FakeLoader(
             mapOf(
@@ -64,6 +61,55 @@ class FeedInboxRepositoryTest {
     }
 
     @Test
+    fun savedState_survivesRefreshWhenStableIdentityRemains() {
+        val subscription = FeedSubscription("a", "Feed A", "https://a.example/feed")
+        val old = cached("Old title", "a", "Feed A", 1L).copy(id = "guid:stable")
+        val store = FakeStore(subscriptions = listOf(subscription), cached = listOf(old), savedIds = setOf("guid:stable"))
+        val loader = FakeLoader(mapOf(subscription.url to listOf(
+            feed("Updated title", "https://a.example/changed", guid = "stable")
+        )))
+        val repository = FeedInboxRepository(loader, store) { 100L }
+
+        repository.refresh()
+
+        assertTrue(repository.isSaved("guid:stable"))
+        assertEquals("Updated title", repository.savedItems().single().title)
+    }
+
+    @Test
+    fun savedItem_remainsDiscoverableWhenFeedIsPaused() {
+        val item = cached("saved", "a", "A", 1L)
+        val store = FakeStore(
+            subscriptions = listOf(FeedSubscription("a", "A", "https://a.example/feed", enabled = false)),
+            cached = listOf(item),
+            savedIds = setOf(item.id)
+        )
+        val repository = FeedInboxRepository(FakeLoader(emptyMap()), store)
+
+        assertTrue(repository.cachedItems().isEmpty())
+        assertEquals(listOf(item.id), repository.savedItems().map { it.id })
+    }
+
+    @Test
+    fun savedItem_survivesTemporaryRefreshFailure() {
+        val item = cached("saved", "a", "A", 1L)
+        val store = FakeStore(
+            subscriptions = listOf(FeedSubscription("a", "A", "https://a.example/feed")),
+            cached = listOf(item),
+            savedIds = setOf(item.id)
+        )
+        val repository = FeedInboxRepository(object : FeedLoader {
+            override fun load(url: String): List<FeedItem> = error("offline")
+        }, store)
+
+        val result = repository.refresh()
+
+        assertTrue(result.isOfflineFallback)
+        assertTrue(repository.isSaved(item.id))
+        assertEquals(item.id, repository.savedItems().single().id)
+    }
+
+    @Test
     fun setRead_isExplicitAndUnreadCountUsesVisibleEnabledItems() {
         val store = FakeStore(
             subscriptions = listOf(
@@ -83,7 +129,20 @@ class FeedInboxRepositoryTest {
     }
 
     @Test
-    fun removeSubscription_cleansOwnedReadState() {
+    fun setSaved_isExplicitAndRejectsMissingItems() {
+        val item = cached("one", "a", "A", 1L)
+        val store = FakeStore(cached = listOf(item))
+        val repository = FeedInboxRepository(FakeLoader(emptyMap()), store)
+
+        assertTrue(repository.setSaved(item.id, true))
+        assertTrue(repository.isSaved(item.id))
+        assertTrue(repository.setSaved(item.id, false))
+        assertFalse(repository.isSaved(item.id))
+        assertFalse(repository.setSaved("missing", true))
+    }
+
+    @Test
+    fun removeSubscription_cleansOwnedReadAndSavedState() {
         val itemA = cached("a", "a", "A", 1L)
         val itemB = cached("b", "b", "B", 2L)
         val store = FakeStore(
@@ -92,13 +151,15 @@ class FeedInboxRepositoryTest {
                 FeedSubscription("b", "B", "https://b.example/feed")
             ),
             cached = listOf(itemA, itemB),
-            readIds = setOf(itemA.id, itemB.id)
+            readIds = setOf(itemA.id, itemB.id),
+            savedIds = setOf(itemA.id, itemB.id)
         )
         val repository = FeedInboxRepository(FakeLoader(emptyMap()), store)
 
         repository.removeSubscription("a")
 
         assertEquals(setOf(itemB.id), store.readItemIds())
+        assertEquals(setOf(itemB.id), store.savedItemIds())
     }
 
     @Test
@@ -227,7 +288,8 @@ class FeedInboxRepositoryTest {
     private class FakeStore(
         private var subscriptions: List<FeedSubscription> = emptyList(),
         var cached: List<CachedFeedItem> = emptyList(),
-        private var readIds: Set<String> = emptySet()
+        private var readIds: Set<String> = emptySet(),
+        private var savedIds: Set<String> = emptySet()
     ) : FeedStore {
         override fun subscriptions(): List<FeedSubscription> = subscriptions
         override fun saveSubscriptions(subscriptions: List<FeedSubscription>) { this.subscriptions = subscriptions }
@@ -235,5 +297,7 @@ class FeedInboxRepositoryTest {
         override fun saveCachedItems(items: List<CachedFeedItem>) { cached = items }
         override fun readItemIds(): Set<String> = readIds
         override fun saveReadItemIds(itemIds: Set<String>) { readIds = itemIds }
+        override fun savedItemIds(): Set<String> = savedIds
+        override fun saveSavedItemIds(itemIds: Set<String>) { savedIds = itemIds }
     }
 }

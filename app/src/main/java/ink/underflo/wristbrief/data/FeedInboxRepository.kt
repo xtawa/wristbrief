@@ -49,6 +49,8 @@ interface FeedStore {
     fun saveCachedItems(items: List<CachedFeedItem>)
     fun readItemIds(): Set<String>
     fun saveReadItemIds(itemIds: Set<String>)
+    fun savedItemIds(): Set<String>
+    fun saveSavedItemIds(itemIds: Set<String>)
 }
 
 data class FeedRefreshResult(
@@ -64,8 +66,8 @@ data class FeedRefreshResult(
  *
  * A failed feed refresh never deletes its last known items. Successful feeds
  * replace only their own previous cache, keeping partial refreshes resilient.
- * User state such as read/unread is stored independently from refreshable feed
- * content so a normal refresh cannot erase it.
+ * User state such as read/unread and saved/starred is stored independently from
+ * refreshable feed content so a normal refresh cannot erase it.
  */
 class FeedInboxRepository(
     private val loader: FeedLoader,
@@ -83,6 +85,15 @@ class FeedInboxRepository(
         return store.cachedItems().filter { it.feedId in enabledIds }
     }
 
+    /** Saved items remain discoverable even if their feed is paused. */
+    fun savedItems(): List<CachedFeedItem> {
+        val savedIds = store.savedItemIds()
+        if (savedIds.isEmpty()) return emptyList()
+        return store.cachedItems()
+            .filter { it.id in savedIds }
+            .sortedByDescending { it.cachedAtEpochMs }
+    }
+
     fun isRead(itemId: String): Boolean = itemId in store.readItemIds()
 
     fun setRead(itemId: String, isRead: Boolean): Boolean {
@@ -90,6 +101,16 @@ class FeedInboxRepository(
         val current = store.readItemIds()
         val updated = if (isRead) current + itemId else current - itemId
         if (updated != current) store.saveReadItemIds(updated)
+        return true
+    }
+
+    fun isSaved(itemId: String): Boolean = itemId in store.savedItemIds()
+
+    fun setSaved(itemId: String, isSaved: Boolean): Boolean {
+        if (store.cachedItems().none { it.id == itemId }) return false
+        val current = store.savedItemIds()
+        val updated = if (isSaved) current + itemId else current - itemId
+        if (updated != current) store.saveSavedItemIds(updated)
         return true
     }
 
@@ -155,6 +176,7 @@ class FeedInboxRepository(
         store.saveCachedItems(store.cachedItems().filterNot { it.feedId == id })
         if (removedItemIds.isNotEmpty()) {
             store.saveReadItemIds(store.readItemIds() - removedItemIds)
+            store.saveSavedItemIds(store.savedItemIds() - removedItemIds)
         }
         return SubscriptionMutationResult.Success
     }

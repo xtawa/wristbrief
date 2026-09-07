@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
+import androidx.wear.compose.foundation.lazy.TransformingLazyColumnState
 import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
 import androidx.wear.compose.material3.AppScaffold
 import androidx.wear.compose.material3.Button
@@ -33,6 +34,8 @@ import ink.underflo.wristbrief.ui.InboxItemUi
 import ink.underflo.wristbrief.ui.InboxUiState
 import ink.underflo.wristbrief.ui.InboxViewModel
 import ink.underflo.wristbrief.ui.toArticleDetailUi
+import ink.underflo.wristbrief.ui.wearEmptyDetail
+import ink.underflo.wristbrief.ui.wearStatusLine
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -52,6 +55,12 @@ private fun WristBriefApp(viewModel: InboxViewModel = viewModel()) {
     val destination = runCatching { AppDestination.valueOf(destinationName) }
         .getOrDefault(AppDestination.Inbox)
 
+    // Keep each top-level list state alive while navigating so returning to Inbox/Saved/Feeds
+    // does not unexpectedly jump back to the first item after a short detail visit.
+    val inboxListState = rememberTransformingLazyColumnState()
+    val savedListState = rememberTransformingLazyColumnState()
+    val feedsListState = rememberTransformingLazyColumnState()
+
     fun openArticle(item: InboxItemUi, returnDestination: AppDestination) {
         selectedArticleId = item.id
         articleReturnDestinationName = returnDestination.name
@@ -63,6 +72,7 @@ private fun WristBriefApp(viewModel: InboxViewModel = viewModel()) {
             when (destination) {
                 AppDestination.Inbox -> InboxScreen(
                     state = state,
+                    listState = inboxListState,
                     onItemClick = { openArticle(it, AppDestination.Inbox) },
                     onRefresh = viewModel::refresh,
                     onOpenSaved = { destinationName = AppDestination.Saved.name },
@@ -71,12 +81,14 @@ private fun WristBriefApp(viewModel: InboxViewModel = viewModel()) {
 
                 AppDestination.Saved -> SavedScreen(
                     items = state.savedItems,
+                    listState = savedListState,
                     onItemClick = { openArticle(it, AppDestination.Saved) },
                     onBack = { destinationName = AppDestination.Inbox.name }
                 )
 
                 AppDestination.Feeds -> FeedManagementScreen(
                     feeds = state.feeds,
+                    listState = feedsListState,
                     onToggleFeed = { feed -> viewModel.setFeedEnabled(feed.id, !feed.enabled) },
                     onRemoveFeed = { feed -> viewModel.removeFeed(feed.id) },
                     onBack = { destinationName = AppDestination.Inbox.name }
@@ -110,17 +122,23 @@ private fun WristBriefApp(viewModel: InboxViewModel = viewModel()) {
     }
 }
 
+@Composable
+private fun CompactText(text: String, maxLines: Int = 2) {
+    Text(text, maxLines = maxLines, overflow = TextOverflow.Ellipsis)
+}
+
 /** Wear-first inbox shell following the Material 3 Expressive scrolling model. */
 @Composable
 internal fun InboxScreen(
     state: InboxUiState,
+    listState: TransformingLazyColumnState,
     onItemClick: (InboxItemUi) -> Unit,
     onRefresh: () -> Unit,
     onOpenSaved: () -> Unit,
     onOpenFeeds: () -> Unit
 ) {
-    val listState = rememberTransformingLazyColumnState()
     val transformationSpec = rememberTransformationSpec()
+    val statusLine = state.wearStatusLine()
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
         TransformingLazyColumn(
@@ -129,8 +147,10 @@ internal fun InboxScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxSize()
         ) {
-            item { ListHeader { Text("WristBrief · ${state.unreadCount} unread") } }
-            if (state.isOfflineFallback) item { ListHeader { Text("Offline · showing cached briefs") } }
+            item { ListHeader { CompactText("WristBrief", maxLines = 1) } }
+            if (statusLine.isNotBlank()) {
+                item { ListHeader { CompactText(statusLine, maxLines = 1) } }
+            }
 
             if (state.items.isEmpty()) {
                 item {
@@ -139,16 +159,11 @@ internal fun InboxScreen(
                         state.hasSubscriptions -> "No briefs yet"
                         else -> "No feeds yet"
                     }
-                    val detail = when {
-                        state.errorMessage != null -> state.errorMessage
-                        state.hasSubscriptions -> "Refresh to fetch your latest briefs"
-                        else -> "Add feeds from the phone companion"
-                    }
                     Button(
                         onClick = onRefresh,
                         enabled = state.hasSubscriptions && !state.isLoading,
-                        label = { Text(label) },
-                        secondaryLabel = { Text(detail, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                        label = { CompactText(label, maxLines = 1) },
+                        secondaryLabel = { CompactText(state.wearEmptyDetail()) },
                         transformation = SurfaceTransformation(transformationSpec),
                         modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                     )
@@ -158,13 +173,15 @@ internal fun InboxScreen(
                     val item = state.items[index]
                     InboxItemCard(item, transformationSpec) { onItemClick(item) }
                 }
-                if (state.errorMessage != null) item { ListHeader { Text(state.errorMessage) } }
                 if (state.hasSubscriptions) {
                     item {
                         Button(
                             onClick = onRefresh,
                             enabled = !state.isLoading,
-                            label = { Text(if (state.isLoading) "Refreshing…" else "Refresh") },
+                            label = { CompactText(if (state.isLoading) "Refreshing…" else "Refresh", maxLines = 1) },
+                            secondaryLabel = if (state.errorMessage != null) {
+                                { CompactText(state.errorMessage) }
+                            } else null,
                             transformation = SurfaceTransformation(transformationSpec),
                             modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                         )
@@ -175,8 +192,8 @@ internal fun InboxScreen(
             item {
                 Button(
                     onClick = onOpenSaved,
-                    label = { Text("Saved · ${state.savedItems.size}") },
-                    secondaryLabel = { Text("Offline-ready bookmarks") },
+                    label = { CompactText("Saved · ${state.savedItems.size}", maxLines = 1) },
+                    secondaryLabel = { CompactText("Offline-ready bookmarks") },
                     transformation = SurfaceTransformation(transformationSpec),
                     modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                 )
@@ -184,8 +201,8 @@ internal fun InboxScreen(
             item {
                 Button(
                     onClick = onOpenFeeds,
-                    label = { Text("Feeds") },
-                    secondaryLabel = { Text("Manage subscriptions") },
+                    label = { CompactText("Feeds", maxLines = 1) },
+                    secondaryLabel = { CompactText("Manage subscriptions") },
                     transformation = SurfaceTransformation(transformationSpec),
                     modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                 )
@@ -202,28 +219,28 @@ private fun androidx.wear.compose.foundation.lazy.TransformingLazyColumnItemScop
 ) {
     TitleCard(
         onClick = onClick,
-        title = { Text(item.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+        title = { CompactText(item.title) },
         subtitle = {
             val kindAndSource = if (item.isPodcast) "Podcast · ${item.source}" else item.source
             val readPrefix = if (item.isRead) "" else "Unread · "
             val savedPrefix = if (item.isSaved) "Saved · " else ""
-            Text("$savedPrefix$readPrefix$kindAndSource", maxLines = 1, overflow = TextOverflow.Ellipsis)
+            CompactText("$savedPrefix$readPrefix$kindAndSource", maxLines = 1)
         },
         time = if (item.timeLabel.isBlank()) null else {
-            { Text(item.timeLabel, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            { CompactText(item.timeLabel, maxLines = 1) }
         },
         transformation = SurfaceTransformation(transformationSpec),
         modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
-    ) { Text(item.summary, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+    ) { CompactText(item.summary) }
 }
 
 @Composable
 internal fun SavedScreen(
     items: List<InboxItemUi>,
+    listState: TransformingLazyColumnState,
     onItemClick: (InboxItemUi) -> Unit,
     onBack: () -> Unit
 ) {
-    val listState = rememberTransformingLazyColumnState()
     val transformationSpec = rememberTransformationSpec()
     ScreenScaffold(scrollState = listState) { contentPadding ->
         TransformingLazyColumn(
@@ -232,13 +249,14 @@ internal fun SavedScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxSize()
         ) {
-            item { ListHeader { Text("Saved") } }
+            item { ListHeader { CompactText("Saved", maxLines = 1) } }
             if (items.isEmpty()) {
                 item {
                     Button(
-                        onClick = {}, enabled = false,
-                        label = { Text("Nothing saved") },
-                        secondaryLabel = { Text("Save a brief from its detail screen") },
+                        onClick = {},
+                        enabled = false,
+                        label = { CompactText("Nothing saved", maxLines = 1) },
+                        secondaryLabel = { CompactText("Save a brief from its detail screen") },
                         transformation = SurfaceTransformation(transformationSpec),
                         modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                     )
@@ -252,7 +270,7 @@ internal fun SavedScreen(
             item {
                 Button(
                     onClick = onBack,
-                    label = { Text("Back to Inbox") },
+                    label = { CompactText("Back to Inbox", maxLines = 1) },
                     transformation = SurfaceTransformation(transformationSpec),
                     modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                 )
@@ -281,33 +299,33 @@ internal fun ArticleDetailScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxSize()
         ) {
-            item { ListHeader { Text(article?.source ?: "WristBrief") } }
-            if (article?.isOffline == true || isOfflineFallback) item { ListHeader { Text("Offline · cached preview") } }
+            item { ListHeader { CompactText(article?.source ?: "WristBrief") } }
+            if (article?.isOffline == true || isOfflineFallback) {
+                item { ListHeader { CompactText("Offline · cached preview", maxLines = 1) } }
+            }
 
             if (article == null) {
                 item {
                     TitleCard(
                         onClick = {},
-                        title = { Text("Brief unavailable") },
-                        subtitle = { Text("The cached item may have been removed") },
+                        title = { CompactText("Brief unavailable", maxLines = 1) },
+                        subtitle = { CompactText("The cached item may have been removed") },
                         transformation = SurfaceTransformation(transformationSpec),
                         modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
-                    ) { Text("Return to choose an available item.") }
+                    ) { CompactText("Return to choose an available item.") }
                 }
             } else {
                 item {
                     TitleCard(
                         onClick = {},
-                        title = { Text(article.title, maxLines = 4, overflow = TextOverflow.Ellipsis) },
+                        title = { CompactText(article.title, maxLines = 4) },
                         subtitle = {
-                            Text(
-                                if (article.isPodcast) "Podcast · ${article.source}" else article.source,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
+                            CompactText(
+                                if (article.isPodcast) "Podcast · ${article.source}" else article.source
                             )
                         },
                         time = if (article.timeLabel.isBlank()) null else {
-                            { Text(article.timeLabel, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+                            { CompactText(article.timeLabel) }
                         },
                         transformation = SurfaceTransformation(transformationSpec),
                         modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
@@ -316,8 +334,8 @@ internal fun ArticleDetailScreen(
                 item {
                     Button(
                         onClick = onToggleSaved,
-                        label = { Text(if (isSaved) "Remove from Saved" else "Save") },
-                        secondaryLabel = { Text("Keeps this cached brief easy to find offline") },
+                        label = { CompactText(if (isSaved) "Remove from Saved" else "Save", maxLines = 1) },
+                        secondaryLabel = { CompactText("Keeps this cached brief easy to find offline") },
                         transformation = SurfaceTransformation(transformationSpec),
                         modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                     )
@@ -325,8 +343,8 @@ internal fun ArticleDetailScreen(
                 item {
                     Button(
                         onClick = onToggleRead,
-                        label = { Text(if (isRead) "Mark unread" else "Mark read") },
-                        secondaryLabel = { Text("Opening alone does not change read state") },
+                        label = { CompactText(if (isRead) "Mark unread" else "Mark read", maxLines = 1) },
+                        secondaryLabel = { CompactText("Opening alone does not change read state") },
                         transformation = SurfaceTransformation(transformationSpec),
                         modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                     )
@@ -336,7 +354,7 @@ internal fun ArticleDetailScreen(
             item {
                 Button(
                     onClick = onBack,
-                    label = { Text("Back") },
+                    label = { CompactText("Back", maxLines = 1) },
                     transformation = SurfaceTransformation(transformationSpec),
                     modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                 )
@@ -348,11 +366,11 @@ internal fun ArticleDetailScreen(
 @Composable
 internal fun FeedManagementScreen(
     feeds: List<FeedManagementItemUi>,
+    listState: TransformingLazyColumnState,
     onToggleFeed: (FeedManagementItemUi) -> Unit,
     onRemoveFeed: (FeedManagementItemUi) -> Unit,
     onBack: () -> Unit
 ) {
-    val listState = rememberTransformingLazyColumnState()
     val transformationSpec = rememberTransformationSpec()
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
@@ -362,11 +380,11 @@ internal fun FeedManagementScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxSize()
         ) {
-            item { ListHeader { Text("Feeds") } }
+            item { ListHeader { CompactText("Feeds", maxLines = 1) } }
             item {
                 Button(
                     onClick = onBack,
-                    label = { Text("Back to Inbox") },
+                    label = { CompactText("Back to Inbox", maxLines = 1) },
                     transformation = SurfaceTransformation(transformationSpec),
                     modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                 )
@@ -375,9 +393,10 @@ internal fun FeedManagementScreen(
             if (feeds.isEmpty()) {
                 item {
                     Button(
-                        onClick = {}, enabled = false,
-                        label = { Text("No subscriptions") },
-                        secondaryLabel = { Text("Add feeds on the phone companion") },
+                        onClick = {},
+                        enabled = false,
+                        label = { CompactText("No subscriptions", maxLines = 1) },
+                        secondaryLabel = { CompactText("Add feeds on the phone companion") },
                         transformation = SurfaceTransformation(transformationSpec),
                         modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                     )
@@ -387,15 +406,15 @@ internal fun FeedManagementScreen(
                     val feed = feeds[index]
                     Button(
                         onClick = { onToggleFeed(feed) },
-                        label = { Text(feed.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
-                        secondaryLabel = { Text("${feed.statusLabel} · ${feed.toggleLabel}", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        label = { CompactText(feed.title) },
+                        secondaryLabel = { CompactText("${feed.statusLabel} · ${feed.toggleLabel}", maxLines = 1) },
                         transformation = SurfaceTransformation(transformationSpec),
                         modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                     )
                     Button(
                         onClick = { onRemoveFeed(feed) },
-                        label = { Text("Remove ${feed.title}", maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                        secondaryLabel = { Text(feed.url, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        label = { CompactText("Remove ${feed.title}") },
+                        secondaryLabel = { CompactText(feed.url, maxLines = 1) },
                         transformation = SurfaceTransformation(transformationSpec),
                         modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                     )
@@ -404,9 +423,10 @@ internal fun FeedManagementScreen(
 
             item {
                 Button(
-                    onClick = {}, enabled = false,
-                    label = { Text("Add/manage on phone") },
-                    secondaryLabel = { Text("Phone sync arrives in a later slot") },
+                    onClick = {},
+                    enabled = false,
+                    label = { CompactText("Add/manage on phone", maxLines = 1) },
+                    secondaryLabel = { CompactText("Phone sync arrives in a later slot") },
                     transformation = SurfaceTransformation(transformationSpec),
                     modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                 )

@@ -61,7 +61,14 @@ class FeedInboxRepository(
 ) {
     fun subscriptions(): List<FeedSubscription> = store.subscriptions()
 
-    fun cachedItems(): List<CachedFeedItem> = store.cachedItems()
+    fun cachedItems(): List<CachedFeedItem> {
+        val enabledIds = store.subscriptions()
+            .asSequence()
+            .filter { it.enabled }
+            .mapTo(hashSetOf()) { it.id }
+        if (enabledIds.isEmpty()) return emptyList()
+        return store.cachedItems().filter { it.feedId in enabledIds }
+    }
 
     fun upsertSubscription(subscription: FeedSubscription) {
         require(subscription.url.startsWith("https://")) { "Only HTTPS feeds are allowed" }
@@ -75,7 +82,7 @@ class FeedInboxRepository(
         val subscriptions = store.subscriptions().filter { it.enabled }
         val previous = store.cachedItems()
         if (subscriptions.isEmpty()) {
-            return FeedRefreshResult(previous, emptySet())
+            return FeedRefreshResult(emptyList(), emptySet())
         }
 
         val failed = linkedSetOf<String>()
@@ -103,7 +110,8 @@ class FeedInboxRepository(
             .sortedByDescending { it.cachedAtEpochMs }
 
         store.saveCachedItems(merged)
-        return FeedRefreshResult(merged, failed)
+        val visible = merged.filter { it.feedId in enabledIds }
+        return FeedRefreshResult(visible, failed)
     }
 }
 

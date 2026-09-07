@@ -46,7 +46,7 @@ class PodcastProgressTest {
         assertEquals(1.25f, nextPlaybackSpeed(1f))
         assertEquals(1.5f, nextPlaybackSpeed(1.25f))
         assertEquals(1f, nextPlaybackSpeed(2f))
-        assertEquals(1.25f, nextPlaybackSpeed(1.1f))
+        assertEquals(1f, nextPlaybackSpeed(1.1f))
     }
 
     @Test

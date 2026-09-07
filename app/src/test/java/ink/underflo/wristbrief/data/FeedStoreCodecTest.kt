@@ -56,6 +56,17 @@ class FeedStoreCodecTest {
     }
 
     @Test
+    fun savedItemIds_roundTripStableIds() {
+        val input = setOf(
+            "guid:saved-episode",
+            "audio:https://cdn.example.com/episode.mp3",
+            "fallback:收藏:文章"
+        )
+
+        assertEquals(input, FeedStoreCodec.decodeItemIds(FeedStoreCodec.encodeItemIds(input)))
+    }
+
+    @Test
     fun unknownOrMalformedPayload_isIgnoredSafely() {
         assertTrue(FeedStoreCodec.decodeSubscriptions("v2\nanything").isEmpty())
         assertTrue(FeedStoreCodec.decodeItems("v1\nnot\tenough\tfields").isEmpty())

@@ -14,7 +14,7 @@ Automation rules:
 ## Progress
 
 - [x] 01 — Reconcile P1 and feed identity
-- [ ] 02 — Subscription CRUD domain
+- [x] 02 — Subscription CRUD domain
 - [ ] 03 — Wear feed-management screen
 - [ ] 04 — Article/detail screen
 - [ ] 05 — Read/unread persistence
@@ -47,3 +47,4 @@ Slot 01 — <main SHA> — <one-line summary> — CI: green
 ```
 
 Slot 01 — 7da586e62e1db271b730192dea404096aa774c99 — Added RSS GUID/Atom ID identity, GUID→canonical link→audio→fallback dedup, safe URL normalization, fixtures/tests, and reconciled P1 roadmap state — CI: green
+Slot 02 — 45ea4f0666d64ec5aad58405f502999ea1d56fe9 — Added explicit add/update/rename/enable/disable/remove subscription operations, normalized duplicate URL detection, typed mutation errors, safe disable cache retention, removal cleanup, and CRUD tests; existing codec round-trip coverage verifies persisted subscription state — CI: green

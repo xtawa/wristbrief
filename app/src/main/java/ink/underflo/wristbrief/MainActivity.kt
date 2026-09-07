@@ -28,6 +28,8 @@ import androidx.wear.compose.material3.Text
 import androidx.wear.compose.material3.TitleCard
 import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
+import ink.underflo.wristbrief.media.PodcastPlaybackConnection
+import ink.underflo.wristbrief.media.PodcastPlaybackRequest
 import ink.underflo.wristbrief.ui.ArticleDetailUi
 import ink.underflo.wristbrief.ui.FeedManagementItemUi
 import ink.underflo.wristbrief.ui.InboxItemUi
@@ -38,16 +40,32 @@ import ink.underflo.wristbrief.ui.wearEmptyDetail
 import ink.underflo.wristbrief.ui.wearStatusLine
 
 class MainActivity : ComponentActivity() {
+    private lateinit var playbackConnection: PodcastPlaybackConnection
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { WristBriefApp() }
+        playbackConnection = PodcastPlaybackConnection(this)
+        setContent { WristBriefApp(playbackConnection = playbackConnection) }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        playbackConnection.connect()
+    }
+
+    override fun onStop() {
+        playbackConnection.disconnect()
+        super.onStop()
     }
 }
 
 private enum class AppDestination { Inbox, Saved, Feeds, Article }
 
 @Composable
-private fun WristBriefApp(viewModel: InboxViewModel = viewModel()) {
+private fun WristBriefApp(
+    playbackConnection: PodcastPlaybackConnection,
+    viewModel: InboxViewModel = viewModel()
+) {
     val state by viewModel.uiState.collectAsState()
     var destinationName by rememberSaveable { mutableStateOf(AppDestination.Inbox.name) }
     var articleReturnDestinationName by rememberSaveable { mutableStateOf(AppDestination.Inbox.name) }
@@ -103,6 +121,17 @@ private fun WristBriefApp(viewModel: InboxViewModel = viewModel()) {
                         isRead = selectedItem?.isRead ?: false,
                         isSaved = selectedItem?.isSaved ?: false,
                         isOfflineFallback = state.isOfflineFallback,
+                        onPlayPodcast = { article ->
+                            article.audioUrl?.let { audioUrl ->
+                                playbackConnection.play(
+                                    PodcastPlaybackRequest(
+                                        id = article.id,
+                                        title = article.title,
+                                        audioUrl = audioUrl
+                                    )
+                                )
+                            }
+                        },
                         onToggleRead = {
                             selectedItem?.let { viewModel.setItemRead(it.id, !it.isRead) }
                         },
@@ -285,6 +314,7 @@ internal fun ArticleDetailScreen(
     isRead: Boolean,
     isSaved: Boolean,
     isOfflineFallback: Boolean,
+    onPlayPodcast: (ArticleDetailUi) -> Unit,
     onToggleRead: () -> Unit,
     onToggleSaved: () -> Unit,
     onBack: () -> Unit
@@ -330,6 +360,17 @@ internal fun ArticleDetailScreen(
                         transformation = SurfaceTransformation(transformationSpec),
                         modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                     ) { Text(article.body) }
+                }
+                if (article.audioUrl != null) {
+                    item {
+                        Button(
+                            onClick = { onPlayPodcast(article) },
+                            label = { CompactText("Play podcast", maxLines = 1) },
+                            secondaryLabel = { CompactText("Playback continues outside this screen") },
+                            transformation = SurfaceTransformation(transformationSpec),
+                            modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
+                        )
+                    }
                 }
                 item {
                     Button(

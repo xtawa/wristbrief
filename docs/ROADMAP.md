@@ -51,8 +51,8 @@ WristBrief is a Wear OS-first inbox for RSS, Atom and podcast feeds. The watch s
 
 - [x] Move playback behind a Media3 `MediaSession` service.
 - [ ] Background playback and notification/media controls.
-- [ ] Resume position persistence.
-- [ ] Seek controls and playback speed.
+- [x] Resume position persistence.
+- [x] Seek controls and playback speed.
 - [ ] Bluetooth audio behavior and audio-focus handling.
 - [ ] Podcast transcript discovery when published in the feed.
 - [ ] Do not send podcast audio through the Wear Data Layer.

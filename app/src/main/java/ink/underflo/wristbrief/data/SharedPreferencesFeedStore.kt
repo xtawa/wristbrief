@@ -41,10 +41,22 @@ class SharedPreferencesFeedStore(context: Context) : FeedStore {
             .apply()
     }
 
+    @Synchronized
+    override fun savedItemIds(): Set<String> =
+        FeedStoreCodec.decodeItemIds(preferences.getString(KEY_SAVED_ITEM_IDS, null))
+
+    @Synchronized
+    override fun saveSavedItemIds(itemIds: Set<String>) {
+        preferences.edit()
+            .putString(KEY_SAVED_ITEM_IDS, FeedStoreCodec.encodeItemIds(itemIds))
+            .apply()
+    }
+
     private companion object {
         const val PREFS_NAME = "wristbrief_feed_store"
         const val KEY_SUBSCRIPTIONS = "subscriptions_v1"
         const val KEY_ITEMS = "items_v1"
         const val KEY_READ_ITEM_IDS = "read_item_ids_v1"
+        const val KEY_SAVED_ITEM_IDS = "saved_item_ids_v1"
     }
 }

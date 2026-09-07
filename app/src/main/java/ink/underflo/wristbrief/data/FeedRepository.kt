@@ -10,7 +10,8 @@ data class FeedItem(
     val link: String?,
     val description: String?,
     val published: String?,
-    val audioUrl: String?
+    val audioUrl: String?,
+    val guid: String? = null
 )
 
 class FeedRepository(

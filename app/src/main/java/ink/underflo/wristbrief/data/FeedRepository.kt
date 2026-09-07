@@ -16,8 +16,8 @@ data class FeedItem(
 class FeedRepository(
     private val client: OkHttpClient = OkHttpClient(),
     private val parser: FeedParser = FeedParser()
-) {
-    fun load(url: String): List<FeedItem> {
+) : FeedLoader {
+    override fun load(url: String): List<FeedItem> {
         require(url.startsWith("https://")) { "Only HTTPS feeds are allowed" }
         val request = Request.Builder().url(url).header("User-Agent", "WristBrief/0.1").build()
         client.newCall(request).execute().use { response ->

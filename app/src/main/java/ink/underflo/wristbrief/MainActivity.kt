@@ -71,16 +71,21 @@ private fun WristBriefApp(viewModel: InboxViewModel = viewModel()) {
                     onBack = { destinationName = AppDestination.Inbox.name }
                 )
 
-                AppDestination.Article -> ArticleDetailScreen(
-                    article = state.items
-                        .firstOrNull { it.id == selectedArticleId }
-                        ?.toArticleDetailUi(isOffline = state.isOfflineFallback),
-                    isOfflineFallback = state.isOfflineFallback,
-                    onBack = {
-                        selectedArticleId = null
-                        destinationName = AppDestination.Inbox.name
-                    }
-                )
+                AppDestination.Article -> {
+                    val selectedItem = state.items.firstOrNull { it.id == selectedArticleId }
+                    ArticleDetailScreen(
+                        article = selectedItem?.toArticleDetailUi(isOffline = state.isOfflineFallback),
+                        isRead = selectedItem?.isRead ?: false,
+                        isOfflineFallback = state.isOfflineFallback,
+                        onToggleRead = {
+                            selectedItem?.let { viewModel.setItemRead(it.id, !it.isRead) }
+                        },
+                        onBack = {
+                            selectedArticleId = null
+                            destinationName = AppDestination.Inbox.name
+                        }
+                    )
+                }
             }
         }
     }
@@ -106,16 +111,12 @@ internal fun InboxScreen(
         ) {
             item {
                 ListHeader {
-                    Text("WristBrief")
+                    Text("WristBrief · ${state.unreadCount} unread")
                 }
             }
 
             if (state.isOfflineFallback) {
-                item {
-                    ListHeader {
-                        Text("Offline · showing cached briefs")
-                    }
-                }
+                item { ListHeader { Text("Offline · showing cached briefs") } }
             }
 
             if (state.items.isEmpty()) {
@@ -134,17 +135,9 @@ internal fun InboxScreen(
                         onClick = onRefresh,
                         enabled = state.hasSubscriptions && !state.isLoading,
                         label = { Text(label) },
-                        secondaryLabel = {
-                            Text(
-                                detail,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        },
+                        secondaryLabel = { Text(detail, maxLines = 2, overflow = TextOverflow.Ellipsis) },
                         transformation = SurfaceTransformation(transformationSpec),
-                        modifier = Modifier
-                            .transformedHeight(this, transformationSpec)
-                            .fillMaxWidth()
+                        modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                     )
                 }
             } else {
@@ -152,16 +145,11 @@ internal fun InboxScreen(
                     val item = state.items[index]
                     TitleCard(
                         onClick = { onItemClick(item) },
-                        title = {
-                            Text(
-                                item.title,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        },
+                        title = { Text(item.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
                         subtitle = {
+                            val kindAndSource = if (item.isPodcast) "Podcast · ${item.source}" else item.source
                             Text(
-                                if (item.isPodcast) "Podcast · ${item.source}" else item.source,
+                                if (item.isRead) kindAndSource else "Unread · $kindAndSource",
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -170,24 +158,14 @@ internal fun InboxScreen(
                             { Text(item.timeLabel, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                         },
                         transformation = SurfaceTransformation(transformationSpec),
-                        modifier = Modifier
-                            .transformedHeight(this, transformationSpec)
-                            .fillMaxWidth()
+                        modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                     ) {
-                        Text(
-                            item.summary,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        Text(item.summary, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                 }
 
                 if (state.errorMessage != null) {
-                    item {
-                        ListHeader {
-                            Text(state.errorMessage)
-                        }
-                    }
+                    item { ListHeader { Text(state.errorMessage) } }
                 }
 
                 if (state.hasSubscriptions) {
@@ -197,9 +175,7 @@ internal fun InboxScreen(
                             enabled = !state.isLoading,
                             label = { Text(if (state.isLoading) "Refreshing…" else "Refresh") },
                             transformation = SurfaceTransformation(transformationSpec),
-                            modifier = Modifier
-                                .transformedHeight(this, transformationSpec)
-                                .fillMaxWidth()
+                            modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                         )
                     }
                 }
@@ -211,9 +187,7 @@ internal fun InboxScreen(
                     label = { Text("Feeds") },
                     secondaryLabel = { Text("Manage subscriptions") },
                     transformation = SurfaceTransformation(transformationSpec),
-                    modifier = Modifier
-                        .transformedHeight(this, transformationSpec)
-                        .fillMaxWidth()
+                    modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                 )
             }
         }
@@ -223,7 +197,9 @@ internal fun InboxScreen(
 @Composable
 internal fun ArticleDetailScreen(
     article: ArticleDetailUi?,
+    isRead: Boolean,
     isOfflineFallback: Boolean,
+    onToggleRead: () -> Unit,
     onBack: () -> Unit
 ) {
     val listState = rememberTransformingLazyColumnState()
@@ -236,16 +212,10 @@ internal fun ArticleDetailScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxSize()
         ) {
-            item {
-                ListHeader {
-                    Text(article?.source ?: "WristBrief")
-                }
-            }
+            item { ListHeader { Text(article?.source ?: "WristBrief") } }
 
             if (article?.isOffline == true || isOfflineFallback) {
-                item {
-                    ListHeader { Text("Offline · cached preview") }
-                }
+                item { ListHeader { Text("Offline · cached preview") } }
             }
 
             if (article == null) {
@@ -255,24 +225,14 @@ internal fun ArticleDetailScreen(
                         title = { Text("Brief unavailable") },
                         subtitle = { Text("The cached item may have been removed or its feed disabled") },
                         transformation = SurfaceTransformation(transformationSpec),
-                        modifier = Modifier
-                            .transformedHeight(this, transformationSpec)
-                            .fillMaxWidth()
-                    ) {
-                        Text("Return to Inbox to choose an available item.")
-                    }
+                        modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
+                    ) { Text("Return to Inbox to choose an available item.") }
                 }
             } else {
                 item {
                     TitleCard(
                         onClick = {},
-                        title = {
-                            Text(
-                                article.title,
-                                maxLines = 4,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        },
+                        title = { Text(article.title, maxLines = 4, overflow = TextOverflow.Ellipsis) },
                         subtitle = {
                             Text(
                                 if (article.isPodcast) "Podcast · ${article.source}" else article.source,
@@ -284,12 +244,17 @@ internal fun ArticleDetailScreen(
                             { Text(article.timeLabel, maxLines = 2, overflow = TextOverflow.Ellipsis) }
                         },
                         transformation = SurfaceTransformation(transformationSpec),
-                        modifier = Modifier
-                            .transformedHeight(this, transformationSpec)
-                            .fillMaxWidth()
-                    ) {
-                        Text(article.body)
-                    }
+                        modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
+                    ) { Text(article.body) }
+                }
+                item {
+                    Button(
+                        onClick = onToggleRead,
+                        label = { Text(if (isRead) "Mark unread" else "Mark read") },
+                        secondaryLabel = { Text("Opening alone does not change read state") },
+                        transformation = SurfaceTransformation(transformationSpec),
+                        modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
+                    )
                 }
             }
 
@@ -298,9 +263,7 @@ internal fun ArticleDetailScreen(
                     onClick = onBack,
                     label = { Text("Back to Inbox") },
                     transformation = SurfaceTransformation(transformationSpec),
-                    modifier = Modifier
-                        .transformedHeight(this, transformationSpec)
-                        .fillMaxWidth()
+                    modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                 )
             }
         }
@@ -324,32 +287,24 @@ internal fun FeedManagementScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxSize()
         ) {
-            item {
-                ListHeader { Text("Feeds") }
-            }
-
+            item { ListHeader { Text("Feeds") } }
             item {
                 Button(
                     onClick = onBack,
                     label = { Text("Back to Inbox") },
                     transformation = SurfaceTransformation(transformationSpec),
-                    modifier = Modifier
-                        .transformedHeight(this, transformationSpec)
-                        .fillMaxWidth()
+                    modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                 )
             }
 
             if (feeds.isEmpty()) {
                 item {
                     Button(
-                        onClick = {},
-                        enabled = false,
+                        onClick = {}, enabled = false,
                         label = { Text("No subscriptions") },
                         secondaryLabel = { Text("Add feeds on the phone companion") },
                         transformation = SurfaceTransformation(transformationSpec),
-                        modifier = Modifier
-                            .transformedHeight(this, transformationSpec)
-                            .fillMaxWidth()
+                        modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                     )
                 }
             } else {
@@ -357,48 +312,30 @@ internal fun FeedManagementScreen(
                     val feed = feeds[index]
                     Button(
                         onClick = { onToggleFeed(feed) },
-                        label = {
-                            Text(
-                                feed.title,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        },
+                        label = { Text(feed.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
                         secondaryLabel = {
-                            Text(
-                                "${feed.statusLabel} · ${feed.toggleLabel}",
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                            Text("${feed.statusLabel} · ${feed.toggleLabel}", maxLines = 1, overflow = TextOverflow.Ellipsis)
                         },
                         transformation = SurfaceTransformation(transformationSpec),
-                        modifier = Modifier
-                            .transformedHeight(this, transformationSpec)
-                            .fillMaxWidth()
+                        modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                     )
-
                     Button(
                         onClick = { onRemoveFeed(feed) },
                         label = { Text("Remove ${feed.title}", maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         secondaryLabel = { Text(feed.url, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         transformation = SurfaceTransformation(transformationSpec),
-                        modifier = Modifier
-                            .transformedHeight(this, transformationSpec)
-                            .fillMaxWidth()
+                        modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                     )
                 }
             }
 
             item {
                 Button(
-                    onClick = {},
-                    enabled = false,
+                    onClick = {}, enabled = false,
                     label = { Text("Add/manage on phone") },
                     secondaryLabel = { Text("Phone sync arrives in a later slot") },
                     transformation = SurfaceTransformation(transformationSpec),
-                    modifier = Modifier
-                        .transformedHeight(this, transformationSpec)
-                        .fillMaxWidth()
+                    modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                 )
             }
         }

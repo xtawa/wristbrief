@@ -9,6 +9,7 @@ package ink.underflo.wristbrief.ui
 fun InboxUiState.wearStatusLine(): String = when {
     isLoading -> "Refreshing…"
     isOfflineFallback -> if (unreadCount > 0) "Offline · $unreadCount unread" else "Offline · cached"
+    errorMessage != null -> "Refresh issue · cached"
     unreadCount > 0 -> "$unreadCount unread"
     items.isNotEmpty() -> "All caught up"
     else -> ""

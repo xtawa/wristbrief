@@ -16,6 +16,7 @@ class FeedParser {
         var description: String? = null
         var published: String? = null
         var audioUrl: String? = null
+        var guid: String? = null
 
         while (event != XmlPullParser.END_DOCUMENT) {
             when (event) {
@@ -29,6 +30,11 @@ class FeedParser {
                             description = null
                             published = null
                             audioUrl = null
+                            guid = null
+                        }
+
+                        "guid", "id" -> if (inItem) {
+                            guid = parser.nextText().trim().ifBlank { null }
                         }
 
                         "title" -> if (inItem) title = parser.nextText().trim().ifBlank { null }
@@ -74,7 +80,8 @@ class FeedParser {
                                 link = link,
                                 description = description,
                                 published = published,
-                                audioUrl = audioUrl
+                                audioUrl = audioUrl,
+                                guid = guid
                             )
                         }
                         inItem = false

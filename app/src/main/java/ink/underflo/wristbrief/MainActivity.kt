@@ -73,8 +73,6 @@ private fun WristBriefApp(
     val destination = runCatching { AppDestination.valueOf(destinationName) }
         .getOrDefault(AppDestination.Inbox)
 
-    // Keep each top-level list state alive while navigating so returning to Inbox/Saved/Feeds
-    // does not unexpectedly jump back to the first item after a short detail visit.
     val inboxListState = rememberTransformingLazyColumnState()
     val savedListState = rememberTransformingLazyColumnState()
     val feedsListState = rememberTransformingLazyColumnState()
@@ -121,6 +119,7 @@ private fun WristBriefApp(
                         isRead = selectedItem?.isRead ?: false,
                         isSaved = selectedItem?.isSaved ?: false,
                         isOfflineFallback = state.isOfflineFallback,
+                        playbackConnection = playbackConnection,
                         onPlayPodcast = { article ->
                             article.audioUrl?.let { audioUrl ->
                                 playbackConnection.play(
@@ -156,7 +155,6 @@ private fun CompactText(text: String, maxLines: Int = 2) {
     Text(text, maxLines = maxLines, overflow = TextOverflow.Ellipsis)
 }
 
-/** Wear-first inbox shell following the Material 3 Expressive scrolling model. */
 @Composable
 internal fun InboxScreen(
     state: InboxUiState,
@@ -314,6 +312,7 @@ internal fun ArticleDetailScreen(
     isRead: Boolean,
     isSaved: Boolean,
     isOfflineFallback: Boolean,
+    playbackConnection: PodcastPlaybackConnection,
     onPlayPodcast: (ArticleDetailUi) -> Unit,
     onToggleRead: () -> Unit,
     onToggleSaved: () -> Unit,
@@ -321,6 +320,8 @@ internal fun ArticleDetailScreen(
 ) {
     val listState = rememberTransformingLazyColumnState()
     val transformationSpec = rememberTransformationSpec()
+    val playbackState by playbackConnection.state.collectAsState()
+    val isCurrentPodcast = article != null && playbackState.mediaId == article.id
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
         TransformingLazyColumn(
@@ -350,9 +351,7 @@ internal fun ArticleDetailScreen(
                         onClick = {},
                         title = { CompactText(article.title, maxLines = 4) },
                         subtitle = {
-                            CompactText(
-                                if (article.isPodcast) "Podcast · ${article.source}" else article.source
-                            )
+                            CompactText(if (article.isPodcast) "Podcast · ${article.source}" else article.source)
                         },
                         time = if (article.timeLabel.isBlank()) null else {
                             { CompactText(article.timeLabel) }
@@ -362,14 +361,63 @@ internal fun ArticleDetailScreen(
                     ) { Text(article.body) }
                 }
                 if (article.audioUrl != null) {
-                    item {
-                        Button(
-                            onClick = { onPlayPodcast(article) },
-                            label = { CompactText("Play podcast", maxLines = 1) },
-                            secondaryLabel = { CompactText("Playback continues outside this screen") },
-                            transformation = SurfaceTransformation(transformationSpec),
-                            modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
-                        )
+                    if (!isCurrentPodcast) {
+                        item {
+                            Button(
+                                onClick = { onPlayPodcast(article) },
+                                label = { CompactText("Play podcast", maxLines = 1) },
+                                secondaryLabel = { CompactText("Resumes from your saved position") },
+                                transformation = SurfaceTransformation(transformationSpec),
+                                modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
+                            )
+                        }
+                    } else {
+                        item {
+                            Button(
+                                onClick = {},
+                                enabled = false,
+                                label = { CompactText(playbackState.progressLabel, maxLines = 1) },
+                                secondaryLabel = {
+                                    CompactText("Playing at ${playbackState.playbackSpeed}×", maxLines = 1)
+                                },
+                                transformation = SurfaceTransformation(transformationSpec),
+                                modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
+                            )
+                        }
+                        item {
+                            Button(
+                                onClick = playbackConnection::togglePlayPause,
+                                label = { CompactText(if (playbackState.isPlaying) "Pause" else "Play", maxLines = 1) },
+                                secondaryLabel = { CompactText("Background playback stays active") },
+                                transformation = SurfaceTransformation(transformationSpec),
+                                modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
+                            )
+                        }
+                        item {
+                            Button(
+                                onClick = { playbackConnection.seekBy(-15_000L) },
+                                label = { CompactText("Back 15s", maxLines = 1) },
+                                transformation = SurfaceTransformation(transformationSpec),
+                                modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
+                            )
+                        }
+                        item {
+                            Button(
+                                onClick = { playbackConnection.seekBy(30_000L) },
+                                label = { CompactText("Forward 30s", maxLines = 1) },
+                                transformation = SurfaceTransformation(transformationSpec),
+                                modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
+                            )
+                        }
+                        item {
+                            Button(
+                                onClick = playbackConnection::cyclePlaybackSpeed,
+                                label = { CompactText("Speed ${playbackState.playbackSpeed}×", maxLines = 1) },
+                                secondaryLabel = { CompactText("Tap to cycle 1×–2×") },
+                                transformation = SurfaceTransformation(transformationSpec),
+                                modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
+                            )
+                        }
                     }
                 }
                 item {

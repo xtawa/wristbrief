@@ -11,7 +11,8 @@ data class InboxItemUi(
     val summary: String,
     val timeLabel: String,
     val isPodcast: Boolean,
-    val isRead: Boolean = false
+    val isRead: Boolean = false,
+    val isSaved: Boolean = false
 )
 
 fun FeedItem.toInboxItemUi(sourceName: String = "Feed"): InboxItemUi {
@@ -33,8 +34,9 @@ fun FeedItem.toInboxItemUi(sourceName: String = "Feed"): InboxItemUi {
     )
 }
 
-fun CachedFeedItem.toInboxItemUi(isRead: Boolean): InboxItemUi =
+fun CachedFeedItem.toInboxItemUi(isRead: Boolean, isSaved: Boolean = false): InboxItemUi =
     asFeedItem().toInboxItemUi(feedTitle).copy(
         id = id,
-        isRead = isRead
+        isRead = isRead,
+        isSaved = isSaved
     )

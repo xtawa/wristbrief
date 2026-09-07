@@ -10,6 +10,13 @@ data class FeedSubscription(
     val enabled: Boolean = true
 )
 
+sealed interface SubscriptionMutationResult {
+    data object Success : SubscriptionMutationResult
+    data class InvalidUrl(val url: String) : SubscriptionMutationResult
+    data class DuplicateSubscription(val existingId: String) : SubscriptionMutationResult
+    data class MissingSubscription(val id: String) : SubscriptionMutationResult
+}
+
 /** Persisted feed item used for offline-first rendering. */
 data class CachedFeedItem(
     val id: String,
@@ -72,12 +79,74 @@ class FeedInboxRepository(
         return store.cachedItems().filter { it.feedId in enabledIds }
     }
 
-    fun upsertSubscription(subscription: FeedSubscription) {
-        require(subscription.url.startsWith("https://")) { "Only HTTPS feeds are allowed" }
-        val updated = store.subscriptions()
-            .filterNot { it.id == subscription.id }
-            .plus(subscription)
-        store.saveSubscriptions(updated)
+    fun addSubscription(subscription: FeedSubscription): SubscriptionMutationResult {
+        if (!isValidSubscriptionUrl(subscription.url)) {
+            return SubscriptionMutationResult.InvalidUrl(subscription.url)
+        }
+        duplicateSubscriptionId(subscription.url, excludingId = null)?.let {
+            return SubscriptionMutationResult.DuplicateSubscription(it)
+        }
+
+        store.saveSubscriptions(store.subscriptions() + subscription.normalizedForStorage())
+        return SubscriptionMutationResult.Success
+    }
+
+    fun updateSubscription(subscription: FeedSubscription): SubscriptionMutationResult {
+        if (!isValidSubscriptionUrl(subscription.url)) {
+            return SubscriptionMutationResult.InvalidUrl(subscription.url)
+        }
+        val current = store.subscriptions()
+        if (current.none { it.id == subscription.id }) {
+            return SubscriptionMutationResult.MissingSubscription(subscription.id)
+        }
+        duplicateSubscriptionId(subscription.url, excludingId = subscription.id)?.let {
+            return SubscriptionMutationResult.DuplicateSubscription(it)
+        }
+
+        val normalized = subscription.normalizedForStorage()
+        store.saveSubscriptions(current.map { if (it.id == subscription.id) normalized else it })
+        return SubscriptionMutationResult.Success
+    }
+
+    fun renameSubscription(id: String, title: String): SubscriptionMutationResult {
+        val current = store.subscriptions()
+        val existing = current.firstOrNull { it.id == id }
+            ?: return SubscriptionMutationResult.MissingSubscription(id)
+        return updateSubscription(existing.copy(title = title.trim()))
+    }
+
+    fun setSubscriptionEnabled(id: String, enabled: Boolean): SubscriptionMutationResult {
+        val current = store.subscriptions()
+        val existing = current.firstOrNull { it.id == id }
+            ?: return SubscriptionMutationResult.MissingSubscription(id)
+        if (existing.enabled == enabled) return SubscriptionMutationResult.Success
+
+        store.saveSubscriptions(current.map { if (it.id == id) it.copy(enabled = enabled) else it })
+        return SubscriptionMutationResult.Success
+    }
+
+    fun removeSubscription(id: String): SubscriptionMutationResult {
+        val current = store.subscriptions()
+        if (current.none { it.id == id }) {
+            return SubscriptionMutationResult.MissingSubscription(id)
+        }
+
+        store.saveSubscriptions(current.filterNot { it.id == id })
+        store.saveCachedItems(store.cachedItems().filterNot { it.feedId == id })
+        return SubscriptionMutationResult.Success
+    }
+
+    /**
+     * Backward-compatible helper for internal callers that previously relied on upsert semantics.
+     * New product flows should prefer explicit add/update operations so duplicate and missing state
+     * cannot be silently overwritten.
+     */
+    fun upsertSubscription(subscription: FeedSubscription): SubscriptionMutationResult {
+        return if (store.subscriptions().any { it.id == subscription.id }) {
+            updateSubscription(subscription)
+        } else {
+            addSubscription(subscription)
+        }
     }
 
     fun refresh(): FeedRefreshResult {
@@ -115,6 +184,26 @@ class FeedInboxRepository(
         val visible = merged.filter { it.feedId in enabledIds }
         return FeedRefreshResult(visible, failed)
     }
+
+    private fun duplicateSubscriptionId(url: String, excludingId: String?): String? {
+        val normalized = normalizeIdentityUrl(url) ?: url.trim()
+        return store.subscriptions().firstOrNull { existing ->
+            existing.id != excludingId && normalizeIdentityUrl(existing.url) == normalized
+        }?.id
+    }
+}
+
+private fun FeedSubscription.normalizedForStorage(): FeedSubscription = copy(
+    title = title.trim(),
+    url = normalizeIdentityUrl(url) ?: url.trim()
+)
+
+internal fun isValidSubscriptionUrl(value: String): Boolean {
+    val raw = value.trim()
+    return runCatching {
+        val uri = URI(raw)
+        uri.scheme.equals("https", ignoreCase = true) && !uri.host.isNullOrBlank()
+    }.getOrDefault(false)
 }
 
 private fun FeedItem.toCached(

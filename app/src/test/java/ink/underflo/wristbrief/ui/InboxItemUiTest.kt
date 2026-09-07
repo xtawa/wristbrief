@@ -55,4 +55,27 @@ class InboxItemUiTest {
         assertEquals("Open to read more", item.summary)
         assertEquals("Story", item.id)
     }
+
+    @Test
+    fun veryLongCjkSummary_isBoundedForWearCard() {
+        val description = "这是一段用于圆形小屏幕大字体布局验证的中文摘要。".repeat(20)
+        val item = FeedItem(
+            title = "长标题",
+            link = "https://example.com/cjk",
+            description = description,
+            published = null,
+            audioUrl = null
+        ).toInboxItemUi("中文来源")
+
+        assertEquals(161, item.summary.codePointCount(0, item.summary.length))
+        assertTrue(item.summary.endsWith("…"))
+    }
+
+    @Test
+    fun ellipsizeCodePoints_doesNotSplitEmojiSurrogatePair() {
+        val value = "A😀B😀C"
+
+        assertEquals("A😀B…", value.ellipsizeCodePoints(3))
+        assertEquals(4, value.ellipsizeCodePoints(3).codePointCount(0, value.ellipsizeCodePoints(3).length))
+    }
 }

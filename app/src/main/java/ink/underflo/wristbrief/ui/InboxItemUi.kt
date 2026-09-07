@@ -1,5 +1,6 @@
 package ink.underflo.wristbrief.ui
 
+import ink.underflo.wristbrief.data.CachedFeedItem
 import ink.underflo.wristbrief.data.FeedItem
 
 /** Small, display-ready model for the Wear OS inbox. */
@@ -9,7 +10,8 @@ data class InboxItemUi(
     val source: String,
     val summary: String,
     val timeLabel: String,
-    val isPodcast: Boolean
+    val isPodcast: Boolean,
+    val isRead: Boolean = false
 )
 
 fun FeedItem.toInboxItemUi(sourceName: String = "Feed"): InboxItemUi {
@@ -30,3 +32,9 @@ fun FeedItem.toInboxItemUi(sourceName: String = "Feed"): InboxItemUi {
         isPodcast = audioUrl != null
     )
 }
+
+fun CachedFeedItem.toInboxItemUi(isRead: Boolean): InboxItemUi =
+    asFeedItem().toInboxItemUi(feedTitle).copy(
+        id = id,
+        isRead = isRead
+    )

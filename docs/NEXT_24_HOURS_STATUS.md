@@ -19,7 +19,7 @@ Automation rules:
 - [x] 04 — Article/detail screen
 - [x] 05 — Read/unread persistence
 - [x] 06 — Saved/starred workflow
-- [ ] 07 — Wear UI review pass #1
+- [x] 07 — Wear UI review pass #1
 - [ ] 08 — MediaSession service foundation
 - [ ] 09 — Podcast controls and progress
 - [ ] 10 — Podcast robustness + transcript discovery
@@ -52,3 +52,4 @@ Slot 03 — cec92e8d28e491426094904ca19ade213cdafb09 — Added Wear Material 3 F
 Slot 04 — 8dc68df41604becb0734b9c452996a312d01166d — Added recoverable Wear article detail navigation/screen, cached-offline and missing-item states, shared sanitization removing unsafe markup/script/style content, and article detail mapping/sanitization tests — CI: green
 Slot 05 — 94f62a0f718aebf0251743ec9e8dfdbfefba1206 — Added independently persisted read IDs keyed by stable cached item identity, explicit Wear mark-read/unread controls and unread treatment/count; refresh tests prove read state survives GUID-stable content replacement — CI: green
 Slot 06 — 2fee73635dc310fe976fb434f1b8b33ba7344f02 — Added independently persisted saved IDs, offline Saved Wear screen/detail action, paused-feed and refresh-failure retention, feed-removal cleanup, and saved-state merge/codec tests — CI: green
+Slot 07 — eb74e4b14a0752c3532edc8a70db4656f929ae03 — Reviewed current Wear surfaces; preserved Inbox/Saved/Feeds scroll state across navigation, compacted loading/offline/error/unread copy, bounded long Wear card previews with Unicode-safe CJK/emoji truncation, standardized small-screen text line limits, and added pure UI status/long-text tests — CI: green

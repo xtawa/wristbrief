@@ -3,6 +3,7 @@ package ink.underflo.wristbrief.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import ink.underflo.wristbrief.data.CachedFeedItem
 import ink.underflo.wristbrief.data.FeedInboxRepository
 import ink.underflo.wristbrief.data.FeedRepository
 import ink.underflo.wristbrief.data.SharedPreferencesFeedStore
@@ -16,6 +17,7 @@ import kotlinx.coroutines.launch
 data class InboxUiState(
     val items: List<InboxItemUi> = emptyList(),
     val feeds: List<FeedManagementItemUi> = emptyList(),
+    val unreadCount: Int = 0,
     val isLoading: Boolean = false,
     val isOfflineFallback: Boolean = false,
     val errorMessage: String? = null,
@@ -66,6 +68,17 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun setItemRead(id: String, isRead: Boolean) {
+        if (repository.setRead(id, isRead)) {
+            _uiState.value = buildState(
+                isOfflineFallback = _uiState.value.isOfflineFallback,
+                errorMessage = _uiState.value.errorMessage
+            )
+        } else {
+            _uiState.value = _uiState.value.copy(errorMessage = "Brief is no longer available")
+        }
+    }
+
     fun setFeedEnabled(id: String, enabled: Boolean) {
         when (repository.setSubscriptionEnabled(id, enabled)) {
             SubscriptionMutationResult.Success -> {
@@ -92,13 +105,14 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         return InboxUiState(
             items = items,
             feeds = subscriptions.toFeedManagementItemsUi(),
+            unreadCount = repository.unreadCount(),
             isLoading = false,
             isOfflineFallback = isOfflineFallback,
             errorMessage = errorMessage,
             hasSubscriptions = subscriptions.any { it.enabled }
         )
     }
-}
 
-private fun List<ink.underflo.wristbrief.data.CachedFeedItem>.toUiItems(): List<InboxItemUi> =
-    map { cached -> cached.asFeedItem().toInboxItemUi(cached.feedTitle) }
+    private fun List<CachedFeedItem>.toUiItems(): List<InboxItemUi> =
+        map { cached -> cached.toInboxItemUi(isRead = repository.isRead(cached.id)) }
+}

@@ -17,6 +17,7 @@ class FeedParserTest {
               <channel>
                 <title>WristBrief Test</title>
                 <item>
+                  <guid isPermaLink="false">rss-guid-1</guid>
                   <title>Android update</title>
                   <link>https://example.com/android</link>
                   <description>Important Wear OS news.</description>
@@ -34,6 +35,7 @@ class FeedParserTest {
         val items = subject.parse(parserFor(xml))
 
         assertEquals(2, items.size)
+        assertEquals("rss-guid-1", items[0].guid)
         assertEquals("Android update", items[0].title)
         assertEquals("https://example.com/android", items[0].link)
         assertNull(items[0].audioUrl)
@@ -42,11 +44,12 @@ class FeedParserTest {
     }
 
     @Test
-    fun parsesAtomAlternateLinkAndAudioEnclosure() {
+    fun parsesAtomAlternateLinkAudioEnclosureAndId() {
         val xml = """
             <feed xmlns="http://www.w3.org/2005/Atom">
               <title>Atom Test</title>
               <entry>
+                <id>tag:example.com,2026:brief-1</id>
                 <title>Wear briefing</title>
                 <link rel="alternate" href="https://example.com/brief" />
                 <link rel="enclosure" type="audio/ogg" href="https://cdn.example.com/brief.ogg" />
@@ -56,13 +59,13 @@ class FeedParserTest {
             </feed>
         """.trimIndent()
 
-        val items = subject.parse(parserFor(xml))
+        val item = subject.parse(parserFor(xml)).single()
 
-        assertEquals(1, items.size)
-        assertEquals("Wear briefing", items.single().title)
-        assertEquals("https://example.com/brief", items.single().link)
-        assertEquals("https://cdn.example.com/brief.ogg", items.single().audioUrl)
-        assertEquals("A concise summary.", items.single().description)
+        assertEquals("tag:example.com,2026:brief-1", item.guid)
+        assertEquals("Wear briefing", item.title)
+        assertEquals("https://example.com/brief", item.link)
+        assertEquals("https://cdn.example.com/brief.ogg", item.audioUrl)
+        assertEquals("A concise summary.", item.description)
     }
 
     @Test

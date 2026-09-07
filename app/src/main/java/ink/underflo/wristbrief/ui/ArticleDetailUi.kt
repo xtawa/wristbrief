@@ -8,7 +8,8 @@ data class ArticleDetailUi(
     val body: String,
     val timeLabel: String,
     val isPodcast: Boolean,
-    val isOffline: Boolean
+    val isOffline: Boolean,
+    val audioUrl: String? = null
 )
 
 fun InboxItemUi.toArticleDetailUi(isOffline: Boolean): ArticleDetailUi = ArticleDetailUi(
@@ -20,7 +21,8 @@ fun InboxItemUi.toArticleDetailUi(isOffline: Boolean): ArticleDetailUi = Article
     },
     timeLabel = timeLabel.cleanText(),
     isPodcast = isPodcast,
-    isOffline = isOffline
+    isOffline = isOffline,
+    audioUrl = audioUrl
 )
 
 internal fun String.cleanText(): String =

@@ -195,7 +195,7 @@ internal fun InboxScreen(
 }
 
 @Composable
-private fun androidx.wear.compose.foundation.lazy.TransformingLazyColumnScope.InboxItemCard(
+private fun androidx.wear.compose.foundation.lazy.TransformingLazyColumnItemScope.InboxItemCard(
     item: InboxItemUi,
     transformationSpec: androidx.wear.compose.material3.lazy.TransformationSpec,
     onClick: () -> Unit

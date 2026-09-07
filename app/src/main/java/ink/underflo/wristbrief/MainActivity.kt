@@ -8,6 +8,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -24,6 +27,7 @@ import androidx.wear.compose.material3.Text
 import androidx.wear.compose.material3.TitleCard
 import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
+import ink.underflo.wristbrief.ui.FeedManagementItemUi
 import ink.underflo.wristbrief.ui.InboxItemUi
 import ink.underflo.wristbrief.ui.InboxUiState
 import ink.underflo.wristbrief.ui.InboxViewModel
@@ -35,17 +39,30 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private enum class AppDestination { Inbox, Feeds }
+
 @Composable
 private fun WristBriefApp(viewModel: InboxViewModel = viewModel()) {
     val state by viewModel.uiState.collectAsState()
+    var destination by remember { mutableStateOf(AppDestination.Inbox) }
 
     MaterialTheme {
         AppScaffold {
-            InboxScreen(
-                state = state,
-                onItemClick = {},
-                onRefresh = viewModel::refresh
-            )
+            when (destination) {
+                AppDestination.Inbox -> InboxScreen(
+                    state = state,
+                    onItemClick = {},
+                    onRefresh = viewModel::refresh,
+                    onOpenFeeds = { destination = AppDestination.Feeds }
+                )
+
+                AppDestination.Feeds -> FeedManagementScreen(
+                    feeds = state.feeds,
+                    onToggleFeed = { feed -> viewModel.setFeedEnabled(feed.id, !feed.enabled) },
+                    onRemoveFeed = { feed -> viewModel.removeFeed(feed.id) },
+                    onBack = { destination = AppDestination.Inbox }
+                )
+            }
         }
     }
 }
@@ -55,7 +72,8 @@ private fun WristBriefApp(viewModel: InboxViewModel = viewModel()) {
 internal fun InboxScreen(
     state: InboxUiState,
     onItemClick: (InboxItemUi) -> Unit,
-    onRefresh: () -> Unit
+    onRefresh: () -> Unit,
+    onOpenFeeds: () -> Unit
 ) {
     val listState = rememberTransformingLazyColumnState()
     val transformationSpec = rememberTransformationSpec()
@@ -166,6 +184,116 @@ internal fun InboxScreen(
                         )
                     }
                 }
+            }
+
+            item {
+                Button(
+                    onClick = onOpenFeeds,
+                    label = { Text("Feeds") },
+                    secondaryLabel = { Text("Manage subscriptions") },
+                    transformation = SurfaceTransformation(transformationSpec),
+                    modifier = Modifier
+                        .transformedHeight(this, transformationSpec)
+                        .fillMaxWidth()
+                )
+            }
+        }
+    }
+}
+
+@Composable
+internal fun FeedManagementScreen(
+    feeds: List<FeedManagementItemUi>,
+    onToggleFeed: (FeedManagementItemUi) -> Unit,
+    onRemoveFeed: (FeedManagementItemUi) -> Unit,
+    onBack: () -> Unit
+) {
+    val listState = rememberTransformingLazyColumnState()
+    val transformationSpec = rememberTransformationSpec()
+
+    ScreenScaffold(scrollState = listState) { contentPadding ->
+        TransformingLazyColumn(
+            state = listState,
+            contentPadding = contentPadding,
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            item {
+                ListHeader { Text("Feeds") }
+            }
+
+            item {
+                Button(
+                    onClick = onBack,
+                    label = { Text("Back to Inbox") },
+                    transformation = SurfaceTransformation(transformationSpec),
+                    modifier = Modifier
+                        .transformedHeight(this, transformationSpec)
+                        .fillMaxWidth()
+                )
+            }
+
+            if (feeds.isEmpty()) {
+                item {
+                    Button(
+                        onClick = {},
+                        enabled = false,
+                        label = { Text("No subscriptions") },
+                        secondaryLabel = { Text("Add feeds on the phone companion") },
+                        transformation = SurfaceTransformation(transformationSpec),
+                        modifier = Modifier
+                            .transformedHeight(this, transformationSpec)
+                            .fillMaxWidth()
+                    )
+                }
+            } else {
+                items(count = feeds.size) { index ->
+                    val feed = feeds[index]
+                    Button(
+                        onClick = { onToggleFeed(feed) },
+                        label = {
+                            Text(
+                                feed.title,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
+                        secondaryLabel = {
+                            Text(
+                                "${feed.statusLabel} · ${feed.toggleLabel}",
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
+                        transformation = SurfaceTransformation(transformationSpec),
+                        modifier = Modifier
+                            .transformedHeight(this, transformationSpec)
+                            .fillMaxWidth()
+                    )
+
+                    Button(
+                        onClick = { onRemoveFeed(feed) },
+                        label = { Text("Remove ${feed.title}", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        secondaryLabel = { Text(feed.url, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        transformation = SurfaceTransformation(transformationSpec),
+                        modifier = Modifier
+                            .transformedHeight(this, transformationSpec)
+                            .fillMaxWidth()
+                    )
+                }
+            }
+
+            item {
+                Button(
+                    onClick = {},
+                    enabled = false,
+                    label = { Text("Add/manage on phone") },
+                    secondaryLabel = { Text("Phone sync arrives in a later slot") },
+                    transformation = SurfaceTransformation(transformationSpec),
+                    modifier = Modifier
+                        .transformedHeight(this, transformationSpec)
+                        .fillMaxWidth()
+                )
             }
         }
     }

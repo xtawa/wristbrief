@@ -61,6 +61,24 @@ object FeedStoreCodec {
             )
         }.filter { it.id.isNotBlank() && it.feedId.isNotBlank() && it.title.isNotBlank() }
 
+    fun encodeItemIds(itemIds: Set<String>): String = buildString {
+        appendLine(VERSION)
+        itemIds.sorted().forEach { append(it.enc()).append('\n') }
+    }
+
+    fun decodeItemIds(raw: String?): Set<String> {
+        if (raw.isNullOrBlank()) return emptySet()
+        val lines = raw.lineSequence().toList()
+        if (lines.firstOrNull() != VERSION) return emptySet()
+        return lines.drop(1)
+            .mapNotNull { encoded ->
+                encoded.takeIf { it.isNotBlank() }
+                    ?.let { runCatching { it.dec() }.getOrNull() }
+                    ?.takeIf { it.isNotBlank() }
+            }
+            .toSet()
+    }
+
     private inline fun <T> decodeLines(
         raw: String?,
         expectedFields: Int,

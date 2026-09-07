@@ -42,7 +42,7 @@ WristBrief is a Wear OS-first inbox for RSS, Atom and podcast feeds. The watch s
 
 - [ ] Article/detail screen optimized for a round display.
 - [ ] Read/unread state.
-- [ ] Saved/starred state.
+- [x] Saved/starred state.
 - [ ] Basic sanitized article text.
 - [ ] Open/continue on phone flow when a paired phone is available.
 - [ ] Clear offline and extraction-error states.

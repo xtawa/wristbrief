@@ -45,8 +45,20 @@ class FeedStoreCodecTest {
     }
 
     @Test
+    fun readItemIds_roundTripStableIds() {
+        val input = setOf(
+            "guid:episode-42",
+            "link:https://example.com/story?ref=a",
+            "fallback:科技:一"
+        )
+
+        assertEquals(input, FeedStoreCodec.decodeItemIds(FeedStoreCodec.encodeItemIds(input)))
+    }
+
+    @Test
     fun unknownOrMalformedPayload_isIgnoredSafely() {
         assertTrue(FeedStoreCodec.decodeSubscriptions("v2\nanything").isEmpty())
         assertTrue(FeedStoreCodec.decodeItems("v1\nnot\tenough\tfields").isEmpty())
+        assertTrue(FeedStoreCodec.decodeItemIds("v2\nanything").isEmpty())
     }
 }

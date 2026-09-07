@@ -47,6 +47,8 @@ interface FeedStore {
     fun saveSubscriptions(subscriptions: List<FeedSubscription>)
     fun cachedItems(): List<CachedFeedItem>
     fun saveCachedItems(items: List<CachedFeedItem>)
+    fun readItemIds(): Set<String>
+    fun saveReadItemIds(itemIds: Set<String>)
 }
 
 data class FeedRefreshResult(
@@ -62,6 +64,8 @@ data class FeedRefreshResult(
  *
  * A failed feed refresh never deletes its last known items. Successful feeds
  * replace only their own previous cache, keeping partial refreshes resilient.
+ * User state such as read/unread is stored independently from refreshable feed
+ * content so a normal refresh cannot erase it.
  */
 class FeedInboxRepository(
     private val loader: FeedLoader,
@@ -78,6 +82,18 @@ class FeedInboxRepository(
         if (enabledIds.isEmpty()) return emptyList()
         return store.cachedItems().filter { it.feedId in enabledIds }
     }
+
+    fun isRead(itemId: String): Boolean = itemId in store.readItemIds()
+
+    fun setRead(itemId: String, isRead: Boolean): Boolean {
+        if (store.cachedItems().none { it.id == itemId }) return false
+        val current = store.readItemIds()
+        val updated = if (isRead) current + itemId else current - itemId
+        if (updated != current) store.saveReadItemIds(updated)
+        return true
+    }
+
+    fun unreadCount(): Int = cachedItems().count { !isRead(it.id) }
 
     fun addSubscription(subscription: FeedSubscription): SubscriptionMutationResult {
         if (!isValidSubscriptionUrl(subscription.url)) {
@@ -131,8 +147,15 @@ class FeedInboxRepository(
             return SubscriptionMutationResult.MissingSubscription(id)
         }
 
+        val removedItemIds = store.cachedItems()
+            .asSequence()
+            .filter { it.feedId == id }
+            .mapTo(hashSetOf()) { it.id }
         store.saveSubscriptions(current.filterNot { it.id == id })
         store.saveCachedItems(store.cachedItems().filterNot { it.feedId == id })
+        if (removedItemIds.isNotEmpty()) {
+            store.saveReadItemIds(store.readItemIds() - removedItemIds)
+        }
         return SubscriptionMutationResult.Success
     }
 

@@ -16,6 +16,7 @@ import kotlinx.coroutines.launch
 
 data class InboxUiState(
     val items: List<InboxItemUi> = emptyList(),
+    val savedItems: List<InboxItemUi> = emptyList(),
     val feeds: List<FeedManagementItemUi> = emptyList(),
     val unreadCount: Int = 0,
     val isLoading: Boolean = false,
@@ -70,10 +71,15 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setItemRead(id: String, isRead: Boolean) {
         if (repository.setRead(id, isRead)) {
-            _uiState.value = buildState(
-                isOfflineFallback = _uiState.value.isOfflineFallback,
-                errorMessage = _uiState.value.errorMessage
-            )
+            rebuildPreservingTransientState()
+        } else {
+            _uiState.value = _uiState.value.copy(errorMessage = "Brief is no longer available")
+        }
+    }
+
+    fun setItemSaved(id: String, isSaved: Boolean) {
+        if (repository.setSaved(id, isSaved)) {
+            rebuildPreservingTransientState()
         } else {
             _uiState.value = _uiState.value.copy(errorMessage = "Brief is no longer available")
         }
@@ -96,6 +102,13 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun rebuildPreservingTransientState() {
+        _uiState.value = buildState(
+            isOfflineFallback = _uiState.value.isOfflineFallback,
+            errorMessage = _uiState.value.errorMessage
+        )
+    }
+
     private fun buildState(
         items: List<InboxItemUi> = repository.cachedItems().toUiItems(),
         isOfflineFallback: Boolean = false,
@@ -104,6 +117,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         val subscriptions = repository.subscriptions()
         return InboxUiState(
             items = items,
+            savedItems = repository.savedItems().toUiItems(),
             feeds = subscriptions.toFeedManagementItemsUi(),
             unreadCount = repository.unreadCount(),
             isLoading = false,
@@ -114,5 +128,10 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun List<CachedFeedItem>.toUiItems(): List<InboxItemUi> =
-        map { cached -> cached.toInboxItemUi(isRead = repository.isRead(cached.id)) }
+        map { cached ->
+            cached.toInboxItemUi(
+                isRead = repository.isRead(cached.id),
+                isSaved = repository.isSaved(cached.id)
+            )
+        }
 }

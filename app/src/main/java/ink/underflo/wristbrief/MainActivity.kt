@@ -6,9 +6,12 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
 import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
 import androidx.wear.compose.material3.AppScaffold
@@ -22,6 +25,8 @@ import androidx.wear.compose.material3.TitleCard
 import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
 import ink.underflo.wristbrief.ui.InboxItemUi
+import ink.underflo.wristbrief.ui.InboxUiState
+import ink.underflo.wristbrief.ui.InboxViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -31,26 +36,26 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun WristBriefApp() {
+private fun WristBriefApp(viewModel: InboxViewModel = viewModel()) {
+    val state by viewModel.uiState.collectAsState()
+
     MaterialTheme {
         AppScaffold {
             InboxScreen(
-                items = emptyList(),
-                onItemClick = {}
+                state = state,
+                onItemClick = {},
+                onRefresh = viewModel::refresh
             )
         }
     }
 }
 
-/**
- * Wear-first inbox shell built on the Material 3 Expressive scrolling model.
- * Data is intentionally injected so feed persistence/networking can evolve
- * independently from the round-screen UI.
- */
+/** Wear-first inbox shell following the Material 3 Expressive scrolling model. */
 @Composable
 internal fun InboxScreen(
-    items: List<InboxItemUi>,
-    onItemClick: (InboxItemUi) -> Unit
+    state: InboxUiState,
+    onItemClick: (InboxItemUi) -> Unit,
+    onRefresh: () -> Unit
 ) {
     val listState = rememberTransformingLazyColumnState()
     val transformationSpec = rememberTransformationSpec()
@@ -68,15 +73,33 @@ internal fun InboxScreen(
                 }
             }
 
-            if (items.isEmpty()) {
+            if (state.isOfflineFallback) {
                 item {
+                    ListHeader {
+                        Text("Offline · showing cached briefs")
+                    }
+                }
+            }
+
+            if (state.items.isEmpty()) {
+                item {
+                    val label = when {
+                        state.isLoading -> "Refreshing…"
+                        state.hasSubscriptions -> "No briefs yet"
+                        else -> "No feeds yet"
+                    }
+                    val detail = when {
+                        state.errorMessage != null -> state.errorMessage
+                        state.hasSubscriptions -> "Refresh to fetch your latest briefs"
+                        else -> "Add feeds from the phone companion"
+                    }
                     Button(
-                        onClick = {},
-                        enabled = false,
-                        label = { Text("No briefs yet") },
+                        onClick = onRefresh,
+                        enabled = state.hasSubscriptions && !state.isLoading,
+                        label = { Text(label) },
                         secondaryLabel = {
                             Text(
-                                "Your RSS and podcast inbox will appear here",
+                                detail,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -88,8 +111,8 @@ internal fun InboxScreen(
                     )
                 }
             } else {
-                items(count = items.size) { index ->
-                    val item = items[index]
+                items(count = state.items.size) { index ->
+                    val item = state.items[index]
                     TitleCard(
                         onClick = { onItemClick(item) },
                         title = {
@@ -118,6 +141,28 @@ internal fun InboxScreen(
                             item.summary,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                if (state.errorMessage != null) {
+                    item {
+                        ListHeader {
+                            Text(state.errorMessage)
+                        }
+                    }
+                }
+
+                if (state.hasSubscriptions) {
+                    item {
+                        Button(
+                            onClick = onRefresh,
+                            enabled = !state.isLoading,
+                            label = { Text(if (state.isLoading) "Refreshing…" else "Refresh") },
+                            transformation = SurfaceTransformation(transformationSpec),
+                            modifier = Modifier
+                                .transformedHeight(this, transformationSpec)
+                                .fillMaxWidth()
                         )
                     }
                 }

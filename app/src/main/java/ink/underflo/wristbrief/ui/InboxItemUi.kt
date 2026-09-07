@@ -30,14 +30,3 @@ fun FeedItem.toInboxItemUi(sourceName: String = "Feed"): InboxItemUi {
         isPodcast = audioUrl != null
     )
 }
-
-internal fun String.cleanText(): String =
-    replace(Regex("<[^>]+>"), " ")
-        .replace("&nbsp;", " ")
-        .replace("&amp;", "&")
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&quot;", "\"")
-        .replace("&#39;", "'")
-        .replace(Regex("\\s+"), " ")
-        .trim()

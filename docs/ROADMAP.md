@@ -2,6 +2,10 @@
 
 This roadmap is intentionally incremental. Do not replace working RSS, podcast, Wear UI, or gateway code just to match an idealized architecture.
 
+## Current short-term execution plan
+
+For the next development window, follow [`docs/NEXT_24_HOURS.md`](./NEXT_24_HOURS.md) as the authoritative execution queue. The hourly automation should complete the first unfinished eligible slot there before selecting broader roadmap work.
+
 ## Product direction
 
 WristBrief is a Wear OS-first inbox for RSS, Atom and podcast feeds. The watch should help a user understand what is worth reading or listening to in seconds, then let them continue on the phone or play audio directly.
@@ -22,17 +26,17 @@ WristBrief is a Wear OS-first inbox for RSS, Atom and podcast feeds. The watch s
 - [x] Android JVM unit tests in CI.
 - [x] Gateway strict TypeScript checking.
 - [x] Gateway Vitest suite.
-- [ ] Keep all checks green on every product PR.
+- [x] Keep all checks green on direct-to-main product commits.
 
 ## P1 — Real inbox data
 
-- [ ] Persistent feed subscriptions.
-- [ ] Local cached feed items for offline viewing.
-- [ ] Repository/ViewModel state for loading, success, empty and error states.
-- [ ] Wire parsed RSS/Atom/podcast items into the Wear inbox.
-- [ ] Refresh without blocking the UI thread.
+- [x] Persistent feed subscriptions.
+- [x] Local cached feed items for offline viewing.
+- [x] Repository/ViewModel state for loading, success, empty and error states.
+- [x] Wire parsed RSS/Atom/podcast items into the Wear inbox.
+- [x] Refresh without blocking the UI thread.
 - [ ] Feed deduplication using GUID/canonical URL/content identity.
-- [ ] Tests for persistence, refresh failure and deduplication.
+- [ ] Complete dedup fixtures while retaining persistence/refresh-failure coverage.
 
 ## P2 — Reading workflow
 
@@ -127,10 +131,17 @@ Every functional phase must add tests relevant to its failure modes.
 Minimum ongoing validation:
 
 ```text
-Android JVM tests
-Android debug assembly
+Wear JVM tests
+Wear debug assembly
 Gateway TypeScript typecheck
 Gateway Vitest
+```
+
+After the phone companion exists, CI must also add:
+
+```text
+Mobile JVM tests
+Mobile debug assembly
 ```
 
 As persistence, MediaSession, Data Layer, billing and migrations are introduced, add targeted integration/instrumentation tests instead of relying only on compilation.

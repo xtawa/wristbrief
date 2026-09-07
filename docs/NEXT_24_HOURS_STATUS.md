@@ -16,7 +16,7 @@ Automation rules:
 - [x] 01 — Reconcile P1 and feed identity
 - [x] 02 — Subscription CRUD domain
 - [x] 03 — Wear feed-management screen
-- [ ] 04 — Article/detail screen
+- [x] 04 — Article/detail screen
 - [ ] 05 — Read/unread persistence
 - [ ] 06 — Saved/starred workflow
 - [ ] 07 — Wear UI review pass #1
@@ -49,3 +49,4 @@ Slot 01 — <main SHA> — <one-line summary> — CI: green
 Slot 01 — 7da586e62e1db271b730192dea404096aa774c99 — Added RSS GUID/Atom ID identity, GUID→canonical link→audio→fallback dedup, safe URL normalization, fixtures/tests, and reconciled P1 roadmap state — CI: green
 Slot 02 — 45ea4f0666d64ec5aad58405f502999ea1d56fe9 — Added explicit add/update/rename/enable/disable/remove subscription operations, normalized duplicate URL detection, typed mutation errors, safe disable cache retention, removal cleanup, and CRUD tests; existing codec round-trip coverage verifies persisted subscription state — CI: green
 Slot 03 — cec92e8d28e491426094904ca19ade213cdafb09 — Added Wear Material 3 Feeds screen with Inbox navigation, subscription enable/pause/remove controls, phone-management placeholder, ViewModel CRUD wiring, and UI mapping tests — CI: green
+Slot 04 — 8dc68df41604becb0734b9c452996a312d01166d — Added recoverable Wear article detail navigation/screen, cached-offline and missing-item states, shared sanitization removing unsafe markup/script/style content, and article detail mapping/sanitization tests — CI: green

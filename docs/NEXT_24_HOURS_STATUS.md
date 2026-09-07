@@ -13,7 +13,7 @@ Automation rules:
 
 ## Progress
 
-- [ ] 01 — Reconcile P1 and feed identity
+- [x] 01 — Reconcile P1 and feed identity
 - [ ] 02 — Subscription CRUD domain
 - [ ] 03 — Wear feed-management screen
 - [ ] 04 — Article/detail screen
@@ -45,3 +45,5 @@ Append entries in this format:
 ```text
 Slot 01 — <main SHA> — <one-line summary> — CI: green
 ```
+
+Slot 01 — 7da586e62e1db271b730192dea404096aa774c99 — Added RSS GUID/Atom ID identity, GUID→canonical link→audio→fallback dedup, safe URL normalization, fixtures/tests, and reconciled P1 roadmap state — CI: green

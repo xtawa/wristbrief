@@ -33,6 +33,58 @@ class FeedInboxRepositoryTest {
     }
 
     @Test
+    fun guidWinsOverChangingLinksAndDeduplicatesRefresh() {
+        val store = FakeStore(
+            subscriptions = listOf(FeedSubscription("a", "Feed A", "https://a.example/feed"))
+        )
+        val loader = FakeLoader(
+            mapOf(
+                "https://a.example/feed" to listOf(
+                    feed("First representation", "https://a.example/article?source=one", guid = "stable-guid"),
+                    feed("Duplicate representation", "https://a.example/article?source=two", guid = "stable-guid")
+                )
+            )
+        )
+
+        val result = FeedInboxRepository(loader, store) { 100L }.refresh()
+
+        assertEquals(1, result.items.size)
+        assertEquals("guid:stable-guid", result.items.single().id)
+    }
+
+    @Test
+    fun canonicalLinkNormalizationDeduplicatesObviousUrlVariants() {
+        val store = FakeStore(
+            subscriptions = listOf(FeedSubscription("a", "Feed A", "https://a.example/feed"))
+        )
+        val loader = FakeLoader(
+            mapOf(
+                "https://a.example/feed" to listOf(
+                    feed("One", "HTTPS://Example.COM:443/story/#section"),
+                    feed("Two", "https://example.com/story")
+                )
+            )
+        )
+
+        val result = FeedInboxRepository(loader, store) { 100L }.refresh()
+
+        assertEquals(1, result.items.size)
+        assertEquals("link:https://example.com/story", result.items.single().id)
+    }
+
+    @Test
+    fun identityNormalizationPreservesQueryParameters() {
+        assertEquals(
+            "https://example.com/story?ref=a",
+            normalizeIdentityUrl("HTTPS://EXAMPLE.COM:443/story/?ref=a#fragment")
+        )
+        assertEquals(
+            "https://example.com/story?ref=b",
+            normalizeIdentityUrl("https://example.com/story?ref=b")
+        )
+    }
+
+    @Test
     fun failedFeed_keepsItsCachedItemsWhileOtherFeedsRefresh() {
         val store = FakeStore(
             subscriptions = listOf(
@@ -89,12 +141,13 @@ class FeedInboxRepositoryTest {
         repository.upsertSubscription(FeedSubscription("x", "Bad", "http://example.com/feed"))
     }
 
-    private fun feed(title: String, link: String) = FeedItem(
+    private fun feed(title: String, link: String, guid: String? = null) = FeedItem(
         title = title,
         link = link,
         description = "summary",
         published = null,
-        audioUrl = null
+        audioUrl = null,
+        guid = guid
     )
 
     private fun cached(title: String, feedId: String, feedTitle: String, cachedAt: Long) =

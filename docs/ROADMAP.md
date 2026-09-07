@@ -35,8 +35,8 @@ WristBrief is a Wear OS-first inbox for RSS, Atom and podcast feeds. The watch s
 - [x] Repository/ViewModel state for loading, success, empty and error states.
 - [x] Wire parsed RSS/Atom/podcast items into the Wear inbox.
 - [x] Refresh without blocking the UI thread.
-- [ ] Feed deduplication using GUID/canonical URL/content identity.
-- [ ] Complete dedup fixtures while retaining persistence/refresh-failure coverage.
+- [x] Feed deduplication using GUID/canonical URL/content identity.
+- [x] Complete dedup fixtures while retaining persistence/refresh-failure coverage.
 
 ## P2 — Reading workflow
 

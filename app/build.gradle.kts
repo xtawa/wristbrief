@@ -4,6 +4,12 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+fun String.asBuildConfigString(): String =
+    "\"" + replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+
+val wristBriefGatewayUrl = providers.gradleProperty("WRISTBRIEF_GATEWAY_URL").orElse("").get()
+val wristBriefGatewayToken = providers.gradleProperty("WRISTBRIEF_GATEWAY_TOKEN").orElse("").get()
+
 android {
     namespace = "ink.underflo.wristbrief"
     compileSdk = 35
@@ -14,9 +20,15 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+
+        buildConfigField("String", "AI_GATEWAY_URL", wristBriefGatewayUrl.asBuildConfigString())
+        buildConfigField("String", "AI_GATEWAY_TOKEN", wristBriefGatewayToken.asBuildConfigString())
     }
 
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

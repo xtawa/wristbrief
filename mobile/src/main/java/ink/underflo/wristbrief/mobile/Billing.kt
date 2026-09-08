@@ -38,6 +38,51 @@ data class BillingPurchase(
     val acknowledged: Boolean,
 )
 
+sealed interface MembershipPresentation {
+    data object Loading : MembershipPresentation
+    data class Unavailable(val message: String) : MembershipPresentation
+    data class Error(val message: String) : MembershipPresentation
+    data class Ready(
+        val products: List<MembershipProductPresentation>,
+        val restoredPurchaseCount: Int,
+        val pendingPurchaseCount: Int,
+    ) : MembershipPresentation
+}
+
+data class MembershipProductPresentation(
+    val productId: String,
+    val title: String,
+    val description: String,
+    val formattedPrice: String,
+    val alreadyPurchased: Boolean,
+)
+
+fun BillingState.toMembershipPresentation(): MembershipPresentation = when (this) {
+    BillingState.Loading -> MembershipPresentation.Loading
+    is BillingState.Unavailable -> MembershipPresentation.Unavailable(message)
+    is BillingState.Error -> MembershipPresentation.Error(message)
+    is BillingState.Ready -> {
+        val completedProductIds = purchases
+            .asSequence()
+            .filterNot(BillingPurchase::pending)
+            .flatMap { it.productIds.asSequence() }
+            .toSet()
+        MembershipPresentation.Ready(
+            products = products.map { product ->
+                MembershipProductPresentation(
+                    productId = product.productId,
+                    title = product.title,
+                    description = product.description,
+                    formattedPrice = product.formattedPrice,
+                    alreadyPurchased = product.productId in completedProductIds,
+                )
+            },
+            restoredPurchaseCount = purchases.count { !it.pending },
+            pendingPurchaseCount = purchases.count(BillingPurchase::pending),
+        )
+    }
+}
+
 interface BillingRepository {
     fun connect(onState: (BillingState) -> Unit)
     fun refresh()

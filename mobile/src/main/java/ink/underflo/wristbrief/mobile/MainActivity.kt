@@ -1,5 +1,6 @@
 package ink.underflo.wristbrief.mobile
 
+import android.app.Activity
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -32,6 +33,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,6 +46,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.android.billingclient.api.BillingClient.BillingResponseCode
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -66,7 +69,7 @@ class MainActivity : ComponentActivity() {
         when (destination) {
             MobileDestination.Feeds -> FeedManagementDestination(padding)
             MobileDestination.AiProvider -> FoundationDestination("AI & provider settings", "Provider preferences stay separate from server-held secrets.", listOf("Managed providers remain server-controlled", "Gateway credentials are not embedded here"), padding)
-            MobileDestination.Membership -> FoundationDestination("Membership", "Play Billing and entitlement state will live here.", listOf("No hardcoded prices", "No fake production entitlement"), padding)
+            MobileDestination.Membership -> MembershipDestination(padding)
         }
     }
 }
@@ -99,6 +102,93 @@ class MainActivity : ComponentActivity() {
 @Composable private fun FeedEditorDialog(feed: MobileFeedSubscription?, busy: Boolean, onDismiss: () -> Unit, onSave: (String, String) -> Unit) {
     var url by remember(feed?.id) { mutableStateOf(feed?.url.orEmpty()) }; var title by remember(feed?.id) { mutableStateOf(feed?.title.orEmpty()) }
     AlertDialog(onDismissRequest = onDismiss, title = { Text(if (feed == null) "Add feed" else "Edit feed") }, text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { OutlinedTextField(url, { url = it }, Modifier.fillMaxWidth(), label = { Text("HTTPS feed URL") }, singleLine = true); OutlinedTextField(title, { title = it }, Modifier.fillMaxWidth(), label = { Text("Name (optional)") }, singleLine = true) } }, confirmButton = { Button(onClick = { onSave(url, title) }, enabled = !busy) { Text(if (busy) "Validating…" else "Save") } }, dismissButton = { TextButton(onClick = onDismiss, enabled = !busy) { Text("Cancel") } })
+}
+
+@Composable private fun MembershipDestination(padding: PaddingValues) {
+    val context = LocalContext.current
+    val activity = context as? Activity
+    val repository = remember(context) {
+        GooglePlayBillingRepository(
+            context = context,
+            productIds = configuredBillingProductIds(BuildConfig.BILLING_SUBSCRIPTION_PRODUCT_IDS),
+        )
+    }
+    var billingState by remember { mutableStateOf<BillingState>(BillingState.Loading) }
+    var actionMessage by remember { mutableStateOf<String?>(null) }
+
+    DisposableEffect(repository) {
+        repository.connect { billingState = it }
+        onDispose { repository.close() }
+    }
+
+    val presentation = billingState.toMembershipPresentation()
+    LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        item { Text("Membership", style = MaterialTheme.typography.headlineMedium) }
+        item { Text("Plans and prices below come from Google Play. Entitlement verification remains server-owned in the next foundation stage.", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        actionMessage?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant) } }
+        when (presentation) {
+            MembershipPresentation.Loading -> item { MembershipStatusCard("Loading Play products…", "Checking products and existing purchases.") }
+            is MembershipPresentation.Unavailable -> item {
+                MembershipStatusCard("Google Play Billing unavailable", presentation.message)
+                OutlinedButton(onClick = repository::refresh) { Text("Try again") }
+            }
+            is MembershipPresentation.Error -> item {
+                MembershipStatusCard("Could not load membership", presentation.message)
+                OutlinedButton(onClick = repository::refresh) { Text("Retry") }
+            }
+            is MembershipPresentation.Ready -> {
+                if (presentation.restoredPurchaseCount > 0 || presentation.pendingPurchaseCount > 0) item {
+                    MembershipStatusCard(
+                        title = "Purchase status",
+                        description = buildString {
+                            if (presentation.restoredPurchaseCount > 0) append("${presentation.restoredPurchaseCount} existing purchase(s) found.")
+                            if (presentation.pendingPurchaseCount > 0) {
+                                if (isNotEmpty()) append(" ")
+                                append("${presentation.pendingPurchaseCount} pending purchase(s).")
+                            }
+                        },
+                    )
+                }
+                if (presentation.products.isEmpty()) item { MembershipStatusCard("No eligible plans", "Google Play returned no purchasable subscription offers for this account/build.") }
+                items(presentation.products, key = { it.productId }) { product ->
+                    Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+                        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text(product.title, style = MaterialTheme.typography.titleLarge)
+                            if (product.description.isNotBlank()) Text(product.description, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(product.formattedPrice, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Button(
+                                onClick = {
+                                    if (activity == null) {
+                                        actionMessage = "Purchase flow is unavailable from this context."
+                                    } else {
+                                        val result = repository.launchPurchase(activity, product.productId)
+                                        actionMessage = when (result.responseCode) {
+                                            BillingResponseCode.OK -> "Google Play purchase flow opened."
+                                            BillingResponseCode.USER_CANCELED -> "Purchase canceled."
+                                            BillingResponseCode.ITEM_ALREADY_OWNED -> "This plan is already owned; restoring purchases."
+                                            else -> "Google Play could not start the purchase flow (code ${result.responseCode})."
+                                        }
+                                        if (result.responseCode == BillingResponseCode.ITEM_ALREADY_OWNED) repository.refresh()
+                                    }
+                                },
+                                enabled = !product.alreadyPurchased && activity != null,
+                            ) { Text(if (product.alreadyPurchased) "Already purchased" else "Subscribe") }
+                        }
+                    }
+                }
+                item { OutlinedButton(onClick = { actionMessage = "Refreshing purchases…"; repository.refresh() }) { Text("Restore purchases") } }
+            }
+        }
+    }
+}
+
+@Composable private fun MembershipStatusCard(title: String, description: String) {
+    Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(description, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
 }
 
 @Composable private fun FoundationDestination(title: String, description: String, highlights: List<String>, padding: PaddingValues) { LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) { item { Text(title, style = MaterialTheme.typography.headlineMedium) }; item { Text(description, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant) }; items(highlights) { Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge) { Text(it, Modifier.padding(20.dp), style = MaterialTheme.typography.titleMedium) } } } }

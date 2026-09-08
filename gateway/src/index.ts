@@ -14,8 +14,13 @@ import {
   summaryCacheTtlSeconds,
   type SummaryCacheEnv
 } from "./summaryCache";
+import {
+  authenticateGatewayUser,
+  createMembershipService,
+  type MembershipEnv
+} from "./membership";
 
-interface Env extends ProviderEnv, SummaryCacheEnv { GATEWAY_TOKEN: string }
+interface Env extends ProviderEnv, SummaryCacheEnv, MembershipEnv {}
 type SummaryRequest = { title?: string; content?: string };
 const DEFAULT_PROVIDER_ID = "openai-compatible";
 const MAX_REQUEST_BYTES = 64 * 1024;
@@ -29,8 +34,19 @@ export default {
 
     if (request.method === "GET" && url.pathname === "/health") return respond({ ok: true });
 
+    const user = authenticateGatewayUser(request, env);
+
+    if (request.method === "GET" && url.pathname === "/v1/me") {
+      if (!user) return respond({ error: "unauthorized" }, 401);
+      try {
+        return respond(await createMembershipService(env).snapshot(user));
+      } catch {
+        return respond({ error: "membership_unavailable" }, 503);
+      }
+    }
+
     if (request.method === "GET" && url.pathname === "/v1/providers") {
-      if (!authorized(request, env)) return respond({ error: "unauthorized" }, 401);
+      if (!user) return respond({ error: "unauthorized" }, 401);
       try {
         return respond({
           selected: env.AI_PROVIDER?.trim() || DEFAULT_PROVIDER_ID,
@@ -42,7 +58,15 @@ export default {
     }
 
     if (request.method !== "POST" || url.pathname !== "/v1/summary") return respond({ error: "not_found" }, 404);
-    if (!authorized(request, env)) return respond({ error: "unauthorized" }, 401);
+    if (!user) return respond({ error: "unauthorized" }, 401);
+
+    const memberships = createMembershipService(env);
+    try {
+      const access = await memberships.canUseAi(user.id, "managed");
+      if (!access.allowed) return respond({ error: "quota_exceeded", quota: access.quota }, 429);
+    } catch {
+      return respond({ error: "membership_unavailable" }, 503);
+    }
 
     const parsedBody = await readJsonBodyLimited<SummaryRequest>(request, MAX_REQUEST_BYTES);
     if (parsedBody.error) return respond({ error: parsedBody.error }, parsedBody.error === "request_too_large" ? 413 : 400);
@@ -65,9 +89,11 @@ export default {
       const output = await summarizeWithCache(cache, cacheKey, summaryCacheTtlSeconds(env), () =>
         summarizeWithFallback(registry, primaryId, env.AI_FALLBACK_PROVIDER?.trim(), input)
       );
+      await memberships.recordAiUsage(user.id, "managed");
       return respond(output);
     } catch (error) {
-      return providerFailure(error, respond);
+      if (error instanceof ProviderError) return providerFailure(error, respond);
+      return respond({ error: "membership_unavailable" }, 503);
     }
   }
 };
@@ -142,10 +168,6 @@ function providerFailure(
     return respond({ error: error.code }, 502);
   }
   return respond({ error: "provider_error" }, 502);
-}
-
-function authorized(request: Request, env: Env): boolean {
-  return request.headers.get("Authorization") === `Bearer ${env.GATEWAY_TOKEN}`;
 }
 
 function json(value: unknown, status: number, requestId: string): Response {

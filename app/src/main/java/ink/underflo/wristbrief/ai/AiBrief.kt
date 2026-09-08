@@ -1,6 +1,11 @@
 package ink.underflo.wristbrief.ai
 
-import org.json.JSONObject
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 data class AiBrief(
     val tiny: String,
@@ -23,21 +28,24 @@ sealed interface AiBriefUiState {
 }
 
 internal fun parseAiBrief(body: String): AiBrief {
-    val structured = JSONObject(body).optJSONObject("structured")
+    val root = runCatching { Json.parseToJsonElement(body).jsonObject }
+        .getOrElse { throw AiSummaryException(AiSummaryFailure.InvalidResponse) }
+    val structured = root["structured"] as? JsonObject
         ?: throw AiSummaryException(AiSummaryFailure.InvalidResponse)
 
-    fun requiredString(name: String): String = structured.optString(name).trim().takeIf { it.isNotEmpty() }
+    fun requiredString(name: String): String = runCatching {
+        structured[name]?.jsonPrimitive?.contentOrNull?.trim()
+    }.getOrNull()?.takeIf { it.isNotEmpty() }
         ?: throw AiSummaryException(AiSummaryFailure.InvalidResponse)
 
     fun stringList(name: String): List<String> {
-        val array = structured.optJSONArray(name)
+        val array = structured[name] as? JsonArray
             ?: throw AiSummaryException(AiSummaryFailure.InvalidResponse)
-        return buildList {
-            for (index in 0 until array.length()) {
-                val value = array.optString(index).trim()
-                if (value.isEmpty()) throw AiSummaryException(AiSummaryFailure.InvalidResponse)
-                add(value)
-            }
+        return array.map { element ->
+            runCatching { element.jsonPrimitive.contentOrNull?.trim() }
+                .getOrNull()
+                ?.takeIf { it.isNotEmpty() }
+                ?: throw AiSummaryException(AiSummaryFailure.InvalidResponse)
         }
     }
 

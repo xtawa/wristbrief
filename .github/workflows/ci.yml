@@ -17,7 +17,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - run: gradle :app:testDebugUnitTest :app:assembleDebug --stacktrace
+      - run: gradle :app:testDebugUnitTest :app:assembleDebug :mobile:testDebugUnitTest :mobile:assembleDebug --stacktrace
 
   gateway:
     runs-on: ubuntu-latest

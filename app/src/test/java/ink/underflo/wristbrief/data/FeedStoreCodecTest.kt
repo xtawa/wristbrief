@@ -1,6 +1,7 @@
 package ink.underflo.wristbrief.data
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -26,7 +27,7 @@ class FeedStoreCodecTest {
     }
 
     @Test
-    fun cachedItems_roundTripNullableFields() {
+    fun cachedItems_roundTripTranscriptMetadata() {
         val input = listOf(
             CachedFeedItem(
                 id = "item-1",
@@ -37,11 +38,43 @@ class FeedStoreCodecTest {
                 description = "A & B",
                 published = null,
                 audioUrl = "https://cdn.example.com/a.mp3",
+                transcript = PodcastTranscript(
+                    url = "https://cdn.example.com/a.vtt",
+                    type = "text/vtt",
+                    language = "zh-CN",
+                    rel = "captions"
+                ),
                 cachedAtEpochMs = 1234L
             )
         )
 
         assertEquals(input, FeedStoreCodec.decodeItems(FeedStoreCodec.encodeItems(input)))
+    }
+
+    @Test
+    fun cachedItems_readsLegacyV1WithoutTranscript() {
+        val current = CachedFeedItem(
+            id = "legacy-item",
+            feedId = "legacy-feed",
+            feedTitle = "Legacy",
+            title = "Old cache",
+            link = "https://example.com/old",
+            description = null,
+            published = null,
+            audioUrl = "https://cdn.example.com/old.mp3",
+            cachedAtEpochMs = 42L
+        )
+        val v2 = FeedStoreCodec.encodeItems(listOf(current))
+        val fields = v2.lineSequence().drop(1).first().split('\t')
+        val legacy = buildString {
+            appendLine("v1")
+            append(fields.take(8).joinToString("\t"))
+            append('\t').append("42").append('\n')
+        }
+
+        val decoded = FeedStoreCodec.decodeItems(legacy).single()
+        assertEquals(current.copy(transcript = null), decoded)
+        assertNull(decoded.transcript)
     }
 
     @Test
@@ -51,7 +84,6 @@ class FeedStoreCodecTest {
             "link:https://example.com/story?ref=a",
             "fallback:科技:一"
         )
-
         assertEquals(input, FeedStoreCodec.decodeItemIds(FeedStoreCodec.encodeItemIds(input)))
     }
 
@@ -62,13 +94,13 @@ class FeedStoreCodecTest {
             "audio:https://cdn.example.com/episode.mp3",
             "fallback:收藏:文章"
         )
-
         assertEquals(input, FeedStoreCodec.decodeItemIds(FeedStoreCodec.encodeItemIds(input)))
     }
 
     @Test
     fun unknownOrMalformedPayload_isIgnoredSafely() {
         assertTrue(FeedStoreCodec.decodeSubscriptions("v2\nanything").isEmpty())
+        assertTrue(FeedStoreCodec.decodeItems("v3\nanything").isEmpty())
         assertTrue(FeedStoreCodec.decodeItems("v1\nnot\tenough\tfields").isEmpty())
         assertTrue(FeedStoreCodec.decodeItemIds("v2\nanything").isEmpty())
     }

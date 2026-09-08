@@ -26,6 +26,7 @@ data class PodcastEpisodeProgress(
 
 interface PodcastProgressStore {
     fun get(episodeId: String): PodcastEpisodeProgress?
+    fun all(): List<PodcastEpisodeProgress>
     fun save(progress: PodcastEpisodeProgress)
 }
 
@@ -34,6 +35,9 @@ class SharedPreferencesPodcastProgressStore(context: Context) : PodcastProgressS
 
     override fun get(episodeId: String): PodcastEpisodeProgress? =
         decodePodcastProgress(preferences.getString(PREFS_KEY, null).orEmpty())[episodeId]
+
+    override fun all(): List<PodcastEpisodeProgress> =
+        decodePodcastProgress(preferences.getString(PREFS_KEY, null).orEmpty()).values.toList()
 
     override fun save(progress: PodcastEpisodeProgress) {
         val all = decodePodcastProgress(preferences.getString(PREFS_KEY, null).orEmpty()).toMutableMap()

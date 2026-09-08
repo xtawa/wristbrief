@@ -7,3 +7,8 @@ fun requestLatestUnreadTileUpdate(context: Context) {
     TileService.getUpdater(context.applicationContext)
         .requestUpdate(LatestUnreadTileService::class.java)
 }
+
+fun requestContinueListeningTileUpdate(context: Context) {
+    TileService.getUpdater(context.applicationContext)
+        .requestUpdate(ContinueListeningTileService::class.java)
+}

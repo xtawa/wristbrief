@@ -18,6 +18,9 @@
         <service android:name=".tile.LatestUnreadTileService" android:exported="true" android:label="Latest briefs" android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
             <intent-filter><action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" /></intent-filter>
         </service>
+        <service android:name=".tile.ContinueListeningTileService" android:exported="true" android:label="Continue listening" android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+            <intent-filter><action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" /></intent-filter>
+        </service>
         <service
             android:name=".complication.UnreadComplicationDataSourceService"
             android:exported="true"

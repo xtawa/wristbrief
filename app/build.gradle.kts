@@ -20,16 +20,11 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
-
         buildConfigField("String", "AI_GATEWAY_URL", wristBriefGatewayUrl.asBuildConfigString())
         buildConfigField("String", "AI_GATEWAY_TOKEN", wristBriefGatewayToken.asBuildConfigString())
     }
 
-    buildFeatures {
-        compose = true
-        buildConfig = true
-    }
-
+    buildFeatures { compose = true; buildConfig = true }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -52,6 +47,7 @@ dependencies {
     implementation("androidx.wear.protolayout:protolayout-material3:1.4.2")
     implementation("androidx.wear.watchface:watchface-complications-data-source:1.3.0")
     implementation("androidx.wear.watchface:watchface-complications-data-source-ktx:1.3.0")
+    implementation("com.google.android.gms:play-services-wearable:20.0.1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.1")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.0")

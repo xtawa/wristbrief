@@ -22,7 +22,7 @@ Automation rules:
 - [x] 07 — Wear UI review pass #1
 - [x] 08 — MediaSession service foundation
 - [x] 09 — Podcast controls and progress
-- [ ] 10 — Podcast robustness + transcript discovery
+- [x] 10 — Podcast robustness + transcript discovery
 - [ ] 11 — AI Gateway provider adapter refactor
 - [ ] 12 — Structured AI brief schema
 - [ ] 13 — OpenRouter + Gemini provider support
@@ -55,3 +55,4 @@ Slot 06 — 2fee73635dc310fe976fb434f1b8b33ba7344f02 — Added independently per
 Slot 07 — eb74e4b14a0752c3532edc8a70db4656f929ae03 — Reviewed current Wear surfaces; preserved Inbox/Saved/Feeds scroll state across navigation, compacted loading/offline/error/unread copy, bounded long Wear card previews with Unicode-safe CJK/emoji truncation, standardized small-screen text line limits, and added pure UI status/long-text tests — CI: green
 Slot 08 — 6cd0c854dc25e20b339acec18b884c63e05d2c02 — Replaced activity-bound podcast playback with a Media3 MediaSessionService, Activity-scoped MediaController connection, HTTPS playback contract, foreground media service manifest setup, Wear detail play action, and contract/UI mapping tests — CI: green
 Slot 09 — f22429e25d1850dc6245f9b566d73d2f7b78509d — Added per-episode resume/speed persistence, 15-second checkpointed MediaSession progress saves, completed-episode reset policy, Wear progress/play-pause/seek/speed controls, and pure codec/resume/checkpoint/time-format tests — CI: green
+Slot 10 — 011c40b2177347cab6efaf8853385cd9a2068d8a — Added Media3-managed audio focus/noisy-route handling, standard MediaSession Bluetooth transport controls, publisher transcript metadata parsing/persistence with v1 cache migration, and enclosure/transcript fixtures/tests — CI: green

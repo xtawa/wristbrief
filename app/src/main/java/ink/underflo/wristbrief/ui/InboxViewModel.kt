@@ -3,6 +3,7 @@ package ink.underflo.wristbrief.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import ink.underflo.wristbrief.complication.requestUnreadComplicationUpdate
 import ink.underflo.wristbrief.data.CachedFeedItem
 import ink.underflo.wristbrief.data.FeedInboxRepository
 import ink.underflo.wristbrief.data.FeedRepository
@@ -43,7 +44,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         if (_uiState.value.isLoading) return
         if (!repository.subscriptions().any { it.enabled }) {
             _uiState.value = buildState()
-            requestTileUpdate()
+            requestGlanceUpdates()
             return
         }
 
@@ -60,7 +61,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
                             null
                         }
                     )
-                    requestTileUpdate()
+                    requestGlanceUpdates()
                 }
                 .onFailure {
                     _uiState.value = buildState(
@@ -75,7 +76,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     fun setItemRead(id: String, isRead: Boolean) {
         if (repository.setRead(id, isRead)) {
             rebuildPreservingTransientState()
-            requestTileUpdate()
+            requestGlanceUpdates()
         } else {
             _uiState.value = _uiState.value.copy(errorMessage = "Brief is no longer available")
         }
@@ -93,7 +94,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         when (repository.setSubscriptionEnabled(id, enabled)) {
             SubscriptionMutationResult.Success -> {
                 _uiState.value = buildState()
-                requestTileUpdate()
+                requestGlanceUpdates()
                 if (enabled) refresh()
             }
             else -> _uiState.value = _uiState.value.copy(errorMessage = "Could not update feed")
@@ -104,14 +105,15 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         when (repository.removeSubscription(id)) {
             SubscriptionMutationResult.Success -> {
                 _uiState.value = buildState()
-                requestTileUpdate()
+                requestGlanceUpdates()
             }
             else -> _uiState.value = _uiState.value.copy(errorMessage = "Could not remove feed")
         }
     }
 
-    private fun requestTileUpdate() {
+    private fun requestGlanceUpdates() {
         requestLatestUnreadTileUpdate(getApplication())
+        requestUnreadComplicationUpdate(getApplication())
     }
 
     private fun rebuildPreservingTransientState() {

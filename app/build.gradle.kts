@@ -51,6 +51,7 @@ dependencies {
     implementation("androidx.wear.protolayout:protolayout:1.4.2")
     implementation("androidx.wear.protolayout:protolayout-material3:1.4.2")
     implementation("androidx.wear.watchface:watchface-complications-data-source:1.3.0")
+    implementation("androidx.wear.watchface:watchface-complications-data-source-ktx:1.3.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.1")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.0")

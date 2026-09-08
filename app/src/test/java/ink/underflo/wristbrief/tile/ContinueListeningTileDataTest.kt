@@ -46,7 +46,7 @@ class ContinueListeningTileDataTest {
         )
 
         requireNotNull(result)
-        assertEquals("A very long podcast episode title that sho…", result.title)
+        assertEquals("A very long podcast episode title that shou…", result.title)
         assertEquals("Resume 1:01:01 · 2×", result.resumeLabel)
     }
 

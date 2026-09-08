@@ -27,6 +27,7 @@ data class CachedFeedItem(
     val description: String?,
     val published: String?,
     val audioUrl: String?,
+    val transcript: PodcastTranscript? = null,
     val cachedAtEpochMs: Long
 ) {
     fun asFeedItem(): FeedItem = FeedItem(
@@ -34,7 +35,8 @@ data class CachedFeedItem(
         link = link,
         description = description,
         published = published,
-        audioUrl = audioUrl
+        audioUrl = audioUrl,
+        transcript = transcript
     )
 }
 
@@ -61,14 +63,6 @@ data class FeedRefreshResult(
         get() = failedFeedIds.isNotEmpty()
 }
 
-/**
- * Coordinates remote feed loading with durable local cache.
- *
- * A failed feed refresh never deletes its last known items. Successful feeds
- * replace only their own previous cache, keeping partial refreshes resilient.
- * User state such as read/unread and saved/starred is stored independently from
- * refreshable feed content so a normal refresh cannot erase it.
- */
 class FeedInboxRepository(
     private val loader: FeedLoader,
     private val store: FeedStore,
@@ -77,21 +71,15 @@ class FeedInboxRepository(
     fun subscriptions(): List<FeedSubscription> = store.subscriptions()
 
     fun cachedItems(): List<CachedFeedItem> {
-        val enabledIds = store.subscriptions()
-            .asSequence()
-            .filter { it.enabled }
-            .mapTo(hashSetOf()) { it.id }
+        val enabledIds = store.subscriptions().asSequence().filter { it.enabled }.mapTo(hashSetOf()) { it.id }
         if (enabledIds.isEmpty()) return emptyList()
         return store.cachedItems().filter { it.feedId in enabledIds }
     }
 
-    /** Saved items remain discoverable even if their feed is paused. */
     fun savedItems(): List<CachedFeedItem> {
         val savedIds = store.savedItemIds()
         if (savedIds.isEmpty()) return emptyList()
-        return store.cachedItems()
-            .filter { it.id in savedIds }
-            .sortedByDescending { it.cachedAtEpochMs }
+        return store.cachedItems().filter { it.id in savedIds }.sortedByDescending { it.cachedAtEpochMs }
     }
 
     fun isRead(itemId: String): Boolean = itemId in store.readItemIds()
@@ -117,37 +105,28 @@ class FeedInboxRepository(
     fun unreadCount(): Int = cachedItems().count { !isRead(it.id) }
 
     fun addSubscription(subscription: FeedSubscription): SubscriptionMutationResult {
-        if (!isValidSubscriptionUrl(subscription.url)) {
-            return SubscriptionMutationResult.InvalidUrl(subscription.url)
-        }
+        if (!isValidSubscriptionUrl(subscription.url)) return SubscriptionMutationResult.InvalidUrl(subscription.url)
         duplicateSubscriptionId(subscription.url, excludingId = null)?.let {
             return SubscriptionMutationResult.DuplicateSubscription(it)
         }
-
         store.saveSubscriptions(store.subscriptions() + subscription.normalizedForStorage())
         return SubscriptionMutationResult.Success
     }
 
     fun updateSubscription(subscription: FeedSubscription): SubscriptionMutationResult {
-        if (!isValidSubscriptionUrl(subscription.url)) {
-            return SubscriptionMutationResult.InvalidUrl(subscription.url)
-        }
+        if (!isValidSubscriptionUrl(subscription.url)) return SubscriptionMutationResult.InvalidUrl(subscription.url)
         val current = store.subscriptions()
-        if (current.none { it.id == subscription.id }) {
-            return SubscriptionMutationResult.MissingSubscription(subscription.id)
-        }
+        if (current.none { it.id == subscription.id }) return SubscriptionMutationResult.MissingSubscription(subscription.id)
         duplicateSubscriptionId(subscription.url, excludingId = subscription.id)?.let {
             return SubscriptionMutationResult.DuplicateSubscription(it)
         }
-
         val normalized = subscription.normalizedForStorage()
         store.saveSubscriptions(current.map { if (it.id == subscription.id) normalized else it })
         return SubscriptionMutationResult.Success
     }
 
     fun renameSubscription(id: String, title: String): SubscriptionMutationResult {
-        val current = store.subscriptions()
-        val existing = current.firstOrNull { it.id == id }
+        val existing = store.subscriptions().firstOrNull { it.id == id }
             ?: return SubscriptionMutationResult.MissingSubscription(id)
         return updateSubscription(existing.copy(title = title.trim()))
     }
@@ -157,21 +136,14 @@ class FeedInboxRepository(
         val existing = current.firstOrNull { it.id == id }
             ?: return SubscriptionMutationResult.MissingSubscription(id)
         if (existing.enabled == enabled) return SubscriptionMutationResult.Success
-
         store.saveSubscriptions(current.map { if (it.id == id) it.copy(enabled = enabled) else it })
         return SubscriptionMutationResult.Success
     }
 
     fun removeSubscription(id: String): SubscriptionMutationResult {
         val current = store.subscriptions()
-        if (current.none { it.id == id }) {
-            return SubscriptionMutationResult.MissingSubscription(id)
-        }
-
-        val removedItemIds = store.cachedItems()
-            .asSequence()
-            .filter { it.feedId == id }
-            .mapTo(hashSetOf()) { it.id }
+        if (current.none { it.id == id }) return SubscriptionMutationResult.MissingSubscription(id)
+        val removedItemIds = store.cachedItems().asSequence().filter { it.feedId == id }.mapTo(hashSetOf()) { it.id }
         store.saveSubscriptions(current.filterNot { it.id == id })
         store.saveCachedItems(store.cachedItems().filterNot { it.feedId == id })
         if (removedItemIds.isNotEmpty()) {
@@ -181,60 +153,34 @@ class FeedInboxRepository(
         return SubscriptionMutationResult.Success
     }
 
-    /**
-     * Backward-compatible helper for internal callers that previously relied on upsert semantics.
-     * New product flows should prefer explicit add/update operations so duplicate and missing state
-     * cannot be silently overwritten.
-     */
-    fun upsertSubscription(subscription: FeedSubscription): SubscriptionMutationResult {
-        return if (store.subscriptions().any { it.id == subscription.id }) {
-            updateSubscription(subscription)
-        } else {
-            addSubscription(subscription)
-        }
-    }
+    fun upsertSubscription(subscription: FeedSubscription): SubscriptionMutationResult =
+        if (store.subscriptions().any { it.id == subscription.id }) updateSubscription(subscription) else addSubscription(subscription)
 
     fun refresh(): FeedRefreshResult {
         val subscriptions = store.subscriptions().filter { it.enabled }
         val previous = store.cachedItems()
-        if (subscriptions.isEmpty()) {
-            return FeedRefreshResult(emptyList(), emptySet())
-        }
+        if (subscriptions.isEmpty()) return FeedRefreshResult(emptyList(), emptySet())
 
         val failed = linkedSetOf<String>()
         val freshByFeed = linkedMapOf<String, List<CachedFeedItem>>()
-
         subscriptions.forEach { subscription ->
             val loaded = runCatching { loader.load(subscription.url) }
                 .onFailure { failed += subscription.id }
-                .getOrNull()
-                ?: return@forEach
-
+                .getOrNull() ?: return@forEach
             val now = clock()
-            freshByFeed[subscription.id] = loaded
-                .map { item -> item.toCached(subscription, now) }
-                .distinctBy { it.id }
+            freshByFeed[subscription.id] = loaded.map { it.toCached(subscription, now) }.distinctBy { it.id }
         }
 
         val enabledIds = subscriptions.mapTo(hashSetOf()) { it.id }
-        val retained = previous.filter { cached ->
-            cached.feedId !in enabledIds || cached.feedId in failed
-        }
-        val refreshed = freshByFeed.values.flatten()
-        val merged = (retained + refreshed)
-            .distinctBy { it.id }
-            .sortedByDescending { it.cachedAtEpochMs }
-
+        val retained = previous.filter { it.feedId !in enabledIds || it.feedId in failed }
+        val merged = (retained + freshByFeed.values.flatten()).distinctBy { it.id }.sortedByDescending { it.cachedAtEpochMs }
         store.saveCachedItems(merged)
-        val visible = merged.filter { it.feedId in enabledIds }
-        return FeedRefreshResult(visible, failed)
+        return FeedRefreshResult(merged.filter { it.feedId in enabledIds }, failed)
     }
 
     private fun duplicateSubscriptionId(url: String, excludingId: String?): String? {
         val normalized = normalizeIdentityUrl(url) ?: url.trim()
-        return store.subscriptions().firstOrNull { existing ->
-            existing.id != excludingId && normalizeIdentityUrl(existing.url) == normalized
-        }?.id
+        return store.subscriptions().firstOrNull { it.id != excludingId && normalizeIdentityUrl(it.url) == normalized }?.id
     }
 }
 
@@ -251,15 +197,11 @@ internal fun isValidSubscriptionUrl(value: String): Boolean {
     }.getOrDefault(false)
 }
 
-private fun FeedItem.toCached(
-    subscription: FeedSubscription,
-    cachedAtEpochMs: Long
-): CachedFeedItem {
+private fun FeedItem.toCached(subscription: FeedSubscription, cachedAtEpochMs: Long): CachedFeedItem {
     val stableId = guid?.trim()?.takeIf { it.isNotBlank() }?.let { "guid:$it" }
         ?: normalizeIdentityUrl(link)?.let { "link:$it" }
         ?: normalizeIdentityUrl(audioUrl)?.let { "audio:$it" }
         ?: "fallback:${subscription.id}:${title.trim()}:${published.orEmpty().trim()}"
-
     return CachedFeedItem(
         id = stableId,
         feedId = subscription.id,
@@ -269,15 +211,11 @@ private fun FeedItem.toCached(
         description = description,
         published = published,
         audioUrl = audioUrl,
+        transcript = transcript,
         cachedAtEpochMs = cachedAtEpochMs
     )
 }
 
-/**
- * Normalizes only URL differences that are safe for identity comparison without
- * network access: scheme/host casing, default ports, fragments, empty paths and
- * a trailing root-equivalent slash. Query parameters are deliberately preserved.
- */
 internal fun normalizeIdentityUrl(value: String?): String? {
     val raw = value?.trim()?.takeIf { it.isNotBlank() } ?: return null
     return runCatching {
@@ -285,7 +223,6 @@ internal fun normalizeIdentityUrl(value: String?): String? {
         val scheme = uri.scheme?.lowercase() ?: return@runCatching raw
         val host = uri.host?.lowercase() ?: return@runCatching raw
         if (scheme != "http" && scheme != "https") return@runCatching raw
-
         val port = when {
             uri.port == -1 -> -1
             scheme == "http" && uri.port == 80 -> -1
@@ -298,7 +235,6 @@ internal fun normalizeIdentityUrl(value: String?): String? {
             rawPath.length > 1 && rawPath.endsWith('/') -> rawPath.dropLast(1)
             else -> rawPath
         }
-
         URI(scheme, uri.rawUserInfo, host, port, path, uri.rawQuery, null).toASCIIString()
     }.getOrElse { raw }
 }

@@ -1,3 +1,10 @@
+import {
+  buildRepairPrompt,
+  buildStructuredBriefPrompt,
+  parseStructuredBrief,
+  type StructuredBrief
+} from "./structuredBrief";
+
 export type SummaryInput = {
   title?: string;
   content: string;
@@ -6,6 +13,7 @@ export type SummaryInput = {
 export type SummaryOutput = {
   summary: string;
   model: string;
+  structured: StructuredBrief;
 };
 
 export interface AiProvider {
@@ -34,6 +42,29 @@ export class OpenAiCompatibleProvider implements AiProvider {
   constructor(private readonly env: ProviderEnv) {}
 
   async summarize(input: SummaryInput): Promise<SummaryOutput> {
+    const base = this.requireHttpsBaseUrl();
+    const firstPrompt = buildStructuredBriefPrompt(input.title, input.content);
+    const firstRaw = await this.complete(base, firstPrompt.system, firstPrompt.user);
+    let structured = parseStructuredBrief(firstRaw);
+
+    if (!structured) {
+      const repairPrompt = buildRepairPrompt(input.title, input.content, firstRaw);
+      const repairedRaw = await this.complete(base, repairPrompt.system, repairPrompt.user);
+      structured = parseStructuredBrief(repairedRaw);
+    }
+
+    if (!structured) {
+      throw new ProviderError("invalid_provider_response");
+    }
+
+    return {
+      summary: structured.brief,
+      model: this.env.AI_MODEL,
+      structured
+    };
+  }
+
+  private requireHttpsBaseUrl(): string {
     const base = this.env.AI_BASE_URL.replace(/\/$/, "");
     let parsed: URL;
     try {
@@ -44,7 +75,10 @@ export class OpenAiCompatibleProvider implements AiProvider {
     if (parsed.protocol !== "https:") {
       throw new ProviderError("invalid_provider_url");
     }
+    return base;
+  }
 
+  private async complete(base: string, system: string, user: string): Promise<string> {
     const upstream = await fetch(`${base}/chat/completions`, {
       method: "POST",
       headers: {
@@ -55,14 +89,8 @@ export class OpenAiCompatibleProvider implements AiProvider {
         model: this.env.AI_MODEL,
         temperature: 0.2,
         messages: [
-          {
-            role: "system",
-            content: "Summarize RSS or podcast content for a Wear OS display. Be concise, factual, and preserve important names, numbers, and dates."
-          },
-          {
-            role: "user",
-            content: `${input.title ? `Title: ${input.title}\n\n` : ""}${input.content}`
-          }
+          { role: "system", content: system },
+          { role: "user", content: user }
         ]
       })
     });
@@ -78,12 +106,11 @@ export class OpenAiCompatibleProvider implements AiProvider {
       throw new ProviderError("invalid_provider_response");
     }
 
-    const summary = readSummary(data);
-    if (!summary) {
+    const content = readMessageContent(data);
+    if (!content) {
       throw new ProviderError("invalid_provider_response");
     }
-
-    return { summary, model: this.env.AI_MODEL };
+    return content;
   }
 }
 
@@ -109,7 +136,7 @@ export function createProviderRegistry(env: ProviderEnv): AiProviderRegistry {
   return new AiProviderRegistry().register(new OpenAiCompatibleProvider(env));
 }
 
-function readSummary(data: unknown): string | null {
+function readMessageContent(data: unknown): string | null {
   if (!data || typeof data !== "object") return null;
   const choices = (data as { choices?: unknown }).choices;
   if (!Array.isArray(choices) || choices.length === 0) return null;

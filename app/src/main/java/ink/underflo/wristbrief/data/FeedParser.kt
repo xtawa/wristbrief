@@ -17,6 +17,7 @@ class FeedParser {
         var published: String? = null
         var audioUrl: String? = null
         var guid: String? = null
+        var transcript: PodcastTranscript? = null
 
         while (event != XmlPullParser.END_DOCUMENT) {
             when (event) {
@@ -31,6 +32,7 @@ class FeedParser {
                             published = null
                             audioUrl = null
                             guid = null
+                            transcript = null
                         }
 
                         "guid", "id" -> if (inItem) {
@@ -69,6 +71,10 @@ class FeedParser {
                                 audioUrl = url
                             }
                         }
+
+                        "podcast:transcript" -> if (inItem && transcript == null) {
+                            transcript = parseTranscript(parser)
+                        }
                     }
                 }
 
@@ -81,7 +87,8 @@ class FeedParser {
                                 description = description,
                                 published = published,
                                 audioUrl = audioUrl,
-                                guid = guid
+                                guid = guid,
+                                transcript = transcript
                             )
                         }
                         inItem = false
@@ -92,5 +99,18 @@ class FeedParser {
         }
 
         return items
+    }
+
+    private fun parseTranscript(parser: XmlPullParser): PodcastTranscript? {
+        val url = parser.getAttributeValue(null, "url")?.trim().orEmpty()
+        val type = parser.getAttributeValue(null, "type")?.trim().orEmpty()
+        if (!url.startsWith("https://", ignoreCase = true) || type.isBlank()) return null
+
+        return PodcastTranscript(
+            url = url,
+            type = type.lowercase(),
+            language = parser.getAttributeValue(null, "language")?.trim()?.ifBlank { null },
+            rel = parser.getAttributeValue(null, "rel")?.trim()?.lowercase()?.ifBlank { null }
+        )
     }
 }

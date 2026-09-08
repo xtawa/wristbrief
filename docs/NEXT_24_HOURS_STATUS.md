@@ -24,7 +24,7 @@ Automation rules:
 - [x] 09 — Podcast controls and progress
 - [x] 10 — Podcast robustness + transcript discovery
 - [x] 11 — AI Gateway provider adapter refactor
-- [ ] 12 — Structured AI brief schema
+- [x] 12 — Structured AI brief schema
 - [ ] 13 — OpenRouter + Gemini provider support
 - [ ] 14 — Gateway reliability/security pass
 - [ ] 15 — AI summary cache foundation
@@ -57,3 +57,4 @@ Slot 08 — 6cd0c854dc25e20b339acec18b884c63e05d2c02 — Replaced activity-bound
 Slot 09 — f22429e25d1850dc6245f9b566d73d2f7b78509d — Added per-episode resume/speed persistence, 15-second checkpointed MediaSession progress saves, completed-episode reset policy, Wear progress/play-pause/seek/speed controls, and pure codec/resume/checkpoint/time-format tests — CI: green
 Slot 10 — 011c40b2177347cab6efaf8853385cd9a2068d8a — Added Media3-managed audio focus/noisy-route handling, standard MediaSession Bluetooth transport controls, publisher transcript metadata parsing/persistence with v1 cache migration, and enclosure/transcript fixtures/tests — CI: green
 Slot 11 — 5c31180995730329ef6b9c604c19ea293e074747 — Refactored the gateway behind an AiProvider interface/registry, preserved the OpenAI-compatible adapter and /v1/summary response contract, kept upstream selection server-side, and added registry/adapter routing and failure tests — CI: green
+Slot 12 — 236592a70fc3eadcc0a9222057aefd85591240ae — Added validated versioned structured briefs (tiny/brief/bullets/topics/languages), compatibility summary output, one bounded repair attempt, untrusted-source prompt isolation, and malformed-output/schema tests — CI: green

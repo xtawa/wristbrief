@@ -7,8 +7,15 @@ import {
   type SummaryInput,
   type SummaryOutput
 } from "./provider";
+import {
+  buildSummaryCacheKey,
+  createSummaryCache,
+  summarizeWithCache,
+  summaryCacheTtlSeconds,
+  type SummaryCacheEnv
+} from "./summaryCache";
 
-interface Env extends ProviderEnv { GATEWAY_TOKEN: string }
+interface Env extends ProviderEnv, SummaryCacheEnv { GATEWAY_TOKEN: string }
 type SummaryRequest = { title?: string; content?: string };
 const DEFAULT_PROVIDER_ID = "openai-compatible";
 const MAX_REQUEST_BYTES = 64 * 1024;
@@ -48,10 +55,16 @@ export default {
     try {
       const registry = createProviderRegistry(env);
       const primaryId = env.AI_PROVIDER?.trim() || DEFAULT_PROVIDER_ID;
-      const output = await summarizeWithFallback(registry, primaryId, env.AI_FALLBACK_PROVIDER?.trim(), {
-        title: body.title,
-        content
+      const input = { title: body.title, content };
+      const cache = createSummaryCache(env);
+      const cacheKey = await buildSummaryCacheKey({
+        title: input.title,
+        content: input.content,
+        language: "auto"
       });
+      const output = await summarizeWithCache(cache, cacheKey, summaryCacheTtlSeconds(env), () =>
+        summarizeWithFallback(registry, primaryId, env.AI_FALLBACK_PROVIDER?.trim(), input)
+      );
       return respond(output);
     } catch (error) {
       return providerFailure(error, respond);

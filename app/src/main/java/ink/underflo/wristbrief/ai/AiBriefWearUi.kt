@@ -7,6 +7,9 @@ data class WearAiBriefPresentation(
     val showReadyBrief: Boolean
 )
 
+fun isAiGatewayConfigured(gatewayUrl: String, gatewayToken: String): Boolean =
+    gatewayUrl.startsWith("https://") && gatewayToken.isNotBlank()
+
 fun AiBriefUiState.toWearPresentation(isGatewayConfigured: Boolean): WearAiBriefPresentation = when (this) {
     AiBriefUiState.Idle -> if (isGatewayConfigured) {
         WearAiBriefPresentation(

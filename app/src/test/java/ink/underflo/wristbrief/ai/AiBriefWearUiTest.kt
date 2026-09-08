@@ -16,6 +16,13 @@ class AiBriefWearUiTest {
     }
 
     @Test
+    fun gatewayConfiguration_requiresHttpsAndToken() {
+        assertTrue(isAiGatewayConfigured("https://gateway.example", "token"))
+        assertFalse(isAiGatewayConfigured("http://gateway.example", "token"))
+        assertFalse(isAiGatewayConfigured("https://gateway.example", ""))
+    }
+
+    @Test
     fun loading_keepsOriginalReaderAvailable() {
         val presentation = AiBriefUiState.Loading.toWearPresentation(isGatewayConfigured = true)
 

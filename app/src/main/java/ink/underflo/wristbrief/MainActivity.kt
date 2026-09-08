@@ -9,6 +9,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -28,6 +30,12 @@ import androidx.wear.compose.material3.Text
 import androidx.wear.compose.material3.TitleCard
 import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
+import ink.underflo.wristbrief.ai.AiBriefUiState
+import ink.underflo.wristbrief.ai.AiSummaryClient
+import ink.underflo.wristbrief.ai.AiSummaryException
+import ink.underflo.wristbrief.ai.aiFailureState
+import ink.underflo.wristbrief.ai.isAiGatewayConfigured
+import ink.underflo.wristbrief.ai.toWearPresentation
 import ink.underflo.wristbrief.media.PodcastPlaybackConnection
 import ink.underflo.wristbrief.media.PodcastPlaybackRequest
 import ink.underflo.wristbrief.ui.ArticleDetailUi
@@ -38,14 +46,23 @@ import ink.underflo.wristbrief.ui.InboxViewModel
 import ink.underflo.wristbrief.ui.toArticleDetailUi
 import ink.underflo.wristbrief.ui.wearEmptyDetail
 import ink.underflo.wristbrief.ui.wearStatusLine
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     private lateinit var playbackConnection: PodcastPlaybackConnection
+    private val aiSummaryClient = AiSummaryClient()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         playbackConnection = PodcastPlaybackConnection(this)
-        setContent { WristBriefApp(playbackConnection = playbackConnection) }
+        setContent {
+            WristBriefApp(
+                playbackConnection = playbackConnection,
+                aiSummaryClient = aiSummaryClient
+            )
+        }
     }
 
     override fun onStart() {
@@ -64,6 +81,7 @@ private enum class AppDestination { Inbox, Saved, Feeds, Article }
 @Composable
 private fun WristBriefApp(
     playbackConnection: PodcastPlaybackConnection,
+    aiSummaryClient: AiSummaryClient,
     viewModel: InboxViewModel = viewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -120,6 +138,9 @@ private fun WristBriefApp(
                         isSaved = selectedItem?.isSaved ?: false,
                         isOfflineFallback = state.isOfflineFallback,
                         playbackConnection = playbackConnection,
+                        aiSummaryClient = aiSummaryClient,
+                        gatewayUrl = BuildConfig.AI_GATEWAY_URL,
+                        gatewayToken = BuildConfig.AI_GATEWAY_TOKEN,
                         onPlayPodcast = { article ->
                             article.audioUrl?.let { audioUrl ->
                                 playbackConnection.play(
@@ -313,6 +334,9 @@ internal fun ArticleDetailScreen(
     isSaved: Boolean,
     isOfflineFallback: Boolean,
     playbackConnection: PodcastPlaybackConnection,
+    aiSummaryClient: AiSummaryClient,
+    gatewayUrl: String,
+    gatewayToken: String,
     onPlayPodcast: (ArticleDetailUi) -> Unit,
     onToggleRead: () -> Unit,
     onToggleSaved: () -> Unit,
@@ -322,6 +346,35 @@ internal fun ArticleDetailScreen(
     val transformationSpec = rememberTransformationSpec()
     val playbackState by playbackConnection.state.collectAsState()
     val isCurrentPodcast = article != null && playbackState.mediaId == article.id
+    val gatewayConfigured = remember(gatewayUrl, gatewayToken) {
+        isAiGatewayConfigured(gatewayUrl, gatewayToken)
+    }
+    var aiState by remember(article?.id) { mutableStateOf<AiBriefUiState>(AiBriefUiState.Idle) }
+    val aiPresentation = aiState.toWearPresentation(gatewayConfigured)
+    val coroutineScope = rememberCoroutineScope()
+
+    fun requestAiBrief() {
+        val currentArticle = article ?: return
+        if (!gatewayConfigured || aiState is AiBriefUiState.Loading) return
+        aiState = AiBriefUiState.Loading
+        coroutineScope.launch {
+            aiState = try {
+                val result = withContext(Dispatchers.IO) {
+                    aiSummaryClient.summarize(
+                        gatewayUrl = gatewayUrl,
+                        gatewayToken = gatewayToken,
+                        title = currentArticle.title,
+                        content = currentArticle.body
+                    )
+                }
+                AiBriefUiState.Ready(result)
+            } catch (error: AiSummaryException) {
+                aiFailureState(error.failure)
+            } catch (_: IllegalArgumentException) {
+                AiBriefUiState.Error("AI configuration unavailable")
+            }
+        }
+    }
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
         TransformingLazyColumn(
@@ -359,6 +412,28 @@ internal fun ArticleDetailScreen(
                         transformation = SurfaceTransformation(transformationSpec),
                         modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                     ) { Text(article.body) }
+                }
+                if (aiPresentation.showReadyBrief) {
+                    item {
+                        TitleCard(
+                            onClick = {},
+                            title = { CompactText(aiPresentation.label, maxLines = 3) },
+                            subtitle = { CompactText("AI brief", maxLines = 1) },
+                            transformation = SurfaceTransformation(transformationSpec),
+                            modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
+                        ) { Text(aiPresentation.detail) }
+                    }
+                } else {
+                    item {
+                        Button(
+                            onClick = ::requestAiBrief,
+                            enabled = aiPresentation.actionEnabled,
+                            label = { CompactText(aiPresentation.label, maxLines = 2) },
+                            secondaryLabel = { CompactText(aiPresentation.detail, maxLines = 2) },
+                            transformation = SurfaceTransformation(transformationSpec),
+                            modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
+                        )
+                    }
                 }
                 if (article.audioUrl != null) {
                     if (!isCurrentPodcast) {

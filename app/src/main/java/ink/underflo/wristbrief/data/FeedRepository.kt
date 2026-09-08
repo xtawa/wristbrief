@@ -5,13 +5,21 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.xmlpull.v1.XmlPullParser
 
+data class PodcastTranscript(
+    val url: String,
+    val type: String,
+    val language: String? = null,
+    val rel: String? = null
+)
+
 data class FeedItem(
     val title: String,
     val link: String?,
     val description: String?,
     val published: String?,
     val audioUrl: String?,
-    val guid: String? = null
+    val guid: String? = null,
+    val transcript: PodcastTranscript? = null
 )
 
 class FeedRepository(

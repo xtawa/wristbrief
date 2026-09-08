@@ -36,7 +36,7 @@ export interface BillingVerifier {
 export class FakeBillingVerifier implements BillingVerifier {
   constructor(private readonly result: Entitlement | null = null) {}
 
-  async verify(): Promise<Entitlement | null> {
+  async verify(_input: { userId: string; productId: string; purchaseToken: string }): Promise<Entitlement | null> {
     return this.result;
   }
 }

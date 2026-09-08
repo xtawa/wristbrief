@@ -1,3 +1,5 @@
+import { ProviderError, createProviderRegistry } from "./provider";
+
 interface Env {
   AI_API_KEY: string;
   GATEWAY_TOKEN: string;
@@ -9,6 +11,8 @@ type SummaryRequest = {
   title?: string;
   content?: string;
 };
+
+const DEFAULT_PROVIDER_ID = "openai-compatible";
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -38,44 +42,22 @@ export default {
     if (!content) return json({ error: "content_required" }, 400);
     if (content.length > 50000) return json({ error: "content_too_large" }, 413);
 
-    const base = env.AI_BASE_URL.replace(/\/$/, "");
-    if (!base.startsWith("https://")) {
-      return json({ error: "invalid_provider_url" }, 500);
+    const provider = createProviderRegistry(env).require(DEFAULT_PROVIDER_ID);
+    try {
+      const result = await provider.summarize({ title: body.title, content });
+      return json(result);
+    } catch (error) {
+      if (error instanceof ProviderError) {
+        if (error.code === "invalid_provider_url") {
+          return json({ error: error.code }, 500);
+        }
+        if (error.code === "provider_error") {
+          return json({ error: error.code, status: error.upstreamStatus }, 502);
+        }
+        return json({ error: error.code }, 502);
+      }
+      return json({ error: "provider_error" }, 502);
     }
-
-    const upstream = await fetch(`${base}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${env.AI_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: env.AI_MODEL,
-        temperature: 0.2,
-        messages: [
-          {
-            role: "system",
-            content: "Summarize RSS or podcast content for a Wear OS display. Be concise, factual, and preserve important names, numbers, and dates."
-          },
-          {
-            role: "user",
-            content: `${body.title ? `Title: ${body.title}\n\n` : ""}${content}`
-          }
-        ]
-      })
-    });
-
-    if (!upstream.ok) {
-      return json({ error: "provider_error", status: upstream.status }, 502);
-    }
-
-    const data = await upstream.json<any>();
-    const summary = data?.choices?.[0]?.message?.content;
-    if (typeof summary !== "string" || !summary.trim()) {
-      return json({ error: "invalid_provider_response" }, 502);
-    }
-
-    return json({ summary: summary.trim(), model: env.AI_MODEL });
   }
 };
 

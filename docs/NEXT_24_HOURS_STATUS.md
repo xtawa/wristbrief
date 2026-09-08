@@ -26,7 +26,7 @@ Automation rules:
 - [x] 11 — AI Gateway provider adapter refactor
 - [x] 12 — Structured AI brief schema
 - [x] 13 — OpenRouter + Gemini provider support
-- [ ] 14 — Gateway reliability/security pass
+- [x] 14 — Gateway reliability/security pass
 - [ ] 15 — AI summary cache foundation
 - [ ] 16 — Wear AI brief integration
 - [ ] 17 — Latest/unread Tile
@@ -59,3 +59,4 @@ Slot 10 — 011c40b2177347cab6efaf8853385cd9a2068d8a — Added Media3-managed au
 Slot 11 — 5c31180995730329ef6b9c604c19ea293e074747 — Refactored the gateway behind an AiProvider interface/registry, preserved the OpenAI-compatible adapter and /v1/summary response contract, kept upstream selection server-side, and added registry/adapter routing and failure tests — CI: green
 Slot 12 — 236592a70fc3eadcc0a9222057aefd85591240ae — Added validated versioned structured briefs (tiny/brief/bullets/topics/languages), compatibility summary output, one bounded repair attempt, untrusted-source prompt isolation, and malformed-output/schema tests — CI: green
 Slot 13 — ac5b9d0236d4eb29f90363f5ee768e2c3d6ff1bb — Added managed fixed-endpoint OpenRouter and native Gemini providers, server-side provider selection/configuration, authenticated provider metadata, safe key handling, and routing/normalization tests — CI: green
+Slot 14 — 5ecf3f2b414efa937309e05706bedaa27016a5bd — Added bounded provider timeout/retry, retryable-only server-side fallback, streamed request-size limiting, response request IDs, exact HTTPS host controls with redirect blocking, and secret/upstream-body-safe failure handling/tests — CI: green

@@ -8,6 +8,7 @@ import ink.underflo.wristbrief.data.FeedInboxRepository
 import ink.underflo.wristbrief.data.FeedRepository
 import ink.underflo.wristbrief.data.SharedPreferencesFeedStore
 import ink.underflo.wristbrief.data.SubscriptionMutationResult
+import ink.underflo.wristbrief.tile.requestLatestUnreadTileUpdate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,6 +43,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         if (_uiState.value.isLoading) return
         if (!repository.subscriptions().any { it.enabled }) {
             _uiState.value = buildState()
+            requestTileUpdate()
             return
         }
 
@@ -58,6 +60,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
                             null
                         }
                     )
+                    requestTileUpdate()
                 }
                 .onFailure {
                     _uiState.value = buildState(
@@ -72,6 +75,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
     fun setItemRead(id: String, isRead: Boolean) {
         if (repository.setRead(id, isRead)) {
             rebuildPreservingTransientState()
+            requestTileUpdate()
         } else {
             _uiState.value = _uiState.value.copy(errorMessage = "Brief is no longer available")
         }
@@ -89,6 +93,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         when (repository.setSubscriptionEnabled(id, enabled)) {
             SubscriptionMutationResult.Success -> {
                 _uiState.value = buildState()
+                requestTileUpdate()
                 if (enabled) refresh()
             }
             else -> _uiState.value = _uiState.value.copy(errorMessage = "Could not update feed")
@@ -97,9 +102,16 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
 
     fun removeFeed(id: String) {
         when (repository.removeSubscription(id)) {
-            SubscriptionMutationResult.Success -> _uiState.value = buildState()
+            SubscriptionMutationResult.Success -> {
+                _uiState.value = buildState()
+                requestTileUpdate()
+            }
             else -> _uiState.value = _uiState.value.copy(errorMessage = "Could not remove feed")
         }
+    }
+
+    private fun requestTileUpdate() {
+        requestLatestUnreadTileUpdate(getApplication())
     }
 
     private fun rebuildPreservingTransientState() {

@@ -3,6 +3,8 @@ package ink.underflo.wristbrief.media
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
@@ -24,7 +26,15 @@ class PodcastPlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         progressStore = SharedPreferencesPodcastProgressStore(this)
+        val speechAudioAttributes = AudioAttributes.Builder()
+            .setUsage(C.USAGE_MEDIA)
+            .setContentType(C.AUDIO_CONTENT_TYPE_SPEECH)
+            .build()
         val player = ExoPlayer.Builder(this).build().apply {
+            // Let Media3 request/abandon audio focus for speech playback and pause
+            // automatically when a wired/Bluetooth route becomes noisy/disconnects.
+            setAudioAttributes(speechAudioAttributes, true)
+            setHandleAudioBecomingNoisy(true)
             addListener(object : Player.Listener {
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
                     if (!isPlaying) saveCurrentProgress(force = true)
@@ -37,6 +47,8 @@ class PodcastPlaybackService : MediaSessionService() {
                 }
             })
         }
+        // MediaSession exposes standard play/pause/seek transport commands to
+        // Bluetooth headsets and system media controls without a custom receiver.
         mediaSession = MediaSession.Builder(this, player).build()
         mainHandler.postDelayed(checkpointRunnable, PROGRESS_CHECKPOINT_MS)
     }

@@ -28,7 +28,7 @@ Automation rules:
 - [x] 13 — OpenRouter + Gemini provider support
 - [x] 14 — Gateway reliability/security pass
 - [x] 15 — AI summary cache foundation
-- [ ] 16 — Wear AI brief integration
+- [x] 16 — Wear AI brief integration
 - [ ] 17 — Latest/unread Tile
 - [ ] 18 — Complication + continue-listening surface
 - [ ] 19 — Phone companion module foundation
@@ -61,3 +61,4 @@ Slot 12 — 236592a70fc3eadcc0a9222057aefd85591240ae — Added validated version
 Slot 13 — ac5b9d0236d4eb29f90363f5ee768e2c3d6ff1bb — Added managed fixed-endpoint OpenRouter and native Gemini providers, server-side provider selection/configuration, authenticated provider metadata, safe key handling, and routing/normalization tests — CI: green
 Slot 14 — 5ecf3f2b414efa937309e05706bedaa27016a5bd — Added bounded provider timeout/retry, retryable-only server-side fallback, streamed request-size limiting, response request IDs, exact HTTPS host controls with redirect blocking, and secret/upstream-body-safe failure handling/tests — CI: green
 Slot 15 — 6425da01483a58278169d9ffad54d8c4048343e5 — Added normalized SHA-256 summary cache keys partitioned by language/prompt/schema version, optional Cloudflare KV and in-memory cache implementations, bounded TTL configuration, validated cached payloads, and cache-hit upstream bypass tests — CI: green
+Slot 16 — 440b16dcf9870be22a24c3542ab858e2dbe4f16a — Integrated structured AI briefs into Wear article detail with compact loading/ready/quota/provider/error states, HTTPS-gated gateway config, bounded client timeout, retryable degradation, and preserved reader/podcast actions when AI is unavailable — CI: green

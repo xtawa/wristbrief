@@ -23,7 +23,7 @@ Automation rules:
 - [x] 08 — MediaSession service foundation
 - [x] 09 — Podcast controls and progress
 - [x] 10 — Podcast robustness + transcript discovery
-- [ ] 11 — AI Gateway provider adapter refactor
+- [x] 11 — AI Gateway provider adapter refactor
 - [ ] 12 — Structured AI brief schema
 - [ ] 13 — OpenRouter + Gemini provider support
 - [ ] 14 — Gateway reliability/security pass
@@ -56,3 +56,4 @@ Slot 07 — eb74e4b14a0752c3532edc8a70db4656f929ae03 — Reviewed current Wear s
 Slot 08 — 6cd0c854dc25e20b339acec18b884c63e05d2c02 — Replaced activity-bound podcast playback with a Media3 MediaSessionService, Activity-scoped MediaController connection, HTTPS playback contract, foreground media service manifest setup, Wear detail play action, and contract/UI mapping tests — CI: green
 Slot 09 — f22429e25d1850dc6245f9b566d73d2f7b78509d — Added per-episode resume/speed persistence, 15-second checkpointed MediaSession progress saves, completed-episode reset policy, Wear progress/play-pause/seek/speed controls, and pure codec/resume/checkpoint/time-format tests — CI: green
 Slot 10 — 011c40b2177347cab6efaf8853385cd9a2068d8a — Added Media3-managed audio focus/noisy-route handling, standard MediaSession Bluetooth transport controls, publisher transcript metadata parsing/persistence with v1 cache migration, and enclosure/transcript fixtures/tests — CI: green
+Slot 11 — 5c31180995730329ef6b9c604c19ea293e074747 — Refactored the gateway behind an AiProvider interface/registry, preserved the OpenAI-compatible adapter and /v1/summary response contract, kept upstream selection server-side, and added registry/adapter routing and failure tests — CI: green

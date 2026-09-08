@@ -44,6 +44,56 @@ class FeedParserTest {
     }
 
     @Test
+    fun parsesPodcastEnclosureAndPublisherTranscriptMetadata() {
+        val xml = """
+            <rss version="2.0" xmlns:podcast="https://podcastindex.org/namespace/1.0">
+              <channel>
+                <item>
+                  <guid>episode-with-transcript</guid>
+                  <title>Episode with transcript</title>
+                  <enclosure url="https://cdn.example.com/e1.mp3" type="audio/mpeg" />
+                  <podcast:transcript
+                      url="https://cdn.example.com/e1.vtt"
+                      type="text/vtt"
+                      language="en-US"
+                      rel="captions" />
+                </item>
+              </channel>
+            </rss>
+        """.trimIndent()
+
+        val item = subject.parse(parserFor(xml)).single()
+
+        assertEquals("https://cdn.example.com/e1.mp3", item.audioUrl)
+        assertEquals(
+            PodcastTranscript(
+                url = "https://cdn.example.com/e1.vtt",
+                type = "text/vtt",
+                language = "en-US",
+                rel = "captions"
+            ),
+            item.transcript
+        )
+    }
+
+    @Test
+    fun ignoresUnsafeOrIncompleteTranscriptMetadata() {
+        val xml = """
+            <rss version="2.0" xmlns:podcast="https://podcastindex.org/namespace/1.0">
+              <channel>
+                <item>
+                  <title>Unsafe transcript</title>
+                  <enclosure url="https://cdn.example.com/e2.mp3" type="audio/mpeg" />
+                  <podcast:transcript url="http://cdn.example.com/e2.vtt" type="text/vtt" />
+                </item>
+              </channel>
+            </rss>
+        """.trimIndent()
+
+        assertNull(subject.parse(parserFor(xml)).single().transcript)
+    }
+
+    @Test
     fun parsesAtomAlternateLinkAudioEnclosureAndId() {
         val xml = """
             <feed xmlns="http://www.w3.org/2005/Atom">

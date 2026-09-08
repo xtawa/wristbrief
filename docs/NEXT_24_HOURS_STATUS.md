@@ -29,7 +29,7 @@ Automation rules:
 - [x] 14 — Gateway reliability/security pass
 - [x] 15 — AI summary cache foundation
 - [x] 16 — Wear AI brief integration
-- [ ] 17 — Latest/unread Tile
+- [x] 17 — Latest/unread Tile
 - [ ] 18 — Complication + continue-listening surface
 - [ ] 19 — Phone companion module foundation
 - [ ] 20 — Phone feed management + Data Layer contract
@@ -62,3 +62,4 @@ Slot 13 — ac5b9d0236d4eb29f90363f5ee768e2c3d6ff1bb — Added managed fixed-end
 Slot 14 — 5ecf3f2b414efa937309e05706bedaa27016a5bd — Added bounded provider timeout/retry, retryable-only server-side fallback, streamed request-size limiting, response request IDs, exact HTTPS host controls with redirect blocking, and secret/upstream-body-safe failure handling/tests — CI: green
 Slot 15 — 6425da01483a58278169d9ffad54d8c4048343e5 — Added normalized SHA-256 summary cache keys partitioned by language/prompt/schema version, optional Cloudflare KV and in-memory cache implementations, bounded TTL configuration, validated cached payloads, and cache-hit upstream bypass tests — CI: green
 Slot 16 — 440b16dcf9870be22a24c3542ab858e2dbe4f16a — Integrated structured AI briefs into Wear article detail with compact loading/ready/quota/provider/error states, HTTPS-gated gateway config, bounded client timeout, retryable degradation, and preserved reader/podcast actions when AI is unavailable — CI: green
+Slot 17 — 902651c7db979a14a3ffcd880d978d88bfaf5b04 — Added cached-data Wear Tile with unread count and recent titles, Inbox launch actions, meaningful-change update requests, no render-time feed/AI fetch or polling, and tile mapping tests — CI: green

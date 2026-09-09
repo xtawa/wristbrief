@@ -7,6 +7,18 @@ import org.junit.Test
 
 class PhoneLongSummaryPresentationTest {
     @Test
+    fun missingAuthenticatedResponseUsesPendingState() {
+        assertEquals(
+            PhoneLongSummaryUiState.AwaitingAuthenticatedGateway,
+            phoneLongSummaryUiState(null),
+        )
+        assertEquals(
+            PhoneLongSummaryUiState.AwaitingAuthenticatedGateway,
+            phoneLongSummaryUiState("   "),
+        )
+    }
+
+    @Test
     fun mapsValidGatewayResponseToReadyState() {
         val raw = """
             {

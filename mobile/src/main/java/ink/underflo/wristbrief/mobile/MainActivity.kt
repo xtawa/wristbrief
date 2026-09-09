@@ -68,7 +68,7 @@ class MainActivity : ComponentActivity() {
     Scaffold(topBar = { LargeTopAppBar(title = { Column { Text("WristBrief", fontWeight = FontWeight.SemiBold); Text(destination.label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant) } }) }, bottomBar = { NavigationBar { MobileDestination.entries.forEach { item -> NavigationBarItem(selected = item == destination, onClick = { select(item) }, icon = { Surface(shape = MaterialTheme.shapes.large, color = if (item == destination) MaterialTheme.colorScheme.primaryContainer else Color.Transparent) { Text(item.shortLabel, Modifier.padding(horizontal = 10.dp, vertical = 6.dp), style = MaterialTheme.typography.labelMedium) } }, label = { Text(item.label) }) } } }) { padding ->
         when (destination) {
             MobileDestination.Feeds -> FeedManagementDestination(padding)
-            MobileDestination.AiProvider -> PhoneLongSummaryDestination(phoneLongSummaryUiState(null), padding)
+            MobileDestination.AiProvider -> PhoneLongSummaryDestination(padding)
             MobileDestination.Membership -> MembershipDestination(padding)
         }
     }

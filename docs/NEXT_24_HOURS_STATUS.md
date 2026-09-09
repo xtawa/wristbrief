@@ -34,7 +34,7 @@ Automation rules:
 - [x] 19 — Phone companion module foundation
 - [x] 20 — Phone feed management + Data Layer contract
 - [x] 21 — Google Play Billing v8 client foundation
-- [ ] 22 — Membership / entitlement / quota server foundation
+- [x] 22 — Membership / entitlement / quota server foundation
 - [ ] 23 — Play server verification + docs foundation
 - [ ] 24 — Full review, hardening and release-readiness checkpoint
 
@@ -67,3 +67,4 @@ Slot 18 — e5b71a1430ee2f18b3debbf213dab8b46e3b184d — Added local-state unrea
 Slot 19 — dad75d5951014cc5d19e5529b005f86b2f6bce08 — Added independent :mobile phone APK with Material You navigation shell for Feeds/AI/Membership, stable destination tests, and CI coverage for both Wear and mobile JVM tests/assemblies — CI: green
 Slot 20 — eb2fda3d279c40bcd64707fbe3353761872bf5c4 — Added phone feed add/edit/remove/enable with HTTPS first-fetch validation and persistence plus versioned lightweight Wear Data Layer v1 subscription/read/saved contract, Wear receiver, sync/update hooks, and serialization/versioning/domain tests — CI: green
 Slot 21 — f9de315503e76ad84c696525a9ecdcd5e1698ce4 — Added Play Billing 8.3.0 repository/fake foundation, configured ProductDetails + restore/purchase flows, Play-driven Membership UI with explicit states, token-safe presentation mapping, and billing/presentation tests — CI: green
+Slot 22 — fd95bbb7378c1d8cdfb14af6382f2c91307b7044 — Added server-owned FREE/PRO entitlement and managed-AI quota contracts, BYOK quota bypass, authenticated /v1/me, billing verifier boundary/fake, D1-compatible membership migration foundation, anti-self-upgrade checks, and quota-consumption tests — CI: green

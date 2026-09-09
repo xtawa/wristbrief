@@ -94,6 +94,7 @@ fun CategorizedFeedManagementDestination(padding: PaddingValues) {
                 }
             }
             items(group.feeds, key = { it.id }) { feed ->
+                val keywordState = keywordWatchUiState(feed.watchKeywords)
                 Card(
                     Modifier.fillMaxWidth(),
                     shape = MaterialTheme.shapes.extraLarge,
@@ -104,6 +105,14 @@ fun CategorizedFeedManagementDestination(padding: PaddingValues) {
                         Text(feed.url, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         feed.category?.let { category ->
                             Text("Folder · $category", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                        }
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("Watch filter · ${keywordState.summary}", style = MaterialTheme.typography.labelLarge)
+                            Text(
+                                keywordState.supportingText,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
                         Row(
                             Modifier.fillMaxWidth(),
@@ -171,20 +180,23 @@ fun CategorizedFeedManagementDestination(padding: PaddingValues) {
             feed = editing,
             busy = busy,
             onDismiss = { if (!busy) showEditor = false },
-            onSave = { url, title, category ->
+            onSave = { url, title, category, keywordText ->
                 scope.launch {
                     busy = true
                     status = "Validating feed…"
+                    val watchKeywords = normalizeWatchKeywords(keywordText)
                     val result = if (editing == null) {
-                        manager.add(url, title, category)
+                        manager.add(url, title, category, watchKeywords)
                     } else {
-                        manager.update(editing!!.id, url, title, category)
+                        manager.update(editing!!.id, url, title, category, watchKeywords)
                     }
                     busy = false
                     when (result) {
                         is FeedMutationResult.Success -> {
                             feeds = result.feeds
-                            status = "Saved${normalizeFeedCategory(category)?.let { " in $it" }.orEmpty()} and queued for sync."
+                            val folderStatus = normalizeFeedCategory(category)?.let { " in $it" }.orEmpty()
+                            val filterStatus = if (watchKeywords.isEmpty()) "all items sent to Wear" else "${watchKeywords.size} watch keyword${if (watchKeywords.size == 1) "" else "s"} active"
+                            status = "Saved$folderStatus; $filterStatus."
                             showEditor = false
                         }
                         is FeedMutationResult.Error -> status = result.message
@@ -200,11 +212,12 @@ private fun CategoryFeedEditorDialog(
     feed: MobileFeedSubscription?,
     busy: Boolean,
     onDismiss: () -> Unit,
-    onSave: (String, String, String) -> Unit,
+    onSave: (String, String, String, String) -> Unit,
 ) {
     var url by remember(feed?.id) { mutableStateOf(feed?.url.orEmpty()) }
     var title by remember(feed?.id) { mutableStateOf(feed?.title.orEmpty()) }
     var category by remember(feed?.id) { mutableStateOf(feed?.category.orEmpty()) }
+    var watchKeywords by remember(feed?.id) { mutableStateOf(keywordWatchEditorText(feed?.watchKeywords.orEmpty())) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -233,10 +246,21 @@ private fun CategoryFeedEditorDialog(
                     supportingText = { Text("Feeds with the same folder name are grouped together.") },
                     singleLine = true,
                 )
+                OutlinedTextField(
+                    value = watchKeywords,
+                    onValueChange = { watchKeywords = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Watch keywords (optional)") },
+                    supportingText = {
+                        Text("Comma or line separated. Wear shows items when title or description matches any keyword; leave empty for all items.")
+                    },
+                    minLines = 2,
+                    maxLines = 4,
+                )
             }
         },
         confirmButton = {
-            Button(onClick = { onSave(url, title, category) }, enabled = !busy) {
+            Button(onClick = { onSave(url, title, category, watchKeywords) }, enabled = !busy) {
                 Text(if (busy) "Validating…" else "Save")
             }
         },

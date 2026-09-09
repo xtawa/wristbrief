@@ -4,13 +4,13 @@ Review baseline: `f9323757261bd5d89430f945de62a8ceed23e140` (CI #144 green).
 
 ## Completed scope
 
-Slots 01–23 are complete and green. They cover feed identity/dedup and subscription CRUD; Wear feed/detail/read/saved UX; Media3 background podcast playback, progress and transcript discovery; provider-abstracted structured AI briefs with reliability/security/cache handling; cached-data Tile/Complication surfaces; an independent phone companion and lightweight versioned Wear Data Layer sync; Play Billing v8 client foundations; and server-owned membership/quota plus Play verification/RTDN contracts, migrations, fakes and documentation.
+Slots 01–24 are complete and green. They cover feed identity/dedup and subscription CRUD; Wear feed/detail/read/saved UX; Media3 background podcast playback, progress and transcript discovery; provider-abstracted structured AI briefs with reliability/security/cache handling; cached-data Tile/Complication surfaces; an independent phone companion and lightweight versioned Wear Data Layer sync; Play Billing v8 client foundations; server-owned membership/quota plus Play verification/RTDN contracts, migrations, fakes and documentation; and the final repository-wide hardening/release-readiness review.
 
-Slot 24 is the repository-wide hardening/release-readiness review. No product feature was added during this review.
+Slot 24 was a repository-wide hardening/release-readiness review. No product feature was added during this review.
 
 ## Review findings and hardening
 
-- Both Android apps already disable cleartext traffic. The Wear app also disabled backups; the phone companion did not. The phone manifest is now hardened with `android:allowBackup="false"` so persisted feed/account-adjacent state is not included in normal Android backup by default.
+- Both Android apps disable cleartext traffic and backups. The phone manifest was hardened with `android:allowBackup="false"` so persisted feed/account-adjacent state is not included in normal Android backup by default.
 - `PodcastPlaybackService` remains non-exported. Launcher, Tile, complication and Wear Data Layer components retain only the exported state required by their platform integration.
 - CI now includes a deterministic `scripts/release_guard.py` static check that fails if either app re-enables cleartext traffic/backups or if the MediaSession service becomes exported.
 - Existing gateway tests cover server-owned provider routing, fixed HTTPS upstreams, bounded request sizes, provider timeout/retry behavior, malformed output, authentication/quota bypass attempts, purchase-token ownership and RTDN re-verification. Provider/API keys and raw purchase tokens are not expected in client APK configuration or logs.
@@ -29,7 +29,7 @@ Required checks are:
 - Gateway Vitest
 - Release manifest guard
 
-The latest green commit recorded here will be updated only after the Slot 24 hardening commit has completed all checks.
+Latest verified Slot 24 hardening commit: `97708fd23c81d954d96610bb74bd5ebd8579dfe6` — CI #145 green.
 
 ## Skipped or externally blocked production work
 

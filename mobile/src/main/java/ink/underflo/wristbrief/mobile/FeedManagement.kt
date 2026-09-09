@@ -24,6 +24,7 @@ data class MobileFeedSubscription(
     val url: String,
     val enabled: Boolean = true,
     val sendToWatch: Boolean = true,
+    val category: String? = null,
 )
 
 sealed interface FeedMutationResult {
@@ -36,6 +37,8 @@ fun normalizeFeedUrl(raw: String): String? = runCatching {
     if (!uri.scheme.equals("https", true) || uri.host.isNullOrBlank() || uri.userInfo != null) return null
     URI("https", null, uri.host.lowercase(), if (uri.port == 443) -1 else uri.port, uri.path.ifBlank { "/" }, uri.query, null).toASCIIString()
 }.getOrNull()
+
+fun normalizeFeedCategory(raw: String?): String? = raw?.trim()?.replace(Regex("\\s+"), " ")?.take(80)?.takeIf { it.isNotBlank() }
 
 fun stableFeedId(url: String): String = MessageDigest.getInstance("SHA-256")
     .digest(url.toByteArray()).take(12).joinToString("") { "%02x".format(it) }
@@ -72,6 +75,7 @@ internal fun decodeMobileFeedSubscriptions(raw: String): List<MobileFeedSubscrip
             url = o["url"]!!.jsonPrimitive.content,
             enabled = o["enabled"]?.jsonPrimitive?.booleanOrNull ?: true,
             sendToWatch = o["sendToWatch"]?.jsonPrimitive?.booleanOrNull ?: true,
+            category = normalizeFeedCategory(o["category"]?.jsonPrimitive?.content),
         )
     }
 }
@@ -84,6 +88,7 @@ internal fun encodeMobileFeedSubscriptions(feeds: List<MobileFeedSubscription>):
             put("url", feed.url)
             put("enabled", feed.enabled)
             put("sendToWatch", feed.sendToWatch)
+            normalizeFeedCategory(feed.category)?.let { put("category", it) }
         })
     }
 }.toString()
@@ -124,20 +129,20 @@ class MobileFeedManager(
 ) {
     fun feeds(): List<MobileFeedSubscription> = store.load()
 
-    suspend fun add(rawUrl: String, title: String): FeedMutationResult {
+    suspend fun add(rawUrl: String, title: String, category: String? = null): FeedMutationResult {
         val url = normalizeFeedUrl(rawUrl) ?: return FeedMutationResult.Error("Use a valid HTTPS feed URL")
         if (store.load().any { normalizeFeedUrl(it.url) == url }) return FeedMutationResult.Error("Feed is already subscribed")
         val discovered = runCatching { probe.validate(url) }.getOrElse { return FeedMutationResult.Error(it.message ?: "Feed validation failed") }
-        val feed = MobileFeedSubscription(stableFeedId(url), title.trim().ifBlank { discovered ?: URI(url).host }, url)
+        val feed = MobileFeedSubscription(stableFeedId(url), title.trim().ifBlank { discovered ?: URI(url).host }, url, category = normalizeFeedCategory(category))
         return persist(store.load() + feed)
     }
 
-    suspend fun update(id: String, rawUrl: String, title: String): FeedMutationResult {
+    suspend fun update(id: String, rawUrl: String, title: String, category: String? = null): FeedMutationResult {
         val url = normalizeFeedUrl(rawUrl) ?: return FeedMutationResult.Error("Use a valid HTTPS feed URL")
         val current = store.load(); val old = current.find { it.id == id } ?: return FeedMutationResult.Error("Feed no longer exists")
         if (current.any { it.id != id && normalizeFeedUrl(it.url) == url }) return FeedMutationResult.Error("Feed is already subscribed")
         val discovered = runCatching { probe.validate(url) }.getOrElse { return FeedMutationResult.Error(it.message ?: "Feed validation failed") }
-        val updated = old.copy(id = stableFeedId(url), url = url, title = title.trim().ifBlank { discovered ?: old.title })
+        val updated = old.copy(id = stableFeedId(url), url = url, title = title.trim().ifBlank { discovered ?: old.title }, category = normalizeFeedCategory(category))
         return persist(current.map { if (it.id == id) updated else it })
     }
 
@@ -146,6 +151,9 @@ class MobileFeedManager(
 
     fun setSendToWatch(id: String, sendToWatch: Boolean): FeedMutationResult =
         persist(store.load().map { if (it.id == id) it.copy(sendToWatch = sendToWatch) else it })
+
+    fun setCategory(id: String, category: String?): FeedMutationResult =
+        persist(store.load().map { if (it.id == id) it.copy(category = normalizeFeedCategory(category)) else it })
 
     fun remove(id: String): FeedMutationResult = persist(store.load().filterNot { it.id == id })
 

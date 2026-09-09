@@ -26,6 +26,19 @@ describe("membership foundation", () => {
     expect((await service.snapshot({ id: "u1" })).managedAiQuota).toEqual({ limit: 2, used: 1, remaining: 1 });
   });
 
+  it("consumes managed quota and blocks the next request at the limit", async () => {
+    const store = new InMemoryMembershipStore([
+      { userId: "u1", plan: "FREE", managedAiLimit: 1, managedAiUsed: 0 }
+    ]);
+    const service = new MembershipService(store);
+
+    expect((await service.canUseAi("u1", "managed")).allowed).toBe(true);
+    await service.recordAiUsage("u1", "managed");
+
+    expect((await service.snapshot({ id: "u1" })).managedAiQuota).toEqual({ limit: 1, used: 1, remaining: 0 });
+    expect((await service.canUseAi("u1", "managed")).allowed).toBe(false);
+  });
+
   it("blocks managed AI after quota exhaustion", async () => {
     const store = new InMemoryMembershipStore([
       { userId: "u1", plan: "FREE", managedAiLimit: 1, managedAiUsed: 1 }

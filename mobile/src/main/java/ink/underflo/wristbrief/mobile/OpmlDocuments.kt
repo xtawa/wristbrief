@@ -33,7 +33,7 @@ internal fun readBoundedUtf8(input: InputStream, maxBytes: Int = MAX_OPML_DOCUME
 }
 
 internal fun readOpmlDocument(resolver: ContentResolver, uri: Uri): String =
-    resolver.openInputStream(uri)?.use(::readBoundedUtf8)
+    resolver.openInputStream(uri)?.use { input -> readBoundedUtf8(input) }
         ?: throw OpmlFormatException("Could not open selected OPML file")
 
 internal fun writeOpmlDocument(resolver: ContentResolver, uri: Uri, content: String) {

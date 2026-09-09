@@ -2,12 +2,13 @@ package ink.underflo.wristbrief.mobile
 
 import java.io.IOException
 import java.util.concurrent.TimeUnit
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
-import org.json.JSONObject
 
 internal interface PhoneSummaryTransport {
     fun post(endpoint: String, bearerToken: String, jsonBody: String): String
@@ -84,10 +85,10 @@ class PhoneLongSummaryClient internal constructor(
             .build()
             .toString()
 
-        val payload = JSONObject()
-            .put("title", title)
-            .put("content", content)
-            .toString()
+        val payload = buildJsonObject {
+            title?.let { put("title", it) }
+            put("content", content)
+        }.toString()
 
         val raw = transport.post(endpoint, gatewayToken, payload)
         return try {

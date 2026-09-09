@@ -66,6 +66,33 @@ class KeywordWatchFilterMobileTest {
         assertEquals(listOf("Podcast"), changed.feeds.single().watchKeywords)
     }
 
+    @Test fun editorStyleUpdate_replacesAndCanClearKeywordRules() = runBlocking {
+        val store = MemoryStore()
+        val manager = MobileFeedManager(store, AcceptingProbe, NoopPublisher)
+        val added = manager.add(
+            rawUrl = "https://example.com/feed",
+            title = "Example",
+            watchKeywords = normalizeWatchKeywords("AI, Wear OS"),
+        ) as FeedMutationResult.Success
+        val id = added.feeds.single().id
+
+        val replaced = manager.update(
+            id = id,
+            rawUrl = "https://example.com/feed",
+            title = "Example",
+            watchKeywords = normalizeWatchKeywords(" Podcast\nPODCAST, Kotlin "),
+        ) as FeedMutationResult.Success
+        assertEquals(listOf("Podcast", "Kotlin"), replaced.feeds.single().watchKeywords)
+
+        val cleared = manager.update(
+            id = id,
+            rawUrl = "https://example.com/feed",
+            title = "Example",
+            watchKeywords = normalizeWatchKeywords("   "),
+        ) as FeedMutationResult.Success
+        assertTrue(cleared.feeds.single().watchKeywords.isEmpty())
+    }
+
     private class MemoryStore : MobileFeedStore {
         private var value = emptyList<MobileFeedSubscription>()
         override fun load() = value

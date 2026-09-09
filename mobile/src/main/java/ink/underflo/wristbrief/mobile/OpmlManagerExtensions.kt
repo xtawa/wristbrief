@@ -18,7 +18,15 @@ suspend fun MobileFeedManager.importOpml(raw: String): OpmlImportResult {
         if (!knownUrls.add(entry.url)) { duplicates += 1; return@forEach }
         val discovered = runCatching { validateForBulkImport(entry.url) }.getOrElse { knownUrls.remove(entry.url); failed += 1; return@forEach }
         val title = entry.title.trim().ifBlank { discovered ?: URI(entry.url).host }
-        additions += MobileFeedSubscription(stableFeedId(entry.url), title, entry.url, entry.enabled, entry.sendToWatch, normalizeFeedCategory(entry.category))
+        additions += MobileFeedSubscription(
+            stableFeedId(entry.url),
+            title,
+            entry.url,
+            entry.enabled,
+            entry.sendToWatch,
+            normalizeFeedCategory(entry.category),
+            normalizeWatchKeywords(entry.watchKeywords),
+        )
     }
     val merged = if (additions.isEmpty()) current else persistBulkImport(current + additions).feeds
     return OpmlImportResult.Success(merged, additions.size, duplicates, failed)

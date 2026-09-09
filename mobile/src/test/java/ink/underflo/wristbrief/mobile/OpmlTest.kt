@@ -18,15 +18,31 @@ class OpmlTest {
         assertEquals(listOf(OpmlFeedEntry("Secure", "https://example.com/rss", true, true, null)), parseOpmlSubscriptions(opml))
     }
 
+    @Test fun import_normalizesWristBriefWatchKeywords_andDefaultsMissingAttributeToAllItems() {
+        val opml = """<opml version="2.0"><body><outline text="Filtered" xmlUrl="https://example.com/rss" wristbriefWatchKeywords=" AI , Wear OS,ai " /><outline text="All" xmlUrl="https://all.example/rss" /></body></opml>"""
+        val feeds = parseOpmlSubscriptions(opml)
+        assertEquals(listOf("AI", "Wear OS"), feeds[0].watchKeywords)
+        assertTrue(feeds[1].watchKeywords.isEmpty())
+    }
+
     @Test fun import_rejectsDoctypeAndExternalEntityDeclarations() {
         val malicious = """<!DOCTYPE opml [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><opml version="2.0"><body><outline text="&xxe;" xmlUrl="https://example.com/rss" /></body></opml>"""
         assertTrue(runCatching { parseOpmlSubscriptions(malicious) }.exceptionOrNull() is OpmlFormatException)
     }
 
-    @Test fun export_roundTripsCategoryTitlesUrlsEnabledAndSendToWatchState() {
-        val subscriptions = listOf(MobileFeedSubscription("one", "A & B \"Daily\"", "https://example.com/feed", enabled = true, sendToWatch = true, category = "Tech"), MobileFeedSubscription("two", "Phone only", "https://pod.example/rss", enabled = false, sendToWatch = false))
+    @Test fun export_roundTripsCategoryTitlesUrlsEnabledSendToWatchAndKeywords() {
+        val subscriptions = listOf(
+            MobileFeedSubscription("one", "A & B \"Daily\"", "https://example.com/feed", enabled = true, sendToWatch = true, category = "Tech", watchKeywords = listOf(" AI ", "Wear OS", "ai")),
+            MobileFeedSubscription("two", "Phone only", "https://pod.example/rss", enabled = false, sendToWatch = false),
+        )
         val exported = exportOpmlSubscriptions(subscriptions); val imported = parseOpmlSubscriptions(exported)
-        assertTrue(exported.contains("version=\"2.0\"")); assertTrue(exported.contains("<outline text=\"Tech\" title=\"Tech\">")); assertTrue(exported.contains("A &amp; B &quot;Daily&quot;")); assertTrue(exported.contains("wristbriefSendToWatch=\"false\""))
-        assertEquals(listOf(OpmlFeedEntry("Phone only", "https://pod.example/rss", false, false, null), OpmlFeedEntry("A & B \"Daily\"", "https://example.com/feed", true, true, "Tech")), imported)
+        assertTrue(exported.contains("version=\"2.0\"")); assertTrue(exported.contains("<outline text=\"Tech\" title=\"Tech\">")); assertTrue(exported.contains("A &amp; B &quot;Daily&quot;")); assertTrue(exported.contains("wristbriefSendToWatch=\"false\"")); assertTrue(exported.contains("wristbriefWatchKeywords=\"AI,Wear OS\""))
+        assertEquals(
+            listOf(
+                OpmlFeedEntry("Phone only", "https://pod.example/rss", false, false, null, emptyList()),
+                OpmlFeedEntry("A & B \"Daily\"", "https://example.com/feed", true, true, "Tech", listOf("AI", "Wear OS")),
+            ),
+            imported,
+        )
     }
 }

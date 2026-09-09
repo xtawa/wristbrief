@@ -29,7 +29,7 @@ class OpmlManagerExtensionsTest {
         val opml = """
             <opml version="2.0"><body>
               <outline text="Existing again" xmlUrl="https://existing.example/rss" />
-              <outline xmlUrl="https://new.example/rss" wristbriefEnabled="false" wristbriefSendToWatch="false" />
+              <outline xmlUrl="https://new.example/rss" wristbriefEnabled="false" wristbriefSendToWatch="false" wristbriefWatchKeywords="AI, Wear OS,ai" />
               <outline text="Broken" xmlUrl="https://broken.example/rss" />
             </body></opml>
         """.trimIndent()
@@ -44,6 +44,7 @@ class OpmlManagerExtensionsTest {
         assertEquals("Discovered title", imported.title)
         assertFalse(imported.enabled)
         assertFalse(imported.sendToWatch)
+        assertEquals(listOf("AI", "Wear OS"), imported.watchKeywords)
         assertEquals(1, publisher.snapshots.size)
     }
 
@@ -83,7 +84,7 @@ class OpmlManagerExtensionsTest {
     fun export_serializesCurrentManagerSubscriptions() {
         val store = MemoryStore(
             listOf(
-                MobileFeedSubscription("one", "One", "https://one.example/rss", enabled = true, sendToWatch = true),
+                MobileFeedSubscription("one", "One", "https://one.example/rss", enabled = true, sendToWatch = true, watchKeywords = listOf("Android", "Wear OS")),
                 MobileFeedSubscription("two", "Two", "https://two.example/rss", enabled = false, sendToWatch = false),
             ),
         )
@@ -97,7 +98,7 @@ class OpmlManagerExtensionsTest {
 
         assertEquals(
             listOf(
-                OpmlFeedEntry("One", "https://one.example/rss", enabled = true, sendToWatch = true),
+                OpmlFeedEntry("One", "https://one.example/rss", enabled = true, sendToWatch = true, watchKeywords = listOf("Android", "Wear OS")),
                 OpmlFeedEntry("Two", "https://two.example/rss", enabled = false, sendToWatch = false),
             ),
             roundTrip,

@@ -9,6 +9,7 @@ data class OpmlFeedEntry(
     val enabled: Boolean = true,
     val sendToWatch: Boolean = true,
     val category: String? = null,
+    val watchKeywords: List<String> = emptyList(),
 )
 
 class OpmlFormatException(message: String) : IllegalArgumentException(message)
@@ -45,7 +46,18 @@ fun parseOpmlSubscriptions(raw: String): List<OpmlFeedEntry> {
                 val enabled = !attributes["wristbriefenabled"].equals("false", ignoreCase = true)
                 val sendToWatch = !attributes["wristbriefsendtowatch"].equals("false", ignoreCase = true)
                 val explicitCategory = attributes["wristbriefcategory"]?.let(::decodeXmlAttribute)
-                entries += OpmlFeedEntry(title, normalized, enabled, sendToWatch, normalizeFeedCategory(explicitCategory ?: folderStack.lastOrNull()))
+                val watchKeywords = attributes["wristbriefwatchkeywords"]
+                    ?.let(::decodeXmlAttribute)
+                    ?.let(::normalizeWatchKeywords)
+                    .orEmpty()
+                entries += OpmlFeedEntry(
+                    title,
+                    normalized,
+                    enabled,
+                    sendToWatch,
+                    normalizeFeedCategory(explicitCategory ?: folderStack.lastOrNull()),
+                    watchKeywords,
+                )
             }
         } else if (!selfClosing) {
             val folder = decodeXmlAttribute(attributes["title"] ?: attributes["text"].orEmpty())
@@ -58,7 +70,7 @@ fun parseOpmlSubscriptions(raw: String): List<OpmlFeedEntry> {
 
 fun exportOpmlSubscriptions(feeds: List<MobileFeedSubscription>): String = buildString {
     append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<opml version=\"2.0\">\n  <head><title>WristBrief subscriptions</title></head>\n  <body>\n")
-    val valid = feeds.mapNotNull { feed -> normalizeFeedUrl(feed.url)?.let { feed.copy(url = it, category = normalizeFeedCategory(feed.category)) } }
+    val valid = feeds.mapNotNull { feed -> normalizeFeedUrl(feed.url)?.let { feed.copy(url = it, category = normalizeFeedCategory(feed.category), watchKeywords = normalizeWatchKeywords(feed.watchKeywords)) } }
     val grouped = valid.groupBy { it.category }
     grouped[null].orEmpty().forEach { appendFeedOutline(it, "    ") }
     grouped.filterKeys { it != null }.forEach { (category, categoryFeeds) ->
@@ -75,7 +87,12 @@ private fun StringBuilder.appendFeedOutline(feed: MobileFeedSubscription, indent
     append(indent).append("<outline text=\"").append(title).append("\" title=\"").append(title)
         .append("\" type=\"rss\" xmlUrl=\"").append(escapeXmlAttribute(feed.url))
         .append("\" wristbriefEnabled=\"").append(feed.enabled)
-        .append("\" wristbriefSendToWatch=\"").append(feed.sendToWatch).append("\" />\n")
+        .append("\" wristbriefSendToWatch=\"").append(feed.sendToWatch)
+    val keywords = normalizeWatchKeywords(feed.watchKeywords)
+    if (keywords.isNotEmpty()) {
+        append("\" wristbriefWatchKeywords=\"").append(escapeXmlAttribute(keywords.joinToString(",")))
+    }
+    append("\" />\n")
 }
 
 private val attributePattern = Regex("""([A-Za-z_:][A-Za-z0-9_.:-]*)\s*=\s*(?:\"([^\"]*)\"|'([^']*)')""")

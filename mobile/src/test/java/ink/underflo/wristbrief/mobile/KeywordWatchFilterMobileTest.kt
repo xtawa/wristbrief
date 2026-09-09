@@ -21,6 +21,17 @@ class KeywordWatchFilterMobileTest {
         assertEquals(listOf("AI", "Wear OS", "Podcast"), normalizeWatchKeywords("AI, Wear   OS\nPodcast"))
     }
 
+    @Test fun uiState_explainsAllItemsAndNormalizedOrMatching() {
+        val empty = keywordWatchUiState(emptyList())
+        assertEquals("All items", empty.summary)
+        assertTrue(empty.supportingText.contains("No keyword filter"))
+
+        val filtered = keywordWatchUiState(listOf(" AI ", "ai", " Wear   OS "))
+        assertEquals("AI · Wear OS", filtered.summary)
+        assertTrue(filtered.supportingText.contains("title or description"))
+        assertEquals("AI, Wear OS", keywordWatchEditorText(listOf(" AI ", "Wear   OS")))
+    }
+
     @Test fun codec_defaultsLegacyRowsToNoKeywordFilter_andRoundTripsRules() {
         val legacy = """[{"id":"a","title":"A","url":"https://example.com/a"}]"""
         assertTrue(decodeMobileFeedSubscriptions(legacy).single().watchKeywords.isEmpty())

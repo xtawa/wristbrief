@@ -1,6 +1,8 @@
 package ink.underflo.wristbrief.mobile
 
-import org.json.JSONObject
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -24,11 +26,26 @@ class PhoneLongSummaryClientTest {
 
         assertEquals("https://gateway.example.com/v1/summary", transport.endpoint)
         assertEquals("secret-token", transport.bearerToken)
-        val payload = JSONObject(transport.jsonBody)
-        assertEquals("Example", payload.getString("title"))
-        assertEquals("Article body", payload.getString("content"))
+        val payload = Json.parseToJsonElement(transport.jsonBody).jsonObject
+        assertEquals("Example", payload.getValue("title").jsonPrimitive.content)
+        assertEquals("Article body", payload.getValue("content").jsonPrimitive.content)
         assertEquals("Long phone summary", result.text)
         assertEquals("model-a", result.model)
+    }
+
+    @Test
+    fun `omits null title from request payload`() {
+        val transport = RecordingTransport(validResponse())
+        PhoneLongSummaryClient(transport).summarize(
+            gatewayUrl = "https://gateway.example.com",
+            gatewayToken = "token",
+            title = null,
+            content = "body",
+        )
+
+        val payload = Json.parseToJsonElement(transport.jsonBody).jsonObject
+        assertTrue("title" !in payload)
+        assertEquals("body", payload.getValue("content").jsonPrimitive.content)
     }
 
     @Test

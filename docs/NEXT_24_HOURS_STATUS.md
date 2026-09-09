@@ -35,7 +35,7 @@ Automation rules:
 - [x] 20 — Phone feed management + Data Layer contract
 - [x] 21 — Google Play Billing v8 client foundation
 - [x] 22 — Membership / entitlement / quota server foundation
-- [ ] 23 — Play server verification + docs foundation
+- [x] 23 — Play server verification + docs foundation
 - [ ] 24 — Full review, hardening and release-readiness checkpoint
 
 ## Completion log
@@ -68,3 +68,4 @@ Slot 19 — dad75d5951014cc5d19e5529b005f86b2f6bce08 — Added independent :mobi
 Slot 20 — eb2fda3d279c40bcd64707fbe3353761872bf5c4 — Added phone feed add/edit/remove/enable with HTTPS first-fetch validation and persistence plus versioned lightweight Wear Data Layer v1 subscription/read/saved contract, Wear receiver, sync/update hooks, and serialization/versioning/domain tests — CI: green
 Slot 21 — f9de315503e76ad84c696525a9ecdcd5e1698ce4 — Added Play Billing 8.3.0 repository/fake foundation, configured ProductDetails + restore/purchase flows, Play-driven Membership UI with explicit states, token-safe presentation mapping, and billing/presentation tests — CI: green
 Slot 22 — fd95bbb7378c1d8cdfb14af6382f2c91307b7044 — Added server-owned FREE/PRO entitlement and managed-AI quota contracts, BYOK quota bypass, authenticated /v1/me, billing verifier boundary/fake, D1-compatible membership migration foundation, anti-self-upgrade checks, and quota-consumption tests — CI: green
+Slot 23 — fe3f8e9ab5d0065a7636e2179f47218c769a43fa — Added authenticated restore and Pub/Sub-authenticated RTDN HTTP routing around the server-owned Play verifier, route-level ownership/re-verification/token-redaction tests, D1-compatible SHA-256 purchase-token binding schema, and retained explicit production setup docs/fakes without claiming deployment — CI: green

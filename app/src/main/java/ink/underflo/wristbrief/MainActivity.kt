@@ -38,6 +38,7 @@ import ink.underflo.wristbrief.ai.isAiGatewayConfigured
 import ink.underflo.wristbrief.ai.toWearPresentation
 import ink.underflo.wristbrief.media.PodcastPlaybackConnection
 import ink.underflo.wristbrief.media.PodcastPlaybackRequest
+import ink.underflo.wristbrief.sync.ContinueOnPhoneLauncher
 import ink.underflo.wristbrief.ui.ArticleDetailUi
 import ink.underflo.wristbrief.ui.FeedManagementItemUi
 import ink.underflo.wristbrief.ui.InboxItemUi
@@ -52,15 +53,18 @@ import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     private lateinit var playbackConnection: PodcastPlaybackConnection
+    private lateinit var continueOnPhoneLauncher: ContinueOnPhoneLauncher
     private val aiSummaryClient = AiSummaryClient()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         playbackConnection = PodcastPlaybackConnection(this)
+        continueOnPhoneLauncher = ContinueOnPhoneLauncher(this)
         setContent {
             WristBriefApp(
                 playbackConnection = playbackConnection,
-                aiSummaryClient = aiSummaryClient
+                aiSummaryClient = aiSummaryClient,
+                onContinueOnPhone = { url -> continueOnPhoneLauncher.open(url) }
             )
         }
     }
@@ -82,6 +86,7 @@ private enum class AppDestination { Inbox, Saved, Feeds, Article }
 private fun WristBriefApp(
     playbackConnection: PodcastPlaybackConnection,
     aiSummaryClient: AiSummaryClient,
+    onContinueOnPhone: (String) -> Unit,
     viewModel: InboxViewModel = viewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -152,6 +157,7 @@ private fun WristBriefApp(
                                 )
                             }
                         },
+                        onContinueOnPhone = onContinueOnPhone,
                         onToggleRead = {
                             selectedItem?.let { viewModel.setItemRead(it.id, !it.isRead) }
                         },
@@ -338,6 +344,7 @@ internal fun ArticleDetailScreen(
     gatewayUrl: String,
     gatewayToken: String,
     onPlayPodcast: (ArticleDetailUi) -> Unit,
+    onContinueOnPhone: (String) -> Unit,
     onToggleRead: () -> Unit,
     onToggleSaved: () -> Unit,
     onBack: () -> Unit
@@ -412,6 +419,17 @@ internal fun ArticleDetailScreen(
                         transformation = SurfaceTransformation(transformationSpec),
                         modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                     ) { Text(article.body) }
+                }
+                if (article.articleUrl != null) {
+                    item {
+                        Button(
+                            onClick = { onContinueOnPhone(article.articleUrl) },
+                            label = { CompactText("Continue on phone", maxLines = 1) },
+                            secondaryLabel = { CompactText("Open the original article", maxLines = 1) },
+                            transformation = SurfaceTransformation(transformationSpec),
+                            modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
+                        )
+                    }
                 }
                 if (aiPresentation.showReadyBrief) {
                     item {

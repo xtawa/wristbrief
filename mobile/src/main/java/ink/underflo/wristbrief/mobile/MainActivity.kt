@@ -88,6 +88,15 @@ class MainActivity : ComponentActivity() {
         item { Text("Feed management", style = MaterialTheme.typography.headlineMedium) }
         item { Text(status, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         item { Button(onClick = { editing = null; showEditor = true }, enabled = !busy) { Text("Add feed") } }
+        item {
+            OpmlManagementActions(
+                manager = manager,
+                busy = busy,
+                onBusyChange = { busy = it },
+                onFeedsChanged = { feeds = it },
+                onStatus = { status = it },
+            )
+        }
         if (feeds.isEmpty()) item { Text("No phone-managed feeds yet.", style = MaterialTheme.typography.bodyLarge) }
         items(feeds, key = { it.id }) { feed -> Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) { Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(feed.title, style = MaterialTheme.typography.titleLarge); Text(feed.url, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

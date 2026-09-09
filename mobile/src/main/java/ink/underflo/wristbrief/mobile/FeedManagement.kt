@@ -18,7 +18,13 @@ import kotlinx.serialization.json.put
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
-data class MobileFeedSubscription(val id: String, val title: String, val url: String, val enabled: Boolean = true)
+data class MobileFeedSubscription(
+    val id: String,
+    val title: String,
+    val url: String,
+    val enabled: Boolean = true,
+    val sendToWatch: Boolean = true,
+)
 
 sealed interface FeedMutationResult {
     data class Success(val feeds: List<MobileFeedSubscription>) : FeedMutationResult
@@ -56,30 +62,53 @@ interface MobileFeedStore {
     fun save(feeds: List<MobileFeedSubscription>)
 }
 
+internal fun decodeMobileFeedSubscriptions(raw: String): List<MobileFeedSubscription> {
+    val json = Json { ignoreUnknownKeys = true }
+    return json.parseToJsonElement(raw).jsonArray.map { element ->
+        val o = element.jsonObject
+        MobileFeedSubscription(
+            id = o["id"]!!.jsonPrimitive.content,
+            title = o["title"]!!.jsonPrimitive.content,
+            url = o["url"]!!.jsonPrimitive.content,
+            enabled = o["enabled"]?.jsonPrimitive?.booleanOrNull ?: true,
+            sendToWatch = o["sendToWatch"]?.jsonPrimitive?.booleanOrNull ?: true,
+        )
+    }
+}
+
+internal fun encodeMobileFeedSubscriptions(feeds: List<MobileFeedSubscription>): String = buildJsonArray {
+    feeds.forEach { feed ->
+        add(buildJsonObject {
+            put("id", feed.id)
+            put("title", feed.title)
+            put("url", feed.url)
+            put("enabled", feed.enabled)
+            put("sendToWatch", feed.sendToWatch)
+        })
+    }
+}.toString()
+
 class SharedPreferencesMobileFeedStore(context: Context) : MobileFeedStore {
     private val prefs = context.applicationContext.getSharedPreferences("wristbrief_mobile_feeds", Context.MODE_PRIVATE)
-    private val json = Json { ignoreUnknownKeys = true }
     override fun load(): List<MobileFeedSubscription> = runCatching {
         val raw = prefs.getString("subscriptions_v1", null) ?: return emptyList()
-        json.parseToJsonElement(raw).jsonArray.map { element ->
-            val o = element.jsonObject
-            MobileFeedSubscription(o["id"]!!.jsonPrimitive.content, o["title"]!!.jsonPrimitive.content, o["url"]!!.jsonPrimitive.content, o["enabled"]?.jsonPrimitive?.booleanOrNull ?: true)
-        }
+        decodeMobileFeedSubscriptions(raw)
     }.getOrDefault(emptyList())
     override fun save(feeds: List<MobileFeedSubscription>) {
-        val raw = buildJsonArray { feeds.forEach { feed -> add(buildJsonObject {
-            put("id", feed.id); put("title", feed.title); put("url", feed.url); put("enabled", feed.enabled)
-        }) } }.toString()
-        prefs.edit().putString("subscriptions_v1", raw).apply()
+        prefs.edit().putString("subscriptions_v1", encodeMobileFeedSubscriptions(feeds)).apply()
     }
 }
 
 interface FeedSyncPublisher { fun publish(feeds: List<MobileFeedSubscription>) }
 
+internal fun wearSyncPayloadFor(feeds: List<MobileFeedSubscription>): WearSyncPayload = WearSyncPayload(
+    subscriptions = feeds.filter { it.sendToWatch }.map { SyncFeed(it.id, it.title, it.url, it.enabled) },
+)
+
 class GoogleWearFeedSyncPublisher(context: Context) : FeedSyncPublisher {
     private val dataClient = Wearable.getDataClient(context.applicationContext)
     override fun publish(feeds: List<MobileFeedSubscription>) {
-        val payload = WearSyncPayload(subscriptions = feeds.map { SyncFeed(it.id, it.title, it.url, it.enabled) })
+        val payload = wearSyncPayloadFor(feeds)
         val request = PutDataMapRequest.create(WearDataLayerContract.PATH).apply {
             dataMap.putString(WearDataLayerContract.PAYLOAD_KEY, WearDataLayerContract.encode(payload))
             dataMap.putLong("updatedAt", System.currentTimeMillis())
@@ -112,7 +141,12 @@ class MobileFeedManager(
         return persist(current.map { if (it.id == id) updated else it })
     }
 
-    fun setEnabled(id: String, enabled: Boolean): FeedMutationResult = persist(store.load().map { if (it.id == id) it.copy(enabled = enabled) else it })
+    fun setEnabled(id: String, enabled: Boolean): FeedMutationResult =
+        persist(store.load().map { if (it.id == id) it.copy(enabled = enabled) else it })
+
+    fun setSendToWatch(id: String, sendToWatch: Boolean): FeedMutationResult =
+        persist(store.load().map { if (it.id == id) it.copy(sendToWatch = sendToWatch) else it })
+
     fun remove(id: String): FeedMutationResult = persist(store.load().filterNot { it.id == id })
 
     internal suspend fun validateForBulkImport(url: String): String? = probe.validate(url)

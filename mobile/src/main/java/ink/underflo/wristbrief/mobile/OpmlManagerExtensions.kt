@@ -39,6 +39,7 @@ suspend fun MobileFeedManager.importOpml(raw: String): OpmlImportResult {
             title = title,
             url = entry.url,
             enabled = entry.enabled,
+            sendToWatch = entry.sendToWatch,
         )
     }
 

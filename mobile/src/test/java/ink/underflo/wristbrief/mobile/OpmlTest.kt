@@ -16,7 +16,7 @@ class OpmlTest {
                   <outline text="Tech &amp; News" xmlUrl="HTTPS://EXAMPLE.COM:443/feed.xml#latest" />
                   <outline title="Duplicate" xmlUrl="https://example.com/feed.xml" />
                 </outline>
-                <outline title="Paused podcast" xmlUrl="https://pod.example/rss" wristbriefEnabled="false" />
+                <outline title="Paused podcast" xmlUrl="https://pod.example/rss" wristbriefEnabled="false" wristbriefSendToWatch="false" />
               </body>
             </opml>
         """.trimIndent()
@@ -26,8 +26,10 @@ class OpmlTest {
         assertEquals(2, feeds.size)
         assertEquals("Tech & News", feeds[0].title)
         assertEquals("https://example.com/feed.xml", feeds[0].url)
+        assertTrue(feeds[0].sendToWatch)
         assertEquals("Paused podcast", feeds[1].title)
         assertFalse(feeds[1].enabled)
+        assertFalse(feeds[1].sendToWatch)
     }
 
     @Test
@@ -41,7 +43,7 @@ class OpmlTest {
         """.trimIndent()
 
         assertEquals(
-            listOf(OpmlFeedEntry("Secure", "https://example.com/rss", true)),
+            listOf(OpmlFeedEntry("Secure", "https://example.com/rss", true, true)),
             parseOpmlSubscriptions(opml),
         )
     }
@@ -58,10 +60,10 @@ class OpmlTest {
     }
 
     @Test
-    fun export_roundTripsTitlesUrlsAndWristBriefEnabledState() {
+    fun export_roundTripsTitlesUrlsEnabledAndSendToWatchState() {
         val subscriptions = listOf(
-            MobileFeedSubscription("one", "A & B \"Daily\"", "https://example.com/feed", enabled = true),
-            MobileFeedSubscription("two", "Paused", "https://pod.example/rss", enabled = false),
+            MobileFeedSubscription("one", "A & B \"Daily\"", "https://example.com/feed", enabled = true, sendToWatch = true),
+            MobileFeedSubscription("two", "Phone only", "https://pod.example/rss", enabled = false, sendToWatch = false),
         )
 
         val exported = exportOpmlSubscriptions(subscriptions)
@@ -69,10 +71,11 @@ class OpmlTest {
 
         assertTrue(exported.contains("version=\"2.0\""))
         assertTrue(exported.contains("A &amp; B &quot;Daily&quot;"))
+        assertTrue(exported.contains("wristbriefSendToWatch=\"false\""))
         assertEquals(
             listOf(
-                OpmlFeedEntry("A & B \"Daily\"", "https://example.com/feed", true),
-                OpmlFeedEntry("Paused", "https://pod.example/rss", false),
+                OpmlFeedEntry("A & B \"Daily\"", "https://example.com/feed", true, true),
+                OpmlFeedEntry("Phone only", "https://pod.example/rss", false, false),
             ),
             imported,
         )

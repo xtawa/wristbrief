@@ -81,7 +81,7 @@ class MainActivity : ComponentActivity() {
     var feeds by remember { mutableStateOf(manager.feeds()) }
     var editing by remember { mutableStateOf<MobileFeedSubscription?>(null) }
     var showEditor by remember { mutableStateOf(false) }
-    var status by remember { mutableStateOf("Add feeds here; validated changes sync to paired Wear devices.") }
+    var status by remember { mutableStateOf("Add feeds here; choose separately which subscriptions are active and sent to Wear.") }
     var busy by remember { mutableStateOf(false) }
 
     LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -98,11 +98,41 @@ class MainActivity : ComponentActivity() {
             )
         }
         if (feeds.isEmpty()) item { Text("No phone-managed feeds yet.", style = MaterialTheme.typography.bodyLarge) }
-        items(feeds, key = { it.id }) { feed -> Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) { Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(feed.title, style = MaterialTheme.typography.titleLarge); Text(feed.url, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text(if (feed.enabled) "Included on Wear" else "Paused"); Switch(checked = feed.enabled, onCheckedChange = { result -> val r = manager.setEnabled(feed.id, result); if (r is FeedMutationResult.Success) feeds = r.feeds }) }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedButton(onClick = { editing = feed; showEditor = true }) { Text("Edit") }; TextButton(onClick = { val r = manager.remove(feed.id); if (r is FeedMutationResult.Success) feeds = r.feeds }) { Text("Remove") } }
-        } } }
+        items(feeds, key = { it.id }) { feed ->
+            Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(feed.title, style = MaterialTheme.typography.titleLarge)
+                    Text(feed.url, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Subscription active")
+                            Text(if (feed.enabled) "Included in refreshes" else "Paused on synced devices", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(checked = feed.enabled, onCheckedChange = { enabled ->
+                            val r = manager.setEnabled(feed.id, enabled)
+                            if (r is FeedMutationResult.Success) feeds = r.feeds
+                        })
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Send to watch")
+                            Text(if (feed.sendToWatch) "Available on paired Wear devices" else "Keep on phone only", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(checked = feed.sendToWatch, onCheckedChange = { sendToWatch ->
+                            val r = manager.setSendToWatch(feed.id, sendToWatch)
+                            if (r is FeedMutationResult.Success) {
+                                feeds = r.feeds
+                                status = if (sendToWatch) "Feed queued for Wear sync." else "Feed kept on phone only."
+                            }
+                        })
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { editing = feed; showEditor = true }) { Text("Edit") }
+                        TextButton(onClick = { val r = manager.remove(feed.id); if (r is FeedMutationResult.Success) feeds = r.feeds }) { Text("Remove") }
+                    }
+                }
+            }
+        }
     }
 
     if (showEditor) FeedEditorDialog(editing, busy, onDismiss = { if (!busy) showEditor = false }, onSave = { url, title -> scope.launch { busy = true; status = "Validating feed…"; val r = if (editing == null) manager.add(url, title) else manager.update(editing!!.id, url, title); busy = false; when (r) { is FeedMutationResult.Success -> { feeds = r.feeds; status = "Saved and queued for Wear sync."; showEditor = false }; is FeedMutationResult.Error -> status = r.message } } })

@@ -7,6 +7,7 @@ data class OpmlFeedEntry(
     val title: String,
     val url: String,
     val enabled: Boolean = true,
+    val sendToWatch: Boolean = true,
 )
 
 class OpmlFormatException(message: String) : IllegalArgumentException(message)
@@ -38,7 +39,13 @@ fun parseOpmlSubscriptions(raw: String): List<OpmlFeedEntry> {
                     .trim()
                     .take(160)
                 val enabled = !attributes["wristbriefenabled"].equals("false", ignoreCase = true)
-                entries += OpmlFeedEntry(title = title, url = normalized, enabled = enabled)
+                val sendToWatch = !attributes["wristbriefsendtowatch"].equals("false", ignoreCase = true)
+                entries += OpmlFeedEntry(
+                    title = title,
+                    url = normalized,
+                    enabled = enabled,
+                    sendToWatch = sendToWatch,
+                )
             }
         }
         offset = tagEnd + 1
@@ -62,6 +69,8 @@ fun exportOpmlSubscriptions(feeds: List<MobileFeedSubscription>): String = build
         append(escapeXmlAttribute(normalized))
         append("\" wristbriefEnabled=\"")
         append(feed.enabled)
+        append("\" wristbriefSendToWatch=\"")
+        append(feed.sendToWatch)
         append("\" />\n")
     }
     append("  </body>\n")

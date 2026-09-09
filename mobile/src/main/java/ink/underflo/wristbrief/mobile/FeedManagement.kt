@@ -8,6 +8,7 @@ import java.security.MessageDigest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.booleanOrNull
@@ -107,7 +108,7 @@ internal fun encodeMobileFeedSubscriptions(feeds: List<MobileFeedSubscription>):
             normalizeFeedCategory(feed.category)?.let { put("category", it) }
             val keywords = normalizeWatchKeywords(feed.watchKeywords)
             if (keywords.isNotEmpty()) {
-                put("watchKeywords", buildJsonArray { keywords.forEach { add(it) } })
+                put("watchKeywords", buildJsonArray { keywords.forEach { add(JsonPrimitive(it)) } })
             }
         })
     }

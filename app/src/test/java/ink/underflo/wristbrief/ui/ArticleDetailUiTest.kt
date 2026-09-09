@@ -24,14 +24,15 @@ class ArticleDetailUiTest {
     }
 
     @Test
-    fun toArticleDetailUi_preserves_metadata_and_offline_state() {
+    fun toArticleDetailUi_preserves_metadata_offline_state_and_article_url() {
         val inbox = InboxItemUi(
             id = "item-1",
             title = "<b>Title</b>",
             source = "Example &amp; Co",
             summary = "<p>Cached <em>preview</em></p>",
             timeLabel = "2026-09-08",
-            isPodcast = false
+            isPodcast = false,
+            articleUrl = "https://example.com/story"
         )
 
         val detail = inbox.toArticleDetailUi(isOffline = true)
@@ -41,6 +42,7 @@ class ArticleDetailUiTest {
         assertEquals("Example & Co", detail.source)
         assertEquals("Cached preview", detail.body)
         assertEquals("2026-09-08", detail.timeLabel)
+        assertEquals("https://example.com/story", detail.articleUrl)
         assertTrue(detail.isOffline)
         assertFalse(detail.isPodcast)
     }

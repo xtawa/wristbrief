@@ -15,6 +15,7 @@ data class InboxItemUi(
     val isPodcast: Boolean,
     val isRead: Boolean = false,
     val isSaved: Boolean = false,
+    val articleUrl: String? = null,
     val audioUrl: String? = null
 )
 
@@ -34,6 +35,7 @@ fun FeedItem.toInboxItemUi(sourceName: String = "Feed"): InboxItemUi {
         }.ellipsizeCodePoints(WEAR_INBOX_SUMMARY_CODE_POINTS),
         timeLabel = published.orEmpty().cleanText(),
         isPodcast = audioUrl != null,
+        articleUrl = link?.trim()?.takeIf { it.isNotEmpty() },
         audioUrl = audioUrl
     )
 }

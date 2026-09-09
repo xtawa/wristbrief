@@ -5,27 +5,45 @@ import java.util.Base64
 
 object FeedStoreCodec {
     private const val VERSION = "v1"
+    private const val SUBSCRIPTION_VERSION = "v2"
     private const val ITEM_VERSION = "v2"
 
     fun encodeSubscriptions(items: List<FeedSubscription>): String = buildString {
-        appendLine(VERSION)
+        appendLine(SUBSCRIPTION_VERSION)
         items.forEach { item ->
             append(item.id.enc()).append('\t')
             append(item.title.enc()).append('\t')
             append(item.url.enc()).append('\t')
-            append(if (item.enabled) "1" else "0").append('\n')
+            append(if (item.enabled) "1" else "0").append('\t')
+            append(normalizeWatchKeywords(item.watchKeywords).joinToString("\n").enc()).append('\n')
         }
     }
 
-    fun decodeSubscriptions(raw: String?): List<FeedSubscription> =
-        decodeLines(raw, VERSION, expectedFields = 4) { fields ->
-            FeedSubscription(
-                id = fields[0].dec(),
-                title = fields[1].dec(),
-                url = fields[2].dec(),
-                enabled = fields[3] == "1"
-            )
-        }.filter { it.id.isNotBlank() && it.url.startsWith("https://") }
+    fun decodeSubscriptions(raw: String?): List<FeedSubscription> {
+        if (raw.isNullOrBlank()) return emptyList()
+        val version = raw.lineSequence().firstOrNull() ?: return emptyList()
+        val decoded = when (version) {
+            VERSION -> decodeLines(raw, VERSION, expectedFields = 4) { fields ->
+                FeedSubscription(
+                    id = fields[0].dec(),
+                    title = fields[1].dec(),
+                    url = fields[2].dec(),
+                    enabled = fields[3] == "1",
+                )
+            }
+            SUBSCRIPTION_VERSION -> decodeLines(raw, SUBSCRIPTION_VERSION, expectedFields = 5) { fields ->
+                FeedSubscription(
+                    id = fields[0].dec(),
+                    title = fields[1].dec(),
+                    url = fields[2].dec(),
+                    enabled = fields[3] == "1",
+                    watchKeywords = normalizeWatchKeywords(fields[4].dec().lineSequence().toList()),
+                )
+            }
+            else -> emptyList()
+        }
+        return decoded.filter { it.id.isNotBlank() && it.url.startsWith("https://") }
+    }
 
     fun encodeItems(items: List<CachedFeedItem>): String = buildString {
         appendLine(ITEM_VERSION)

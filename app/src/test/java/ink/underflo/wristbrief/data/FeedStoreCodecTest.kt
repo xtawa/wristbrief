@@ -1,5 +1,7 @@
 package ink.underflo.wristbrief.data
 
+import java.nio.charset.StandardCharsets
+import java.util.Base64
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -7,23 +9,34 @@ import org.junit.Test
 
 class FeedStoreCodecTest {
     @Test
-    fun subscriptions_roundTripUnicodeAndControlCharacters() {
+    fun subscriptions_roundTripUnicodeControlCharactersAndKeywords() {
         val input = listOf(
             FeedSubscription(
                 id = "feed-1",
                 title = "科技\t新闻\nDaily",
                 url = "https://example.com/feed.xml",
-                enabled = true
+                enabled = true,
+                watchKeywords = listOf("AI", "Wear OS"),
             ),
             FeedSubscription(
                 id = "feed-2",
                 title = "Podcast 🎧",
                 url = "https://example.com/podcast.xml",
-                enabled = false
+                enabled = false,
             )
         )
 
         assertEquals(input, FeedStoreCodec.decodeSubscriptions(FeedStoreCodec.encodeSubscriptions(input)))
+    }
+
+    @Test
+    fun subscriptions_readsLegacyV1WithoutKeywords() {
+        fun enc(value: String): String = Base64.getUrlEncoder().withoutPadding()
+            .encodeToString(value.toByteArray(StandardCharsets.UTF_8))
+        val legacy = "v1\n${enc("feed-1")}\t${enc("Legacy")}\t${enc("https://example.com/feed.xml")}\t1\n"
+        val decoded = FeedStoreCodec.decodeSubscriptions(legacy).single()
+        assertEquals("Legacy", decoded.title)
+        assertTrue(decoded.watchKeywords.isEmpty())
     }
 
     @Test
@@ -99,7 +112,7 @@ class FeedStoreCodecTest {
 
     @Test
     fun unknownOrMalformedPayload_isIgnoredSafely() {
-        assertTrue(FeedStoreCodec.decodeSubscriptions("v2\nanything").isEmpty())
+        assertTrue(FeedStoreCodec.decodeSubscriptions("v3\nanything").isEmpty())
         assertTrue(FeedStoreCodec.decodeItems("v3\nanything").isEmpty())
         assertTrue(FeedStoreCodec.decodeItems("v1\nnot\tenough\tfields").isEmpty())
         assertTrue(FeedStoreCodec.decodeItemIds("v2\nanything").isEmpty())

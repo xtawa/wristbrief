@@ -7,6 +7,7 @@ import com.google.android.gms.wearable.WearableListenerService
 import ink.underflo.wristbrief.complication.requestUnreadComplicationUpdate
 import ink.underflo.wristbrief.data.FeedSubscription
 import ink.underflo.wristbrief.data.SharedPreferencesFeedStore
+import ink.underflo.wristbrief.data.normalizeWatchKeywords
 import ink.underflo.wristbrief.tile.requestLatestUnreadTileUpdate
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.booleanOrNull
@@ -41,7 +42,14 @@ class SubscriptionDataLayerService : WearableListenerService() {
                 val title = item["title"]!!.jsonPrimitive.content
                 val url = item["url"]!!.jsonPrimitive.content
                 require(id.isNotBlank() && title.isNotBlank() && url.startsWith("https://"))
-                FeedSubscription(id, title, url, item["enabled"]?.jsonPrimitive?.booleanOrNull ?: true)
+                val keywords = item["watchKeywords"]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty()
+                FeedSubscription(
+                    id = id,
+                    title = title,
+                    url = url,
+                    enabled = item["enabled"]?.jsonPrimitive?.booleanOrNull ?: true,
+                    watchKeywords = normalizeWatchKeywords(keywords),
+                )
             } ?: emptyList()
         }.getOrNull()
     }

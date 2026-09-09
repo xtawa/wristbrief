@@ -128,7 +128,9 @@ class SharedPreferencesMobileFeedStore(context: Context) : MobileFeedStore {
 interface FeedSyncPublisher { fun publish(feeds: List<MobileFeedSubscription>) }
 
 internal fun wearSyncPayloadFor(feeds: List<MobileFeedSubscription>): WearSyncPayload = WearSyncPayload(
-    subscriptions = feeds.filter { it.sendToWatch }.map { SyncFeed(it.id, it.title, it.url, it.enabled) },
+    subscriptions = feeds.filter { it.sendToWatch }.map {
+        SyncFeed(it.id, it.title, it.url, it.enabled, normalizeWatchKeywords(it.watchKeywords))
+    },
 )
 
 class GoogleWearFeedSyncPublisher(context: Context) : FeedSyncPublisher {

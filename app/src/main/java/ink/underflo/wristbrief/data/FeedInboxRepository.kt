@@ -7,7 +7,8 @@ data class FeedSubscription(
     val id: String,
     val title: String,
     val url: String,
-    val enabled: Boolean = true
+    val enabled: Boolean = true,
+    val watchKeywords: List<String> = emptyList(),
 )
 
 sealed interface SubscriptionMutationResult {
@@ -71,9 +72,11 @@ class FeedInboxRepository(
     fun subscriptions(): List<FeedSubscription> = store.subscriptions()
 
     fun cachedItems(): List<CachedFeedItem> {
-        val enabledIds = store.subscriptions().asSequence().filter { it.enabled }.mapTo(hashSetOf()) { it.id }
-        if (enabledIds.isEmpty()) return emptyList()
-        return store.cachedItems().filter { it.feedId in enabledIds }
+        val enabled = store.subscriptions().filter { it.enabled }.associateBy { it.id }
+        if (enabled.isEmpty()) return emptyList()
+        return store.cachedItems().filter { item ->
+            enabled[item.feedId]?.let { subscription -> item.matchesWatchKeywords(subscription.watchKeywords) } == true
+        }
     }
 
     fun savedItems(): List<CachedFeedItem> {
@@ -168,14 +171,23 @@ class FeedInboxRepository(
                 .onFailure { failed += subscription.id }
                 .getOrNull() ?: return@forEach
             val now = clock()
-            freshByFeed[subscription.id] = loaded.map { it.toCached(subscription, now) }.distinctBy { it.id }
+            freshByFeed[subscription.id] = loaded
+                .filter { it.matchesWatchKeywords(subscription.watchKeywords) }
+                .map { it.toCached(subscription, now) }
+                .distinctBy { it.id }
         }
 
-        val enabledIds = subscriptions.mapTo(hashSetOf()) { it.id }
+        val enabledById = subscriptions.associateBy { it.id }
+        val enabledIds = enabledById.keys
         val retained = previous.filter { it.feedId !in enabledIds || it.feedId in failed }
         val merged = (retained + freshByFeed.values.flatten()).distinctBy { it.id }.sortedByDescending { it.cachedAtEpochMs }
         store.saveCachedItems(merged)
-        return FeedRefreshResult(merged.filter { it.feedId in enabledIds }, failed)
+        return FeedRefreshResult(
+            merged.filter { item ->
+                enabledById[item.feedId]?.let { subscription -> item.matchesWatchKeywords(subscription.watchKeywords) } == true
+            },
+            failed,
+        )
     }
 
     private fun duplicateSubscriptionId(url: String, excludingId: String?): String? {
@@ -184,9 +196,37 @@ class FeedInboxRepository(
     }
 }
 
+internal fun normalizeWatchKeywords(values: Iterable<String>): List<String> {
+    val seen = linkedSetOf<String>()
+    return values.asSequence()
+        .map { it.trim().replace(Regex("\\s+"), " ").take(48) }
+        .filter { it.isNotBlank() }
+        .filter { seen.add(it.lowercase()) }
+        .take(12)
+        .toList()
+}
+
+internal fun watchKeywordsMatch(title: String, description: String?, keywords: Iterable<String>): Boolean {
+    val normalized = normalizeWatchKeywords(keywords)
+    if (normalized.isEmpty()) return true
+    val searchable = buildString {
+        append(title)
+        append('\n')
+        append(description.orEmpty())
+    }.lowercase()
+    return normalized.any { it.lowercase() in searchable }
+}
+
+private fun FeedItem.matchesWatchKeywords(keywords: Iterable<String>): Boolean =
+    watchKeywordsMatch(title, description, keywords)
+
+private fun CachedFeedItem.matchesWatchKeywords(keywords: Iterable<String>): Boolean =
+    watchKeywordsMatch(title, description, keywords)
+
 private fun FeedSubscription.normalizedForStorage(): FeedSubscription = copy(
     title = title.trim(),
-    url = normalizeIdentityUrl(url) ?: url.trim()
+    url = normalizeIdentityUrl(url) ?: url.trim(),
+    watchKeywords = normalizeWatchKeywords(watchKeywords),
 )
 
 internal fun isValidSubscriptionUrl(value: String): Boolean {

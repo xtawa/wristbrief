@@ -13,7 +13,13 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
-data class SyncFeed(val id: String, val title: String, val url: String, val enabled: Boolean)
+data class SyncFeed(
+    val id: String,
+    val title: String,
+    val url: String,
+    val enabled: Boolean,
+    val watchKeywords: List<String> = emptyList(),
+)
 data class WearSyncPayload(
     val version: Int = CURRENT_VERSION,
     val subscriptions: List<SyncFeed>,
@@ -33,7 +39,12 @@ object WearDataLayerContract {
         put("version", payload.version)
         put("subscriptions", buildJsonArray {
             payload.subscriptions.forEach { feed -> add(buildJsonObject {
-                put("id", feed.id); put("title", feed.title); put("url", feed.url); put("enabled", feed.enabled)
+                put("id", feed.id)
+                put("title", feed.title)
+                put("url", feed.url)
+                put("enabled", feed.enabled)
+                val keywords = normalizeWatchKeywords(feed.watchKeywords)
+                if (keywords.isNotEmpty()) put("watchKeywords", stringArray(keywords))
             }) }
         })
         put("readItemIds", stringArray(payload.readItemIds.take(MAX_STATE_IDS)))
@@ -47,8 +58,11 @@ object WearDataLayerContract {
         val feeds = root["subscriptions"]?.jsonArray?.map { element ->
             val item = element.jsonObject
             SyncFeed(
-                id = item.requiredString("id"), title = item.requiredString("title"),
-                url = item.requiredString("url"), enabled = item["enabled"]?.jsonPrimitive?.booleanOrNull ?: true,
+                id = item.requiredString("id"),
+                title = item.requiredString("title"),
+                url = item.requiredString("url"),
+                enabled = item["enabled"]?.jsonPrimitive?.booleanOrNull ?: true,
+                watchKeywords = normalizeWatchKeywords(item.stringList("watchKeywords")),
             )
         } ?: emptyList()
         return WearSyncPayload(
@@ -62,4 +76,5 @@ object WearDataLayerContract {
     private fun stringArray(values: Collection<String>) = JsonArray(values.map(::JsonPrimitive))
     private fun JsonObject.requiredString(key: String) = this[key]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() } ?: error("Missing $key")
     private fun JsonObject.stringSet(key: String) = this[key]?.jsonArray?.mapTo(linkedSetOf()) { it.jsonPrimitive.content } ?: emptySet()
+    private fun JsonObject.stringList(key: String) = this[key]?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
 }

@@ -9,6 +9,7 @@ data class ArticleDetailUi(
     val timeLabel: String,
     val isPodcast: Boolean,
     val isOffline: Boolean,
+    val articleUrl: String? = null,
     val audioUrl: String? = null
 )
 
@@ -22,6 +23,7 @@ fun InboxItemUi.toArticleDetailUi(isOffline: Boolean): ArticleDetailUi = Article
     timeLabel = timeLabel.cleanText(),
     isPodcast = isPodcast,
     isOffline = isOffline,
+    articleUrl = articleUrl,
     audioUrl = audioUrl
 )
 

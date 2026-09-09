@@ -4,7 +4,7 @@ This roadmap is intentionally incremental. Do not replace working RSS, podcast, 
 
 ## Current short-term execution plan
 
-For the next development window, follow [`docs/NEXT_24_HOURS.md`](./NEXT_24_HOURS.md) as the authoritative execution queue. The hourly automation should complete the first unfinished eligible slot there before selecting broader roadmap work.
+The 24-slot execution window in [`docs/NEXT_24_HOURS.md`](./NEXT_24_HOURS.md) is complete once Slot 24 is marked green in [`docs/NEXT_24_HOURS_STATUS.md`](./NEXT_24_HOURS_STATUS.md). After that checkpoint, resume the broader priorities below and use [`docs/24H_REVIEW.md`](./24H_REVIEW.md) as the release-readiness handoff.
 
 ## Product direction
 
@@ -40,73 +40,73 @@ WristBrief is a Wear OS-first inbox for RSS, Atom and podcast feeds. The watch s
 
 ## P2 — Reading workflow
 
-- [ ] Article/detail screen optimized for a round display.
-- [ ] Read/unread state.
+- [x] Article/detail screen optimized for a round display.
+- [x] Read/unread state.
 - [x] Saved/starred state.
-- [ ] Basic sanitized article text.
+- [x] Basic sanitized article text.
 - [ ] Open/continue on phone flow when a paired phone is available.
-- [ ] Clear offline and extraction-error states.
+- [x] Clear offline and extraction-error states.
 
 ## P3 — Podcast playback
 
 - [x] Move playback behind a Media3 `MediaSession` service.
-- [ ] Background playback and notification/media controls.
+- [x] Background playback and notification/media controls.
 - [x] Resume position persistence.
 - [x] Seek controls and playback speed.
-- [ ] Bluetooth audio behavior and audio-focus handling.
-- [ ] Podcast transcript discovery when published in the feed.
-- [ ] Do not send podcast audio through the Wear Data Layer.
+- [x] Bluetooth audio behavior and audio-focus handling.
+- [x] Podcast transcript discovery when published in the feed.
+- [x] Do not send podcast audio through the Wear Data Layer.
 
 ## P4 — AI briefs
 
-- [ ] Structured summary response instead of a single free-form string.
-- [ ] Tiny summary for Tile/complication surfaces.
-- [ ] Brief summary for watch detail.
+- [x] Structured summary response instead of a single free-form string.
+- [x] Tiny summary for Tile/complication surfaces.
+- [x] Brief summary for watch detail.
 - [ ] Longer summary for a future phone companion.
-- [ ] Prompt-injection-resistant summarization instructions.
-- [ ] Summary caching keyed by normalized content, language and prompt/schema version.
-- [ ] Provider timeout and safe retry/fallback behavior.
+- [x] Prompt-injection-resistant summarization instructions.
+- [x] Summary caching keyed by normalized content, language and prompt/schema version.
+- [x] Provider timeout and safe retry/fallback behavior.
 
 ## P5 — Gateway providers
 
-- [ ] Refactor the current OpenAI-compatible call behind a provider adapter.
-- [ ] Managed OpenAI-compatible provider.
-- [ ] OpenRouter configuration.
-- [ ] Gemini adapter.
+- [x] Refactor the current OpenAI-compatible call behind a provider adapter.
+- [x] Managed OpenAI-compatible provider.
+- [x] OpenRouter configuration.
+- [x] Gemini adapter.
 - [ ] Anthropic adapter if product demand warrants it.
 - [ ] BYOK support without shipping managed provider secrets in the APK.
-- [ ] Never allow the public gateway to proxy arbitrary client-supplied hosts.
+- [x] Never allow the public gateway to proxy arbitrary client-supplied hosts.
 
 ## P6 — Wear surfaces
 
-- [ ] Latest/unread Tile.
-- [ ] Continue-listening Tile.
-- [ ] Unread-count complication.
-- [ ] Optional latest-item complication where the complication type has enough space.
-- [ ] Update cadence designed around battery limits rather than aggressive polling.
+- [x] Latest/unread Tile.
+- [x] Continue-listening Tile.
+- [x] Unread-count complication.
+- [x] Optional latest-item complication where the complication type has enough space.
+- [x] Update cadence designed around battery limits rather than aggressive polling.
 
 ## P7 — Feed management
 
-- [ ] Phone companion for comfortable feed entry and management.
+- [x] Phone companion for comfortable feed entry and management.
 - [ ] OPML import/export.
 - [ ] Per-feed "send to watch" setting.
 - [ ] Categories/folders.
 - [ ] Keyword watch filter.
-- [ ] Standalone watch refresh when the phone is unavailable and the watch has network access.
+- [x] Standalone watch refresh when the phone is unavailable and the watch has network access.
 
 ## P8 — Membership and quotas
 
 Only implement after the managed AI path and identity model are stable.
 
-- [ ] Serverless user identity.
-- [ ] Free / Pro entitlement model.
-- [ ] Managed AI usage quota.
-- [ ] BYOK does not consume managed AI quota.
-- [ ] Google Play Billing purchase flow on the phone.
-- [ ] Server-side purchase verification.
-- [ ] Restore purchases.
-- [ ] RTDN lifecycle handling.
-- [ ] Authoritative entitlement state lives server-side, not in client preferences.
+- [x] Serverless user identity.
+- [x] Free / Pro entitlement model.
+- [x] Managed AI usage quota.
+- [x] BYOK does not consume managed AI quota.
+- [x] Google Play Billing purchase flow on the phone.
+- [ ] Server-side purchase verification with the real Google Android Publisher API.
+- [x] Restore purchases contract/client foundation.
+- [ ] Production RTDN lifecycle handling with authenticated Pub/Sub verification.
+- [x] Authoritative entitlement state lives server-side, not in client preferences.
 
 ## P9 — Optional high-value features
 
@@ -135,26 +135,23 @@ Wear JVM tests
 Wear debug assembly
 Gateway TypeScript typecheck
 Gateway Vitest
-```
-
-After the phone companion exists, CI must also add:
-
-```text
 Mobile JVM tests
 Mobile debug assembly
+Release manifest guard
 ```
 
-As persistence, MediaSession, Data Layer, billing and migrations are introduced, add targeted integration/instrumentation tests instead of relying only on compilation.
+As persistence, MediaSession, Data Layer, billing and migrations mature, add targeted integration/instrumentation tests instead of relying only on compilation.
 
 ## Release gate
 
 Do not call WristBrief production-ready until all of the following are true:
 
 - Core RSS/Atom parsing has representative fixtures and malformed-feed coverage.
-- Podcast playback survives activity recreation/backgrounding.
+- Podcast playback survives activity recreation/backgrounding on the target device matrix.
 - Offline inbox behavior is deterministic.
 - Gateway errors do not expose provider credentials or upstream bodies.
-- Wear screens pass round/small display and large-font review.
+- Wear screens pass round/small display and large-font review on devices/emulators.
 - Tile/complication behavior is battery-conscious.
 - CI is green from a clean checkout.
-- Deployment, secret-management, privacy and recovery docs are complete.
+- Real Play verification/RTDN and durable production membership storage are deployed and exercised in an internal-test environment.
+- Release signing/versioning, deployment, secret-management, privacy and recovery docs/checklists are complete.

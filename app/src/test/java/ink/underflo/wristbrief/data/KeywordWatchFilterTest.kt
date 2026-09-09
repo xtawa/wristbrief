@@ -28,8 +28,8 @@ class KeywordWatchFilterTest {
                 cached("old-miss", "Unrelated cache"),
             ),
         )
-        val loader = FeedLoader {
-            listOf(
+        val loader = object : FeedLoader {
+            override fun load(url: String): List<FeedItem> = listOf(
                 FeedItem("AI launch", null, "New model", null, null, guid = "match"),
                 FeedItem("Sports", null, "Match report", null, null, guid = "miss"),
             )

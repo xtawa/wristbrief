@@ -89,7 +89,7 @@ WristBrief is a Wear OS-first inbox for RSS, Atom and podcast feeds. The watch s
 
 - [x] Phone companion for comfortable feed entry and management.
 - [x] OPML import/export.
-- [ ] Per-feed "send to watch" setting.
+- [x] Per-feed "send to watch" setting.
 - [ ] Categories/folders.
 - [ ] Keyword watch filter.
 - [x] Standalone watch refresh when the phone is unavailable and the watch has network access.

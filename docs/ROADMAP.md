@@ -62,7 +62,7 @@ WristBrief is a Wear OS-first inbox for RSS, Atom and podcast feeds. The watch s
 - [x] Structured summary response instead of a single free-form string.
 - [x] Tiny summary for Tile/complication surfaces.
 - [x] Brief summary for watch detail.
-- [ ] Longer summary for a future phone companion.
+- [x] Longer summary for a future phone companion.
 - [x] Prompt-injection-resistant summarization instructions.
 - [x] Summary caching keyed by normalized content, language and prompt/schema version.
 - [x] Provider timeout and safe retry/fallback behavior.

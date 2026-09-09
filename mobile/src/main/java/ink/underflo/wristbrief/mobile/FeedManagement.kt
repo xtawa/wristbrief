@@ -25,6 +25,7 @@ data class MobileFeedSubscription(
     val enabled: Boolean = true,
     val sendToWatch: Boolean = true,
     val category: String? = null,
+    val watchKeywords: List<String> = emptyList(),
 )
 
 sealed interface FeedMutationResult {
@@ -39,6 +40,18 @@ fun normalizeFeedUrl(raw: String): String? = runCatching {
 }.getOrNull()
 
 fun normalizeFeedCategory(raw: String?): String? = raw?.trim()?.replace(Regex("\\s+"), " ")?.take(80)?.takeIf { it.isNotBlank() }
+
+fun normalizeWatchKeywords(values: Iterable<String>): List<String> {
+    val seen = linkedSetOf<String>()
+    return values.asSequence()
+        .map { it.trim().replace(Regex("\\s+"), " ").take(48) }
+        .filter { it.isNotBlank() }
+        .filter { seen.add(it.lowercase()) }
+        .take(12)
+        .toList()
+}
+
+fun normalizeWatchKeywords(raw: String): List<String> = normalizeWatchKeywords(raw.split(',', '\n'))
 
 fun stableFeedId(url: String): String = MessageDigest.getInstance("SHA-256")
     .digest(url.toByteArray()).take(12).joinToString("") { "%02x".format(it) }
@@ -76,6 +89,9 @@ internal fun decodeMobileFeedSubscriptions(raw: String): List<MobileFeedSubscrip
             enabled = o["enabled"]?.jsonPrimitive?.booleanOrNull ?: true,
             sendToWatch = o["sendToWatch"]?.jsonPrimitive?.booleanOrNull ?: true,
             category = normalizeFeedCategory(o["category"]?.jsonPrimitive?.content),
+            watchKeywords = normalizeWatchKeywords(
+                o["watchKeywords"]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty(),
+            ),
         )
     }
 }
@@ -89,6 +105,10 @@ internal fun encodeMobileFeedSubscriptions(feeds: List<MobileFeedSubscription>):
             put("enabled", feed.enabled)
             put("sendToWatch", feed.sendToWatch)
             normalizeFeedCategory(feed.category)?.let { put("category", it) }
+            val keywords = normalizeWatchKeywords(feed.watchKeywords)
+            if (keywords.isNotEmpty()) {
+                put("watchKeywords", buildJsonArray { keywords.forEach { add(it) } })
+            }
         })
     }
 }.toString()
@@ -129,20 +149,43 @@ class MobileFeedManager(
 ) {
     fun feeds(): List<MobileFeedSubscription> = store.load()
 
-    suspend fun add(rawUrl: String, title: String, category: String? = null): FeedMutationResult {
+    suspend fun add(
+        rawUrl: String,
+        title: String,
+        category: String? = null,
+        watchKeywords: List<String> = emptyList(),
+    ): FeedMutationResult {
         val url = normalizeFeedUrl(rawUrl) ?: return FeedMutationResult.Error("Use a valid HTTPS feed URL")
         if (store.load().any { normalizeFeedUrl(it.url) == url }) return FeedMutationResult.Error("Feed is already subscribed")
         val discovered = runCatching { probe.validate(url) }.getOrElse { return FeedMutationResult.Error(it.message ?: "Feed validation failed") }
-        val feed = MobileFeedSubscription(stableFeedId(url), title.trim().ifBlank { discovered ?: URI(url).host }, url, category = normalizeFeedCategory(category))
+        val feed = MobileFeedSubscription(
+            stableFeedId(url),
+            title.trim().ifBlank { discovered ?: URI(url).host },
+            url,
+            category = normalizeFeedCategory(category),
+            watchKeywords = normalizeWatchKeywords(watchKeywords),
+        )
         return persist(store.load() + feed)
     }
 
-    suspend fun update(id: String, rawUrl: String, title: String, category: String? = null): FeedMutationResult {
+    suspend fun update(
+        id: String,
+        rawUrl: String,
+        title: String,
+        category: String? = null,
+        watchKeywords: List<String>? = null,
+    ): FeedMutationResult {
         val url = normalizeFeedUrl(rawUrl) ?: return FeedMutationResult.Error("Use a valid HTTPS feed URL")
         val current = store.load(); val old = current.find { it.id == id } ?: return FeedMutationResult.Error("Feed no longer exists")
         if (current.any { it.id != id && normalizeFeedUrl(it.url) == url }) return FeedMutationResult.Error("Feed is already subscribed")
         val discovered = runCatching { probe.validate(url) }.getOrElse { return FeedMutationResult.Error(it.message ?: "Feed validation failed") }
-        val updated = old.copy(id = stableFeedId(url), url = url, title = title.trim().ifBlank { discovered ?: old.title }, category = normalizeFeedCategory(category))
+        val updated = old.copy(
+            id = stableFeedId(url),
+            url = url,
+            title = title.trim().ifBlank { discovered ?: old.title },
+            category = normalizeFeedCategory(category),
+            watchKeywords = watchKeywords?.let(::normalizeWatchKeywords) ?: old.watchKeywords,
+        )
         return persist(current.map { if (it.id == id) updated else it })
     }
 
@@ -154,6 +197,9 @@ class MobileFeedManager(
 
     fun setCategory(id: String, category: String?): FeedMutationResult =
         persist(store.load().map { if (it.id == id) it.copy(category = normalizeFeedCategory(category)) else it })
+
+    fun setWatchKeywords(id: String, watchKeywords: Iterable<String>): FeedMutationResult =
+        persist(store.load().map { if (it.id == id) it.copy(watchKeywords = normalizeWatchKeywords(watchKeywords)) else it })
 
     fun remove(id: String): FeedMutationResult = persist(store.load().filterNot { it.id == id })
 

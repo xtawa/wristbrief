@@ -19,22 +19,55 @@ import {
   createMembershipService,
   type MembershipEnv
 } from "./membership";
+import {
+  processPlayRtdn,
+  restorePlayPurchase,
+  type BillingResult,
+  type BillingServerEnv
+} from "./billingServer";
 
-interface Env extends ProviderEnv, SummaryCacheEnv, MembershipEnv {}
+interface Env extends ProviderEnv, SummaryCacheEnv, MembershipEnv, BillingServerEnv {}
 type SummaryRequest = { title?: string; content?: string };
 const DEFAULT_PROVIDER_ID = "openai-compatible";
 const MAX_REQUEST_BYTES = 64 * 1024;
+const MAX_BILLING_REQUEST_BYTES = 16 * 1024;
 const MAX_CONTENT_CHARS = 50_000;
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const requestId = crypto.randomUUID();
     const respond = (value: unknown, status = 200) => json(value, status, requestId);
+    const respondBilling = (result: BillingResult) =>
+      result.status === 204 ? empty(204, requestId) : respond(result.body, result.status);
     const url = new URL(request.url);
 
     if (request.method === "GET" && url.pathname === "/health") return respond({ ok: true });
 
     const user = authenticateGatewayUser(request, env);
+
+    if (request.method === "POST" && url.pathname === "/v1/billing/rtdn") {
+      try {
+        return respondBilling(await processPlayRtdn(request, env));
+      } catch {
+        return respond({ error: "billing_unavailable" }, 503);
+      }
+    }
+
+    if (request.method === "POST" && url.pathname === "/v1/billing/restore") {
+      if (!user) return respond({ error: "unauthorized" }, 401);
+      const parsedBody = await readJsonBodyLimited<unknown>(request, MAX_BILLING_REQUEST_BYTES);
+      if (parsedBody.error) {
+        return respond(
+          { error: parsedBody.error },
+          parsedBody.error === "request_too_large" ? 413 : 400
+        );
+      }
+      try {
+        return respondBilling(await restorePlayPurchase(user, parsedBody.value, env));
+      } catch {
+        return respond({ error: "billing_unavailable" }, 503);
+      }
+    }
 
     if (request.method === "GET" && url.pathname === "/v1/me") {
       if (!user) return respond({ error: "unauthorized" }, 401);
@@ -168,6 +201,16 @@ function providerFailure(
     return respond({ error: error.code }, 502);
   }
   return respond({ error: "provider_error" }, 502);
+}
+
+function empty(status: number, requestId: string): Response {
+  return new Response(null, {
+    status,
+    headers: {
+      "Cache-Control": "no-store",
+      "X-Request-ID": requestId
+    }
+  });
 }
 
 function json(value: unknown, status: number, requestId: string): Response {

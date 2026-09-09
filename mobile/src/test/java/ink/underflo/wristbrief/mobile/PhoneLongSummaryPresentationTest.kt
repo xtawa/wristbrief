@@ -43,6 +43,27 @@ class PhoneLongSummaryPresentationTest {
     }
 
     @Test
+    fun readyStateCanBeBuiltFromValidatedClientResult() {
+        val state = phoneLongSummaryReadyState(
+            PhoneLongSummary(
+                text = "Validated client result",
+                sourceLanguage = "en",
+                outputLanguage = "zh-CN",
+                model = "openrouter-test",
+            ),
+        )
+
+        assertEquals(
+            PhoneLongSummaryUiState.Ready(
+                text = "Validated client result",
+                languageLabel = "en → zh-CN",
+                modelLabel = "openrouter-test",
+            ),
+            state,
+        )
+    }
+
+    @Test
     fun sameLanguageUsesCompactLabelAndBlankModelIsHidden() {
         val raw = """
             {
@@ -61,6 +82,22 @@ class PhoneLongSummaryPresentationTest {
 
         assertEquals("en", state.languageLabel)
         assertNull(state.modelLabel)
+    }
+
+    @Test
+    fun requestFailuresUseSafeUserFacingMessages() {
+        assertEquals(
+            PhoneLongSummaryUiState.Error("Gateway authentication was rejected. Check the access token and try again."),
+            phoneLongSummaryFailureState(PhoneSummaryFailure.Unauthorized),
+        )
+        assertEquals(
+            PhoneLongSummaryUiState.Error("Managed AI quota is currently exhausted."),
+            phoneLongSummaryFailureState(PhoneSummaryFailure.Quota),
+        )
+        assertEquals(
+            PhoneLongSummaryUiState.Error("The configured AI provider is temporarily unavailable."),
+            phoneLongSummaryFailureState(PhoneSummaryFailure.ProviderUnavailable),
+        )
     }
 
     @Test

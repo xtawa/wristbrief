@@ -36,7 +36,7 @@ Automation rules:
 - [x] 21 — Google Play Billing v8 client foundation
 - [x] 22 — Membership / entitlement / quota server foundation
 - [x] 23 — Play server verification + docs foundation
-- [ ] 24 — Full review, hardening and release-readiness checkpoint
+- [x] 24 — Full review, hardening and release-readiness checkpoint
 
 ## Completion log
 
@@ -69,3 +69,4 @@ Slot 20 — eb2fda3d279c40bcd64707fbe3353761872bf5c4 — Added phone feed add/ed
 Slot 21 — f9de315503e76ad84c696525a9ecdcd5e1698ce4 — Added Play Billing 8.3.0 repository/fake foundation, configured ProductDetails + restore/purchase flows, Play-driven Membership UI with explicit states, token-safe presentation mapping, and billing/presentation tests — CI: green
 Slot 22 — fd95bbb7378c1d8cdfb14af6382f2c91307b7044 — Added server-owned FREE/PRO entitlement and managed-AI quota contracts, BYOK quota bypass, authenticated /v1/me, billing verifier boundary/fake, D1-compatible membership migration foundation, anti-self-upgrade checks, and quota-consumption tests — CI: green
 Slot 23 — fe3f8e9ab5d0065a7636e2179f47218c769a43fa — Added authenticated restore and Pub/Sub-authenticated RTDN HTTP routing around the server-owned Play verifier, route-level ownership/re-verification/token-redaction tests, D1-compatible SHA-256 purchase-token binding schema, and retained explicit production setup docs/fakes without claiming deployment — CI: green
+Slot 24 — 97708fd23c81d954d96610bb74bd5ebd8579dfe6 — Completed repository-wide functional/Wear UX/security/release review, hardened mobile backup policy, added release manifest guard to CI, reconciled ROADMAP state, and documented remaining external/device release blockers — CI: green

@@ -10,8 +10,12 @@ sealed interface PhoneLongSummaryUiState {
     data class Error(val message: String) : PhoneLongSummaryUiState
 }
 
-fun phoneLongSummaryUiState(rawGatewayResponse: String): PhoneLongSummaryUiState =
-    runCatching { parsePhoneLongSummaryResponse(rawGatewayResponse) }
+fun phoneLongSummaryUiState(rawGatewayResponse: String?): PhoneLongSummaryUiState {
+    if (rawGatewayResponse.isNullOrBlank()) {
+        return PhoneLongSummaryUiState.AwaitingAuthenticatedGateway
+    }
+
+    return runCatching { parsePhoneLongSummaryResponse(rawGatewayResponse) }
         .fold(
             onSuccess = { summary ->
                 PhoneLongSummaryUiState.Ready(
@@ -26,3 +30,4 @@ fun phoneLongSummaryUiState(rawGatewayResponse: String): PhoneLongSummaryUiState
             },
             onFailure = { PhoneLongSummaryUiState.Error("Long summary response was invalid or unsupported.") },
         )
+}

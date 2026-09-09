@@ -2,10 +2,16 @@ package ink.underflo.wristbrief.mobile
 
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PhoneLongSummaryClientTest {
+    @Test
+    fun `public default constructor remains available without exposing transport`() {
+        assertNotNull(PhoneLongSummaryClient())
+    }
+
     @Test
     fun `sends authenticated https request and parses long summary`() {
         val transport = RecordingTransport(validResponse())
@@ -65,7 +71,7 @@ class PhoneLongSummaryClientTest {
     @Test
     fun `maps malformed successful response to safe invalid response`() {
         val error = runCatching {
-            PhoneLongSummaryClient(RecordingTransport("{}" )).summarize(
+            PhoneLongSummaryClient(RecordingTransport("{}")).summarize(
                 gatewayUrl = "https://gateway.example.com",
                 gatewayToken = "token",
                 title = null,

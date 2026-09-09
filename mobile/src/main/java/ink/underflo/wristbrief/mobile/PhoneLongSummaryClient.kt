@@ -61,9 +61,11 @@ class PhoneSummaryRequestException(
     val failure: PhoneSummaryFailure,
 ) : RuntimeException("Phone summary request failed")
 
-class PhoneLongSummaryClient(
-    private val transport: PhoneSummaryTransport = OkHttpPhoneSummaryTransport(),
+class PhoneLongSummaryClient internal constructor(
+    private val transport: PhoneSummaryTransport,
 ) {
+    constructor() : this(OkHttpPhoneSummaryTransport())
+
     fun summarize(
         gatewayUrl: String,
         gatewayToken: String,

@@ -6,6 +6,7 @@ import {
   summarizeWithCache,
   summaryCacheTtlSeconds
 } from "./summaryCache";
+import { BRIEF_PROMPT_VERSION, BRIEF_SCHEMA_VERSION } from "./structuredBrief";
 
 const output: SummaryOutput = {
   summary: "A concise brief.",
@@ -13,12 +14,13 @@ const output: SummaryOutput = {
   structured: {
     tiny: "Tiny brief.",
     brief: "A concise brief.",
+    long: "A longer phone-friendly summary that keeps more source context than the watch brief.",
     bullets: ["Fact one"],
     topics: ["test"],
     sourceLanguage: "en",
     outputLanguage: "en",
-    schemaVersion: "1",
-    promptVersion: "1"
+    schemaVersion: BRIEF_SCHEMA_VERSION,
+    promptVersion: BRIEF_PROMPT_VERSION
   }
 };
 
@@ -35,8 +37,8 @@ describe("summary cache", () => {
     const base = { title: "T", content: "C", language: "auto" };
     const key = await buildSummaryCacheKey(base);
     expect(await buildSummaryCacheKey({ ...base, language: "zh-CN" })).not.toBe(key);
-    expect(await buildSummaryCacheKey({ ...base, promptVersion: "2" })).not.toBe(key);
-    expect(await buildSummaryCacheKey({ ...base, schemaVersion: "2" })).not.toBe(key);
+    expect(await buildSummaryCacheKey({ ...base, promptVersion: "future-prompt" })).not.toBe(key);
+    expect(await buildSummaryCacheKey({ ...base, schemaVersion: "future-schema" })).not.toBe(key);
   });
 
   it("bypasses the producer on a cache hit", async () => {

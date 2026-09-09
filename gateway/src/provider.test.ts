@@ -23,6 +23,7 @@ const env = {
 const structured: StructuredBrief = {
   tiny: "Tiny.",
   brief: "Concise.",
+  long: "A longer phone-friendly summary with more context than the watch brief.",
   bullets: ["One"],
   topics: ["Tech"],
   sourceLanguage: "en",
@@ -90,7 +91,7 @@ describe("provider routing and security", () => {
 
     await expect(
       new OpenRouterProvider(env.OPENROUTER_API_KEY, env.OPENROUTER_MODEL).summarize({ content: "Body" })
-    ).resolves.toMatchObject({ model: "openrouter/test-model", summary: "Concise." });
+    ).resolves.toMatchObject({ model: "openrouter/test-model", summary: "Concise.", structured: { long: structured.long } });
   });
 
   it("routes Gemini through native generateContent without placing the key in the URL", async () => {
@@ -108,7 +109,7 @@ describe("provider routing and security", () => {
 
     await expect(
       new GeminiProvider(env.GEMINI_API_KEY, env.GEMINI_MODEL).summarize({ content: "Body" })
-    ).resolves.toMatchObject({ model: "gemini-test", summary: "Concise." });
+    ).resolves.toMatchObject({ model: "gemini-test", summary: "Concise.", structured: { long: structured.long } });
   });
 
   it("keeps the OpenAI-compatible HTTPS guard", async () => {

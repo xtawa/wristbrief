@@ -12,6 +12,7 @@ const env = {
 const structured = {
   tiny: "Tiny summary.",
   brief: "Three concise points.",
+  long: "A longer phone-friendly explanation that preserves the useful context omitted from the watch brief.",
   bullets: ["One", "Two"],
   topics: ["Tech"],
   sourceLanguage: "en",
@@ -98,7 +99,7 @@ describe("WristBrief gateway", () => {
     await expect(hostResponse.json()).resolves.toEqual({ error: "invalid_provider_url" });
   });
 
-  it("returns compatibility summary plus validated structured brief", async () => {
+  it("returns compatibility summary plus validated structured brief including the phone summary", async () => {
     const upstreamFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       expect(String(input)).toBe("https://provider.example/v1/chat/completions");
       expect(init?.headers).toMatchObject({
@@ -139,7 +140,8 @@ describe("WristBrief gateway", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
       summary: structured.brief,
-      model: "openrouter/fallback"
+      model: "openrouter/fallback",
+      structured: { long: structured.long }
     });
     expect(upstreamFetch).toHaveBeenCalledTimes(2);
   });

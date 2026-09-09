@@ -1,5 +1,7 @@
 package ink.underflo.wristbrief.mobile
 
+import java.net.URI
+
 sealed interface OpmlImportResult {
     data class Success(
         val feeds: List<MobileFeedSubscription>,
@@ -14,8 +16,9 @@ sealed interface OpmlImportResult {
 suspend fun MobileFeedManager.importOpml(raw: String): OpmlImportResult {
     val entries = runCatching { parseOpmlSubscriptions(raw) }
         .getOrElse { return OpmlImportResult.Error(it.message ?: "Could not read OPML") }
-    val knownUrls = feeds().mapNotNull { normalizeFeedUrl(it.url) }.toMutableSet()
-    var imported = 0
+    val current = feeds()
+    val knownUrls = current.mapNotNull { normalizeFeedUrl(it.url) }.toMutableSet()
+    val additions = mutableListOf<MobileFeedSubscription>()
     var duplicates = 0
     var failed = 0
 
@@ -24,24 +27,29 @@ suspend fun MobileFeedManager.importOpml(raw: String): OpmlImportResult {
             duplicates += 1
             return@forEach
         }
-        when (val result = add(entry.url, entry.title)) {
-            is FeedMutationResult.Error -> {
-                knownUrls.remove(entry.url)
-                failed += 1
-            }
-            is FeedMutationResult.Success -> {
-                imported += 1
-                if (!entry.enabled) {
-                    val importedFeed = result.feeds.firstOrNull { normalizeFeedUrl(it.url) == entry.url }
-                    if (importedFeed != null) setEnabled(importedFeed.id, false)
-                }
-            }
+
+        val discovered = runCatching { validateForBulkImport(entry.url) }.getOrElse {
+            knownUrls.remove(entry.url)
+            failed += 1
+            return@forEach
         }
+        val title = entry.title.trim().ifBlank { discovered ?: URI(entry.url).host }
+        additions += MobileFeedSubscription(
+            id = stableFeedId(entry.url),
+            title = title,
+            url = entry.url,
+            enabled = entry.enabled,
+        )
     }
 
+    val merged = if (additions.isEmpty()) {
+        current
+    } else {
+        persistBulkImport(current + additions).feeds
+    }
     return OpmlImportResult.Success(
-        feeds = feeds(),
-        importedCount = imported,
+        feeds = merged,
+        importedCount = additions.size,
         duplicateCount = duplicates,
         failedValidationCount = failed,
     )

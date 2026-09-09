@@ -115,6 +115,10 @@ class MobileFeedManager(
     fun setEnabled(id: String, enabled: Boolean): FeedMutationResult = persist(store.load().map { if (it.id == id) it.copy(enabled = enabled) else it })
     fun remove(id: String): FeedMutationResult = persist(store.load().filterNot { it.id == id })
 
+    internal suspend fun validateForBulkImport(url: String): String? = probe.validate(url)
+
+    internal fun persistBulkImport(feeds: List<MobileFeedSubscription>): FeedMutationResult.Success = persist(feeds)
+
     private fun persist(feeds: List<MobileFeedSubscription>): FeedMutationResult.Success {
         store.save(feeds); publisher.publish(feeds); return FeedMutationResult.Success(feeds)
     }

@@ -8,7 +8,7 @@ import org.junit.Test
 
 class OpmlManagerExtensionsTest {
     @Test
-    fun import_validatesNewFeeds_skipsExisting_andPreservesDisabledState() = runBlocking {
+    fun import_validatesNewFeeds_skipsExisting_andPreservesDisabledState_inSinglePublish() = runBlocking {
         val existing = MobileFeedSubscription(
             id = stableFeedId("https://existing.example/rss"),
             title = "Existing",
@@ -43,7 +43,33 @@ class OpmlManagerExtensionsTest {
         val imported = result.feeds.first { it.url == "https://new.example/rss" }
         assertEquals("Discovered title", imported.title)
         assertFalse(imported.enabled)
-        assertTrue(publisher.snapshots.isNotEmpty())
+        assertEquals(1, publisher.snapshots.size)
+        assertEquals(result.feeds, publisher.snapshots.single())
+    }
+
+    @Test
+    fun import_allDuplicatesDoesNotRewriteOrPublish() = runBlocking {
+        val existing = MobileFeedSubscription(
+            id = stableFeedId("https://existing.example/rss"),
+            title = "Existing",
+            url = "https://existing.example/rss",
+        )
+        val store = MemoryStore(listOf(existing))
+        val publisher = RecordingPublisher()
+        val manager = MobileFeedManager(
+            store,
+            object : FeedProbe { override suspend fun validate(url: String) = error("duplicate should not be probed") },
+            publisher,
+        )
+
+        val result = manager.importOpml(
+            "<opml version=\"2.0\"><body><outline xmlUrl=\"https://existing.example/rss\" /></body></opml>",
+        ) as OpmlImportResult.Success
+
+        assertEquals(0, result.importedCount)
+        assertEquals(1, result.duplicateCount)
+        assertEquals(listOf(existing), result.feeds)
+        assertTrue(publisher.snapshots.isEmpty())
     }
 
     @Test

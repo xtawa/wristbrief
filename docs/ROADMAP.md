@@ -154,8 +154,8 @@ Implement after the current production RTDN hardening, and before calling the me
 #### Migration and recovery
 
 - [x] Define a one-time upgrade path from the current serverless identity to Google-backed identity without silently creating duplicate paid accounts.
-- [ ] On first Google sign-in, explicitly link the existing authenticated WristBrief identity/session to the verified `(google, sub)` only after ownership checks pass.
-- [ ] Preserve existing entitlement/quota state when linking identities; add tests for duplicate Google identity, conflicting purchase ownership and repeated linking.
+- [x] On first Google sign-in, explicitly link the existing authenticated WristBrief identity/session to the verified `(google, sub)` only after ownership checks pass.
+- [x] Preserve existing entitlement/quota state when linking identities; add tests for duplicate Google identity, conflicting purchase ownership and repeated linking.
 - [x] Define account deletion, session revocation and Google-identity unlink behavior before production launch.
 - [x] Keep account merging/recovery explicit and auditable; never merge accounts solely because email strings match.
 

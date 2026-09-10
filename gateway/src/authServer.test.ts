@@ -42,6 +42,41 @@ describe("Google auth exchange", () => {
     expect(second.body.sessionToken).not.toBe(first.body.sessionToken);
   });
 
+  it("links a freshly verified Google identity to a server-authenticated existing user", async () => {
+    const identityStore = new InMemoryAccountIdentityStore();
+    const sessionStore = new InMemoryAccountSessionStore();
+    const env = {
+      GOOGLE_ID_TOKEN_VERIFIER: new FakeVerifier({ token: identity("google-sub-link", "person@example.com") }),
+      ACCOUNT_IDENTITY_STORE: identityStore,
+      ACCOUNT_SESSION_STORE: sessionStore
+    };
+
+    const response = await exchangeGoogleIdToken({ idToken: "token" }, env, { existingUserId: "legacy-user-1" });
+    expect(response.status).toBe(200);
+    expect(response.body.user).toEqual({ id: "legacy-user-1" });
+    expect(response.body.created).toBe(true);
+    expect(identityStore.identityForGoogleSubject("google-sub-link")?.userId).toBe("legacy-user-1");
+    expect(response.body.sessionToken).toMatch(/^wbs_[A-Za-z0-9_-]{43}$/);
+  });
+
+  it("returns conflict and does not issue another session when Google identity belongs to another user", async () => {
+    const identityStore = new InMemoryAccountIdentityStore();
+    const sessionStore = new InMemoryAccountSessionStore();
+    const env = {
+      GOOGLE_ID_TOKEN_VERIFIER: new FakeVerifier({ token: identity("google-sub-conflict", "person@example.com") }),
+      ACCOUNT_IDENTITY_STORE: identityStore,
+      ACCOUNT_SESSION_STORE: sessionStore
+    };
+
+    await expect(exchangeGoogleIdToken({ idToken: "token" }, env, { existingUserId: "legacy-user-a" })).resolves.toMatchObject({ status: 200 });
+    const sessionCount = sessionStore.records().length;
+    await expect(exchangeGoogleIdToken({ idToken: "token" }, env, { existingUserId: "legacy-user-b" })).resolves.toEqual({
+      status: 409,
+      body: { error: "identity_conflict" }
+    });
+    expect(sessionStore.records()).toHaveLength(sessionCount);
+  });
+
   it("does not merge distinct Google subjects just because email matches", async () => {
     const identityStore = new InMemoryAccountIdentityStore();
     const sessionStore = new InMemoryAccountSessionStore();

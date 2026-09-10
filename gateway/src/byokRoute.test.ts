@@ -82,6 +82,25 @@ describe("BYOK summary route", () => {
     await expect(store.getManagedAiQuota("byok-user")).resolves.toEqual({ limit: 0, used: 0 });
   });
 
+  it("maps provider credential rejection without leaking the key or upstream body", async () => {
+    const rejectedKey = "caller-key-that-must-not-leak";
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(
+      "upstream body must stay private",
+      { status: 401, headers: { "Content-Type": "text/plain" } }
+    )));
+
+    const response = await worker.fetch(
+      byokRequest("openrouter", "openrouter/test-model", rejectedKey),
+      baseEnv
+    );
+
+    expect(response.status).toBe(422);
+    const text = await response.text();
+    expect(JSON.parse(text)).toEqual({ error: "byok_provider_auth_failed" });
+    expect(text).not.toContain(rejectedKey);
+    expect(text).not.toContain("upstream body must stay private");
+  });
+
   it("rejects unsupported BYOK providers before any upstream request", async () => {
     const upstreamFetch = vi.fn();
     vi.stubGlobal("fetch", upstreamFetch);

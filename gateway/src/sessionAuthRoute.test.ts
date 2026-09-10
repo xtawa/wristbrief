@@ -75,6 +75,42 @@ describe("WristBrief session route authentication", () => {
     expect(response.status).toBe(401);
   });
 
+  it("revokes the current WristBrief session through /v1/auth/logout", async () => {
+    const sessionStore = new InMemoryAccountSessionStore();
+    const session = await sessionFor(sessionStore, "google-user-1");
+    const env = {
+      ...providerEnv,
+      ACCOUNT_SESSION_STORE: sessionStore,
+      MEMBERSHIP_STORE: new InMemoryMembershipStore([
+        { userId: "google-user-1", plan: "PRO" as const, managedAiLimit: 50 }
+      ])
+    };
+
+    const logout = await worker.fetch(new Request("https://gateway.example/v1/auth/logout", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${session.token}` }
+    }), env);
+    expect(logout.status).toBe(204);
+
+    const after = await worker.fetch(new Request("https://gateway.example/v1/me", {
+      headers: { Authorization: `Bearer ${session.token}` }
+    }), env);
+    expect(after.status).toBe(401);
+  });
+
+  it("does not treat the legacy bearer as an account session logout credential", async () => {
+    const response = await worker.fetch(new Request("https://gateway.example/v1/auth/logout", {
+      method: "POST",
+      headers: { Authorization: "Bearer legacy-secret" }
+    }), {
+      ...providerEnv,
+      ACCOUNT_SESSION_STORE: new InMemoryAccountSessionStore(),
+      GATEWAY_TOKEN: "legacy-secret",
+      GATEWAY_USER_ID: "legacy-user"
+    });
+    expect(response.status).toBe(401);
+  });
+
   it("keeps the legacy bearer working during migration", async () => {
     const response = await worker.fetch(new Request("https://gateway.example/v1/me", {
       headers: { Authorization: "Bearer legacy-secret" }

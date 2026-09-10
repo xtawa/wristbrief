@@ -19,6 +19,16 @@ android {
             "BILLING_SUBSCRIPTION_PRODUCT_IDS",
             "\"${providers.gradleProperty("wristbrief.billingSubscriptionProductIds").orNull.orEmpty()}\"",
         )
+        buildConfigField(
+            "String",
+            "GOOGLE_WEB_CLIENT_ID",
+            "\"${providers.gradleProperty("wristbrief.googleWebClientId").orNull.orEmpty()}\"",
+        )
+        buildConfigField(
+            "String",
+            "GATEWAY_BASE_URL",
+            "\"${providers.gradleProperty("wristbrief.gatewayBaseUrl").orNull.orEmpty()}\"",
+        )
     }
 
     buildFeatures {
@@ -40,6 +50,9 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.credentials:credentials:1.6.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.6.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.2.0")
     implementation("com.android.billingclient:billing:8.3.0")
     implementation("com.google.android.gms:play-services-wearable:20.0.1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")

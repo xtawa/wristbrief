@@ -39,9 +39,18 @@ class FakeD1 {
     let changes = 0;
     let results: Record<string, unknown>[] = [];
 
-    if (sql.startsWith("INSERT OR IGNORE INTO users")) {
+    if (sql.startsWith("INSERT OR IGNORE INTO users") && !sql.includes("SELECT ?")) {
       const id = String(v[0]);
       if (!this.users.has(id)) { this.users.set(id, "active"); changes = 1; }
+    } else if (sql.startsWith("INSERT OR IGNORE INTO users") && sql.includes("SELECT ?")) {
+      const id = String(v[0]);
+      const subject = String(v[1]);
+      const expectedUser = String(v[2]);
+      const identity = this.identities.get(subject);
+      if (identity?.userId === expectedUser && !this.users.has(id)) {
+        this.users.set(id, "active");
+        changes = 1;
+      }
     } else if (sql.startsWith("INSERT OR IGNORE INTO identities")) {
       const subject = String(v[0]);
       if (!this.identities.has(subject)) {
@@ -55,8 +64,9 @@ class FakeD1 {
       }
     } else if (sql.startsWith("UPDATE identities SET")) {
       const subject = String(v[3]);
+      const expectedUser = v.length >= 5 ? String(v[4]) : undefined;
       const existing = this.identities.get(subject);
-      if (existing) {
+      if (existing && (!expectedUser || existing.userId === expectedUser)) {
         existing.email = String(v[0]);
         existing.displayName = v[1] === null ? null : String(v[1]);
         existing.pictureUrl = v[2] === null ? null : String(v[2]);
@@ -108,6 +118,36 @@ describe("D1 account stores", () => {
     expect(db.users.has("user-a")).toBe(true);
     expect(db.users.has("user-b")).toBe(false);
     expect(db.identities.get("sub-1")?.email).toBe("new@example.com");
+  });
+
+  it("links Google sub to an existing user idempotently and rejects conflicting ownership", async () => {
+    const db = new FakeD1();
+    db.users.set("legacy-user-a", "active");
+    db.users.set("legacy-user-b", "active");
+    const store = new D1AccountIdentityStore(db as unknown as D1Database);
+    const base = {
+      provider: "google" as const,
+      providerSubject: "sub-link",
+      userId: "legacy-user-a",
+      email: "first@example.com"
+    };
+
+    await expect(store.linkGoogleIdentityToUser(base)).resolves.toEqual({ userId: "legacy-user-a", created: true });
+    await expect(store.linkGoogleIdentityToUser({ ...base, email: "updated@example.com" })).resolves.toEqual({
+      userId: "legacy-user-a",
+      created: false
+    });
+    expect(db.identities.get("sub-link")?.email).toBe("updated@example.com");
+
+    await expect(store.linkGoogleIdentityToUser({
+      ...base,
+      userId: "legacy-user-b",
+      email: "attacker@example.com"
+    })).rejects.toThrow("identity_conflict");
+    expect(db.identities.get("sub-link")).toMatchObject({
+      userId: "legacy-user-a",
+      email: "updated@example.com"
+    });
   });
 
   it("round-trips and revokes hashed sessions", async () => {

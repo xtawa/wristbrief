@@ -27,7 +27,7 @@ jobs:
         with:
           gradle-version: '8.9'
       - name: Test and build debug apps
-        run: gradle :app:testDebugUnitTest :app:assembleDebug :mobile:testDebugUnitTest :mobile:assembleDebug --stacktrace
+        run: gradle :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :mobile:testDebugUnitTest :mobile:assembleDebug :mobile:assembleDebugAndroidTest --stacktrace
       - name: Build unsigned release artifacts
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: gradle :app:assembleRelease :app:bundleRelease :mobile:assembleRelease :mobile:bundleRelease --stacktrace

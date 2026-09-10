@@ -47,7 +47,10 @@ class MembershipApiClient(
             ?: return@withContext MembershipSnapshotResult.Failure("membership_not_configured")
         try {
             httpClient.newCall(request).execute().use { response ->
-                parseMembershipSnapshotResponse(response.code, response.body?.string().orEmpty())
+                membershipResultForSession(
+                    session,
+                    parseMembershipSnapshotResponse(response.code, response.body?.string().orEmpty()),
+                )
             }
         } catch (_: Exception) {
             MembershipSnapshotResult.Failure("membership_network_error")
@@ -95,6 +98,18 @@ class MembershipApiClient(
         }
         MembershipRestoreResult.Success(restored, latestPlan)
     }
+}
+
+internal fun membershipResultForSession(
+    session: AccountSession,
+    result: MembershipSnapshotResult,
+): MembershipSnapshotResult = when (result) {
+    is MembershipSnapshotResult.Success -> if (result.snapshot.userId == session.user.id) {
+        result
+    } else {
+        MembershipSnapshotResult.Failure("membership_identity_mismatch")
+    }
+    else -> result
 }
 
 internal fun buildMembershipSnapshotRequest(baseUrl: String, sessionToken: String): Request? {

@@ -149,10 +149,18 @@ class MainActivity : ComponentActivity() {
     val scope = rememberCoroutineScope()
     val sessionPreferences = remember(context) { AccountSessionPreferences(context) }
     val accountClient = remember(context) { GoogleAccountAuthClient(context, sessionPreferences = sessionPreferences) }
+    val membershipApi = remember(context) {
+        MembershipApiClient(
+            sessionProvider = sessionPreferences::read,
+            gatewayBaseUrl = BuildConfig.GATEWAY_BASE_URL,
+            packageName = BuildConfig.APPLICATION_ID,
+        )
+    }
     val accountConfigured = remember { accountAuthConfig(BuildConfig.GOOGLE_WEB_CLIENT_ID, BuildConfig.GATEWAY_BASE_URL) != null }
     var accountSession by remember { mutableStateOf(sessionPreferences.read()) }
     var accountBusy by remember { mutableStateOf(false) }
     var accountMessage by remember { mutableStateOf<String?>(null) }
+    var membershipBusy by remember { mutableStateOf(false) }
     val repository = remember(context) {
         GooglePlayBillingRepository(
             context = context,
@@ -262,9 +270,9 @@ class MainActivity : ComponentActivity() {
                                     } else {
                                         val result = repository.launchPurchase(activity, product.productId)
                                         actionMessage = when (result.responseCode) {
-                                            BillingResponseCode.OK -> "Google Play purchase flow opened."
+                                            BillingResponseCode.OK -> "Google Play purchase flow opened. After it completes, verify the purchase with WristBrief below."
                                             BillingResponseCode.USER_CANCELED -> "Purchase canceled."
-                                            BillingResponseCode.ITEM_ALREADY_OWNED -> "This plan is already owned; restoring purchases."
+                                            BillingResponseCode.ITEM_ALREADY_OWNED -> "This plan is already owned; verify it with WristBrief below."
                                             else -> "Google Play could not start the purchase flow (code ${result.responseCode})."
                                         }
                                         if (result.responseCode == BillingResponseCode.ITEM_ALREADY_OWNED) repository.refresh()
@@ -275,7 +283,29 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
-                item { OutlinedButton(onClick = { actionMessage = "Refreshing purchases…"; repository.refresh() }) { Text("Restore Play purchases") } }
+                item {
+                    OutlinedButton(
+                        enabled = account is AccountPresentation.SignedIn && presentation.restoredPurchaseCount > 0 && !membershipBusy,
+                        onClick = {
+                            val purchases = (billingState as? BillingState.Ready)?.purchases.orEmpty()
+                            scope.launch {
+                                membershipBusy = true
+                                actionMessage = "Verifying Play purchases with WristBrief…"
+                                when (val result = membershipApi.restorePurchases(purchases)) {
+                                    is MembershipRestoreResult.Success -> actionMessage = "Verified ${result.restoredCount} purchase(s). Membership: ${result.plan ?: "updated"}."
+                                    MembershipRestoreResult.SignedOut -> {
+                                        sessionPreferences.clear()
+                                        accountSession = null
+                                        actionMessage = "Your WristBrief session expired. Sign in again to restore membership."
+                                    }
+                                    is MembershipRestoreResult.Failure -> actionMessage = "Membership restore failed: ${result.code}"
+                                }
+                                membershipBusy = false
+                            }
+                        },
+                    ) { Text(if (membershipBusy) "Verifying…" else "Restore & verify membership") }
+                }
+                item { TextButton(onClick = { actionMessage = "Refreshing Play purchases…"; repository.refresh() }, enabled = !membershipBusy) { Text("Refresh Play purchases") } }
             }
         }
     }

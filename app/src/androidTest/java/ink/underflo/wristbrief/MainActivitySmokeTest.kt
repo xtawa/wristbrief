@@ -2,7 +2,9 @@ package ink.underflo.wristbrief
 
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
+import androidx.test.core.app.ServiceScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import ink.underflo.wristbrief.media.PodcastPlaybackService
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
@@ -42,6 +44,29 @@ class MainActivitySmokeTest {
             scenario.onActivity { activity ->
                 assertFalse(activity.isFinishing)
                 assertFalse(activity.isDestroyed)
+            }
+        }
+    }
+
+    @Test
+    fun playbackServiceSurvivesActivityRecreationAndBackgroundCycle() {
+        ServiceScenario.launch(PodcastPlaybackService::class.java).use { serviceScenario ->
+            var serviceIdentity = 0
+            serviceScenario.onService { service ->
+                serviceIdentity = System.identityHashCode(service)
+            }
+
+            ActivityScenario.launch(MainActivity::class.java).use { activityScenario ->
+                activityScenario.recreate()
+                assertEquals(Lifecycle.State.RESUMED, activityScenario.state)
+                activityScenario.moveToState(Lifecycle.State.CREATED)
+                assertEquals(Lifecycle.State.CREATED, activityScenario.state)
+                activityScenario.moveToState(Lifecycle.State.RESUMED)
+                assertEquals(Lifecycle.State.RESUMED, activityScenario.state)
+            }
+
+            serviceScenario.onService { service ->
+                assertEquals(serviceIdentity, System.identityHashCode(service))
             }
         }
     }

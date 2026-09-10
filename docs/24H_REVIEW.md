@@ -2,52 +2,78 @@
 
 Review baseline: `f9323757261bd5d89430f945de62a8ceed23e140` (CI #144 green).
 
+This file is a release-readiness handoff, not a second execution queue. The original 24 slots remain complete in `NEXT_24_HOURS_STATUS.md`; this document tracks what has since been implemented in-repository versus what still requires external deployment, Play/Google Cloud configuration, or device execution.
+
 ## Completed scope
 
 Slots 01–24 are complete and green. They cover feed identity/dedup and subscription CRUD; Wear feed/detail/read/saved UX; Media3 background podcast playback, progress and transcript discovery; provider-abstracted structured AI briefs with reliability/security/cache handling; cached-data Tile/Complication surfaces; an independent phone companion and lightweight versioned Wear Data Layer sync; Play Billing v8 client foundations; server-owned membership/quota plus Play verification/RTDN contracts, migrations, fakes and documentation; and the final repository-wide hardening/release-readiness review.
 
-Slot 24 was a repository-wide hardening/release-readiness review. No product feature was added during this review.
+Subsequent repository work has also completed the following foundations:
+
+- real Google Android Publisher `purchases.subscriptionsv2` verification using server-held service-account credentials;
+- authenticated Pub/Sub RTDN OIDC/JWT verification against fixed Google trust boundaries, with entitlement changes still requiring a Play re-query;
+- Google OAuth/OIDC account identity on the phone and Gateway, keyed by verified Google `sub` rather than email;
+- revocable WristBrief sessions, durable D1-compatible user/identity/session/entitlement/quota/purchase-binding schemas, and explicit legacy-account migration/recovery rules;
+- membership/Play purchase ownership bound to the immutable internal WristBrief user ID;
+- unsigned Wear and Mobile release APK/AAB generation and artifact upload on `main` CI;
+- a reproducible internal-release checklist;
+- Android instrumentation foundations for both apps, including `AndroidJUnitRunner`, MainActivity launch smoke tests, and CI compilation of both debug instrumentation APKs.
+
+These repository implementations do not by themselves prove production deployment or device behavior.
 
 ## Review findings and hardening
 
 - Both Android apps disable cleartext traffic and backups. The phone manifest was hardened with `android:allowBackup="false"` so persisted feed/account-adjacent state is not included in normal Android backup by default.
 - `PodcastPlaybackService` remains non-exported. Launcher, Tile, complication and Wear Data Layer components retain only the exported state required by their platform integration.
-- CI now includes a deterministic `scripts/release_guard.py` static check that fails if either app re-enables cleartext traffic/backups or if the MediaSession service becomes exported.
-- Existing gateway tests cover server-owned provider routing, fixed HTTPS upstreams, bounded request sizes, provider timeout/retry behavior, malformed output, authentication/quota bypass attempts, purchase-token ownership and RTDN re-verification. Provider/API keys and raw purchase tokens are not expected in client APK configuration or logs.
+- CI includes deterministic release manifest guards and now compiles JVM tests, debug APKs, both instrumentation test APKs, and unsigned release APK/AAB artifacts from a clean checkout.
+- Gateway tests cover server-owned provider routing, fixed HTTPS upstreams, bounded request sizes, provider timeout/retry behavior, malformed output, authentication/quota bypass attempts, Google account/session boundaries, purchase-token ownership, Android Publisher verification and authenticated RTDN re-verification.
 - Feed/article/transcript source text remains treated as untrusted input for summarization; structured output is validated before reaching Wear UI.
 - Tiles/complications use local cached state and meaningful-change updates rather than render-time feed/AI polling.
 
-## CI/release checkpoint
+## Current CI/release checkpoint
 
-Required checks are:
+Minimum repository-controlled checks are:
 
-- Wear JVM tests
-- Wear debug assembly
-- Mobile JVM tests
-- Mobile debug assembly
-- Gateway TypeScript typecheck
-- Gateway Vitest
-- Release manifest guard
+- Wear JVM tests;
+- Wear debug assembly;
+- Wear debug instrumentation-test APK assembly;
+- Mobile JVM tests;
+- Mobile debug assembly;
+- Mobile debug instrumentation-test APK assembly;
+- Gateway TypeScript typecheck;
+- Gateway Vitest;
+- release manifest guard;
+- unsigned Wear/Mobile release APK + AAB assembly and artifact upload on `main` pushes.
 
-Latest verified Slot 24 hardening commit: `97708fd23c81d954d96610bb74bd5ebd8579dfe6` — CI #145 green.
+Latest instrumentation-foundation commit: `9012fd6e9c3dac3fff6a6f75eee36f7c9e38391d` — CI #253 green.
 
-## Skipped or externally blocked production work
+`assembleDebugAndroidTest` proves that the instrumentation suites and their runners package correctly. It does **not** count as executing those tests on an emulator or physical device.
 
-No 24-hour slot was skipped. The following production work remains intentionally unclaimed because it needs external configuration, device validation, or a larger release phase:
+## Remaining external or execution-dependent release blockers
 
-- real Google Android Publisher API adapter/service-account credentials and Play Console subscription products;
-- production Pub/Sub authenticated-push JWT verification/configuration and RTDN topic/subscription wiring;
-- Cloudflare production bindings/migrations for durable membership, purchase ownership and optional summary cache storage;
-- signed release builds, Play internal-testing track setup, privacy/store listing and production operational recovery checks;
-- physical/emulator Wear matrix verification for round 192–240dp-class screens, large font scales, rotary input, Bluetooth controls and background playback across lifecycle transitions;
-- end-to-end phone↔Wear Data Layer tests on paired devices and Play test-purchase lifecycle tests.
+The following work remains intentionally unclaimed:
 
-These are release blockers for calling the product production-ready, but they do not invalidate the tested alpha foundations delivered in Slots 01–24.
+- apply the D1 migrations/bindings to a controlled Cloudflare environment and smoke-test the deployed Gateway with real non-repository secret bindings;
+- configure the actual Play Console subscription/base plans/test accounts and exercise a license/internal-test purchase against the deployed verifier;
+- configure the actual Google Cloud Pub/Sub RTDN topic and authenticated push subscription, then exercise live push delivery against the configured production-like audience/service account;
+- execute the full Play lifecycle matrix: active, cancellation-with-time-remaining, grace period, account hold, expiration and revoke;
+- configure the established Play App Signing/upload-key path and upload a traceable AAB to the Play internal-testing track;
+- run instrumentation tests on Android phone and Wear OS emulators/physical devices rather than only compiling their test APKs;
+- execute the Wear matrix on representative round 192–240dp-class screens, large font scales and rotary input;
+- exercise MediaSession background/activity-recreation, Bluetooth controls, noisy-route/audio-focus and resume behavior on a real/emulated Wear environment;
+- exercise paired phone↔Wear Data Layer flows across connected, disconnected and reconnected states;
+- verify Tile and complication launch/readability/update behavior on Wear OS.
 
-## Recommended next 48h priority
+No production credential, signing key or console-only result should be committed merely to clear one of these blockers.
 
-1. Run a device/emulator release matrix and add instrumentation tests for MediaSession lifecycle, Data Layer pairing, Tile/Complication launches and large-font/round-screen navigation regressions.
-2. Implement and stage durable D1-backed membership/purchase stores, then deploy a non-production Gateway environment with real secret bindings and smoke tests.
-3. Wire the real Android Publisher verifier and Pub/Sub authenticated push in a Play internal-test project; exercise purchase, restore, grace, hold, cancel, expire and revoke paths end-to-end.
-4. Add release signing/versioning, generated release APK/AAB CI artifacts and a reproducible internal-track release checklist.
-5. After those gates are stable, resume `docs/ROADMAP.md` priority work rather than extending the completed 24-hour queue.
+## Recommended next release-readiness order
+
+1. Execute the existing instrumentation suites on controlled Android/Wear emulators or devices and expand them around any reproducible failures found there.
+2. Deploy a non-production Gateway with the real D1 bindings/migrations and secret-store configuration, then run security/auth/membership smoke checks against that deployment.
+3. Wire Play internal testing plus authenticated RTDN in Google Cloud and execute the complete purchase/restore/lifecycle matrix.
+4. Sign and upload a traceable AAB through the established Play App Signing path and record the exact source SHA/artifact digest/version.
+5. Complete the paired phone/Wear, MediaSession, Tile/Complication and accessibility/device matrix before widening distribution.
+
+## Release-ready boundary
+
+Do not call WristBrief production-ready until the repository gates are green **and** the external deployment, signed Play internal testing, billing/RTDN lifecycle checks, and phone/Wear device matrix above have all been exercised successfully. Repository-level mocks, compiled instrumentation APKs, or unsigned release artifacts are not substitutes for those gates.

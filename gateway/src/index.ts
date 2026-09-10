@@ -8,6 +8,11 @@ import {
   type SummaryOutput
 } from "./provider";
 import {
+  BYOK_PROVIDER_IDS,
+  ByokConfigError,
+  createByokProvider
+} from "./byok";
+import {
   buildSummaryCacheKey,
   createSummaryCache,
   summarizeWithCache,
@@ -28,10 +33,12 @@ import {
 
 interface Env extends ProviderEnv, SummaryCacheEnv, MembershipEnv, BillingServerEnv {}
 type SummaryRequest = { title?: string; content?: string };
+type ByokSummaryRequest = SummaryRequest & { provider?: string; model?: string };
 const DEFAULT_PROVIDER_ID = "openai-compatible";
 const MAX_REQUEST_BYTES = 64 * 1024;
 const MAX_BILLING_REQUEST_BYTES = 16 * 1024;
 const MAX_CONTENT_CHARS = 50_000;
+const BYOK_API_KEY_HEADER = "X-WristBrief-BYOK-Key";
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -83,10 +90,52 @@ export default {
       try {
         return respond({
           selected: env.AI_PROVIDER?.trim() || DEFAULT_PROVIDER_ID,
-          providers: createProviderRegistry(env).list()
+          providers: createProviderRegistry(env).list(),
+          byokProviders: BYOK_PROVIDER_IDS
         });
       } catch (error) {
         return providerFailure(error, respond);
+      }
+    }
+
+    if (request.method === "POST" && url.pathname === "/v1/byok/summary") {
+      if (!user) return respond({ error: "unauthorized" }, 401);
+
+      const parsedBody = await readJsonBodyLimited<ByokSummaryRequest>(request, MAX_REQUEST_BYTES);
+      if (parsedBody.error) {
+        return respond(
+          { error: parsedBody.error },
+          parsedBody.error === "request_too_large" ? 413 : 400
+        );
+      }
+
+      const body = parsedBody.value;
+      const content = body.content?.trim();
+      if (!content) return respond({ error: "content_required" }, 400);
+      if (content.length > MAX_CONTENT_CHARS) return respond({ error: "content_too_large" }, 413);
+
+      const apiKey = request.headers.get(BYOK_API_KEY_HEADER) ?? undefined;
+      let provider;
+      try {
+        provider = createByokProvider(
+          { provider: body.provider, model: body.model, apiKey },
+          env
+        );
+      } catch (error) {
+        if (error instanceof ByokConfigError) return respond({ error: error.code }, 400);
+        return providerFailure(error, respond);
+      }
+
+      const memberships = createMembershipService(env);
+      try {
+        const access = await memberships.canUseAi(user.id, "byok");
+        if (!access.allowed) return respond({ error: "quota_exceeded", quota: access.quota }, 429);
+        const output = await provider.summarize({ title: body.title, content });
+        await memberships.recordAiUsage(user.id, "byok");
+        return respond(output);
+      } catch (error) {
+        if (error instanceof ProviderError) return providerFailure(error, respond);
+        return respond({ error: "membership_unavailable" }, 503);
       }
     }
 

@@ -31,4 +31,18 @@ class MainActivitySmokeTest {
             }
         }
     }
+
+    @Test
+    fun mainActivitySurvivesBackgroundAndResume() {
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.moveToState(Lifecycle.State.CREATED)
+            assertEquals(Lifecycle.State.CREATED, scenario.state)
+            scenario.moveToState(Lifecycle.State.RESUMED)
+            assertEquals(Lifecycle.State.RESUMED, scenario.state)
+            scenario.onActivity { activity ->
+                assertFalse(activity.isFinishing)
+                assertFalse(activity.isDestroyed)
+            }
+        }
+    }
 }

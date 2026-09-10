@@ -134,7 +134,7 @@ export default {
         await memberships.recordAiUsage(user.id, "byok");
         return respond(output);
       } catch (error) {
-        if (error instanceof ProviderError) return providerFailure(error, respond);
+        if (error instanceof ProviderError) return byokProviderFailure(error, respond);
         return respond({ error: "membership_unavailable" }, 503);
       }
     }
@@ -235,6 +235,16 @@ async function readJsonBodyLimited<T>(
   } catch {
     return { error: "invalid_json" };
   }
+}
+
+function byokProviderFailure(
+  error: ProviderError,
+  respond: (value: unknown, status?: number) => Response
+): Response {
+  if (error.code === "provider_error" && (error.upstreamStatus === 401 || error.upstreamStatus === 403)) {
+    return respond({ error: "byok_provider_auth_failed" }, 422);
+  }
+  return providerFailure(error, respond);
 }
 
 function providerFailure(

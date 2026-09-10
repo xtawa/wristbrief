@@ -1,4 +1,4 @@
-package ink.underflo.wristbrief.mobile
+package ink.underflo.wristbrief.sync
 
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -11,14 +11,9 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 
-/** Device identifier used both for deterministic conflict resolution and path ownership. */
 enum class SyncOrigin { PHONE, WEAR }
 
-data class VersionedFlag(
-    val value: Boolean,
-    val changedAtEpochMs: Long,
-    val origin: SyncOrigin,
-)
+data class VersionedFlag(val value: Boolean, val changedAtEpochMs: Long, val origin: SyncOrigin)
 
 data class ItemStateClock(
     val itemId: String,
@@ -26,10 +21,6 @@ data class ItemStateClock(
     val saved: VersionedFlag? = null,
 )
 
-/**
- * Merge read and saved independently. Newer timestamps win; equal timestamps use
- * a stable origin ordering so both devices converge regardless of delivery order.
- */
 fun mergeItemState(local: ItemStateClock?, remote: ItemStateClock): ItemStateClock {
     require(remote.itemId.isNotBlank()) { "itemId must not be blank" }
     require(local == null || local.itemId == remote.itemId) { "Cannot merge different items" }
@@ -49,7 +40,6 @@ private fun chooseFlag(local: VersionedFlag?, remote: VersionedFlag?): Versioned
     else -> local
 }
 
-/** Versioned, bounded Data Layer wire format for read/saved state. */
 object ItemStateWireContract {
     const val PHONE_PATH = "/wristbrief/item-state/v1/phone"
     const val WEAR_PATH = "/wristbrief/item-state/v1/wear"

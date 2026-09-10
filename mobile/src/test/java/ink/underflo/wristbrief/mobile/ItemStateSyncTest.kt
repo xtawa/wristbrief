@@ -60,6 +60,13 @@ class ItemStateSyncTest {
         assertEquals(states, ItemStateWireContract.decode(ItemStateWireContract.encode(states)))
     }
 
+    @Test fun pathsAreOwnedPerDeviceAndRemotePathNeverEchoesLocalPath() {
+        assertEquals(ItemStateWireContract.PHONE_PATH, ItemStateWireContract.pathFor(SyncOrigin.PHONE))
+        assertEquals(ItemStateWireContract.WEAR_PATH, ItemStateWireContract.pathFor(SyncOrigin.WEAR))
+        assertEquals(ItemStateWireContract.WEAR_PATH, ItemStateWireContract.remotePathFor(SyncOrigin.PHONE))
+        assertEquals(ItemStateWireContract.PHONE_PATH, ItemStateWireContract.remotePathFor(SyncOrigin.WEAR))
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun futureWireVersionIsRejected() {
         ItemStateWireContract.decode("""{"version":2,"items":[]}""")

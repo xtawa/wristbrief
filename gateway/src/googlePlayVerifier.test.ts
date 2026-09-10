@@ -9,6 +9,34 @@ import {
 const packageName = "ink.underflo.wristbrief";
 const purchaseToken = "secret/token+value";
 const accessTokens = { async getAccessToken() { return "oauth-access-token"; } };
+const TEST_PRIVATE_KEY = `-----BEGIN PRIVATE KEY-----
+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCuChfDzTXztj6m
++UDiilFjlExboqXXde9oBKaOpKSCm8lsoypenleUFlH6mGTo7OpoJwz/kgY+y2YU
+VYq0Lqh3JFffM+WmJ430pjpzqDw1kMedLTCTdhclMZOZfpesgHs0yessE7qruaAR
+VX8sVrSaRiyuEWrQvaCxJzGymof/Kbb/0+825/xCrmcJhH4shzTiptRyTjp+55a5
+aNoY/8Rcq7zjCRHsJKyS2VaN7+ZesoF1lBVD9BvLAa6S7e4dQkVq83/Uuu9io9hm
+esQKHPyjL/lpeydxZwhtQARrLqowF4ELZbyh0Oa0XboiD4t+HeaId8jFWx+eZ/M9
+ok/AkqULAgMBAAECggEAVcyp/KCNaZG9/2lAIK7aAwKYRlC/+6Grnhc02Xu3kqAk
+xAcIm07qlBoQ3j8E+IPb5+7gjJo7s/doYrvtPnkGGn5zR5l5LNmxNRxCEsSssien
+EQi3Outr660uO+zZ73QDyXmGE9vCGmjPzdvdb0lrjebsnf/+LdxefRd6e7eNNjBT
+bZalapy9svOHMUextXojcaBk/DZzMckVGgtaoR36+SIv2ZuID0glBxgpyILmI89f
+b1chJOiFuCMoEIyqyfVK6LN3u8X+URwHW+CFK0FBf+S9Eer7FgM5hwAGr1xyQouK
+/5fcZ+ijP/1tQY7dGESXIJc29KbmW1s+P+0N1QSK2QKBgQDyKwQXd5XG08JGAO+1
+nehw2zssGJ7gqyj2RDiFmxnl0ygs40PtRg0i1zSYrLsq9aHhrz4etMqsDW8PjFVF
+SgcC72JEDalG4ucMmwvV1D6TYj410E+POvznHFteM4gfBAjtnoeCEtn76n9hG6hT
+Wti120uckiVIaMQ4lvpDGA1W7wKBgQC3+uZGLMpx+J910P2qrye9XgB0tUjz0Xnw
+X4Gq0IDeK/nSGTWal2ZyElEqbRkCs0nCKjsNFd0i4KCSps+3lOWRds1koxs+siDN
+eaXlOBN6CNIH4LQBXX+pcppsro6sVPu6waJ6S/ynCanB8q5BkNCj8ijfRZ4jMZoM
+uqUeotgzpQKBgQCB0jeeUPhVH15NYuEebqmWHqDJEeXSMU+DPa1DSpOGlj06Wxcm
+EuCl5dKHaknoTMfckbJuiaMAuy7nmeZ4f6fkleoK63vsyWTtaAzfM6ncHtWUybhs
+40WCq7v7cwqs/d+/arXgMDT1jI9+wnHpRZFZZFdTdzFPcQKIB7/fyfwUtwKBgCaO
+F8/A9zPnLFOeVmp8hlFy75mFnCIsVed/vEa1pyvn/1R+H/Ojor5pBEVl04XzWJOu
+Ee3uFQeIF15kQsdwFqPjR6u9WqpK3gDxa0ib9cjvLESmXFKk62nxMFdyRUfsD0zV
+41zJq8q9hau1Vbs7w913lAUmK7uoW2YrfwrqiXBZAoGBAIX+cnL+F+6sCsZhNWFz
+09KMX1lhYrIO0vckLiQ158PQJGNwHgmmNYgBMvbVfBAZoDmvrmpWRrxUj8LfxIPU
+6LZRH1E/TkB1gOBykJFvr++RUeSjCOxxMEq0xPYXbZqwE9kqU5+je01gaaYZaC86
+2s57Bg1Pxi+Z6aIvQR4DgN/u
+-----END PRIVATE KEY-----`;
 
 function playResponse(state = "SUBSCRIPTION_STATE_ACTIVE", productId = "wristbrief_pro") {
   return new Response(JSON.stringify({ subscriptionState: state, lineItems: [{ productId, expiryTime: "2026-10-01T00:00:00Z" }] }), { status: 200 });
@@ -87,13 +115,6 @@ describe("Google Android Publisher purchase verifier", () => {
 
 describe("Google service-account access tokens", () => {
   it("signs the Android Publisher OAuth assertion and caches the returned access token", async () => {
-    const generated = await crypto.subtle.generateKey(
-      { name: "RSASSA-PKCS1-v1_5", modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256" },
-      true,
-      ["sign", "verify"]
-    );
-    if (!("privateKey" in generated)) throw new Error("expected generated RSA key pair");
-    const pem = toPem(new Uint8Array(await crypto.subtle.exportKey("pkcs8", generated.privateKey)));
     let fetchCount = 0;
     let tokenEndpoint = "";
     const fetchImpl = asFetch(async (...args) => {
@@ -113,7 +134,7 @@ describe("Google service-account access tokens", () => {
       return new Response(JSON.stringify({ access_token: "server-oauth-token", expires_in: 3600 }), { status: 200 });
     });
     const provider = new GoogleServiceAccountAccessTokenProvider(
-      "service@example.iam.gserviceaccount.com", pem, fetchImpl, () => 1_800_000_000_000
+      "service@example.iam.gserviceaccount.com", TEST_PRIVATE_KEY, fetchImpl, () => 1_800_000_000_000
     );
     await expect(provider.getAccessToken()).resolves.toBe("server-oauth-token");
     await expect(provider.getAccessToken()).resolves.toBe("server-oauth-token");
@@ -121,13 +142,6 @@ describe("Google service-account access tokens", () => {
     expect(tokenEndpoint).toBe("https://oauth2.googleapis.com/token");
   });
 });
-
-function toPem(bytes: Uint8Array): string {
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  const lines = (btoa(binary).match(/.{1,64}/g) ?? []).join("\n");
-  return `-----BEGIN PRIVATE KEY-----\n${lines}\n-----END PRIVATE KEY-----`;
-}
 
 function decodeBase64Url(value: string): string {
   const base64 = value.replace(/-/g, "+").replace(/_/g, "/");

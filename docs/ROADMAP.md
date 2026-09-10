@@ -93,6 +93,7 @@ WristBrief is a Wear OS-first inbox for RSS, Atom and podcast feeds. The watch s
 - [x] Categories/folders.
 - [x] Keyword watch filter.
 - [x] Standalone watch refresh when the phone is unavailable and the watch has network access.
+- [ ] Complete read/saved phone↔Wear synchronization with explicit ownership/merge semantics; the current v1 payload fields alone are not an end-to-end sync implementation.
 
 ## P8 — Membership and quotas
 
@@ -107,8 +108,10 @@ Only implement after the managed AI path and identity model are stable.
 - [x] Restore purchases contract/client foundation.
 - [x] Production RTDN lifecycle handling with authenticated Pub/Sub verification.
 - [x] Authoritative entitlement state lives server-side, not in client preferences.
+- [ ] Make managed-AI quota admission concurrency-safe so parallel requests cannot create avoidable upstream cost after reading the same remaining quota.
+- [ ] Deduplicate Pub/Sub RTDN deliveries by message identity before repeated Play API verification, while keeping entitlement updates idempotent.
 
-### P8.1 — Google account identity + membership binding (planned)
+### P8.1 — Google account identity + membership binding
 
 Implement after the current production RTDN hardening, and before calling the membership system production-ready. Keep this inside the existing serverless AI Gateway; do not introduce a separate account backend only for login or membership.
 
@@ -121,6 +124,7 @@ Implement after the current production RTDN hardening, and before calling the me
 - [x] Use durable serverless storage for authoritative account state (D1-compatible schema preferred). KV/cache may accelerate reads but must not become the membership source of truth.
 - [x] Keep the current Gateway as the single server authority for `/v1/me`, auth sessions, entitlement and quota decisions.
 - [x] Do not ship Google client secrets, Play service-account material, session signing secrets or provider credentials in the APK.
+- [ ] Bridge a scoped, expiring WristBrief account session from phone to Wear at runtime so Wear managed AI can authenticate without any compiled server-wide bearer; clear/replace it on sign-out and account switch.
 
 #### Authentication flow
 
@@ -131,6 +135,7 @@ Implement after the current production RTDN hardening, and before calling the me
 5. Gateway issues a WristBrief session/access credential for later API calls; credentials must be revocable/expiring and must not be logged.
 6. `/v1/me` resolves the session to the internal `userId` and returns server-owned plan, entitlement and managed-AI quota state.
 7. Signing out clears the local WristBrief session; server sessions expire/revoke independently of the Google ID token. Switching Google accounts must never silently retain another account's membership state.
+8. The phone may bridge only the scoped WristBrief session credential to the paired Wear app; managed provider keys and the legacy global `GATEWAY_TOKEN` never cross into either APK.
 
 #### Google Play membership binding flow
 
@@ -148,14 +153,14 @@ Implement after the current production RTDN hardening, and before calling the me
 - [x] `identities`: provider, provider subject (`sub`), user ID, optional display/email metadata; unique on provider + provider subject.
 - [x] `sessions`: revocable/expiring session records or equivalent signed-session design with a server-side revocation strategy; never store raw bearer tokens when a one-way hash is sufficient.
 - [x] `entitlements`: authoritative FREE/PRO state, source, expiry/status metadata and last verification time.
-- [x] `play_purchase_bindings`: purchase-token hash -> internal user ID + package/product/status metadata; raw purchase token is not persisted unless a narrowly justified Google re-query workflow requires protected storage.
+- [x] `play_purchase_bindings`: one-way purchase-token hash -> internal user ID ownership binding; package/product/status authority comes from server-side Play verification rather than client/RTDN claims.
 - [x] `quota_usage`: managed-AI quota counters keyed by internal user ID and quota window; BYOK remains excluded.
 
 #### Migration and recovery
 
 - [x] Define a one-time upgrade path from the current serverless identity to Google-backed identity without silently creating duplicate paid accounts.
-- [x] On first Google sign-in, explicitly link the existing authenticated WristBrief identity/session to the verified `(google, sub)` only after ownership checks pass.
-- [x] Preserve existing entitlement/quota state when linking identities; add tests for duplicate Google identity, conflicting purchase ownership and repeated linking.
+- [ ] Wire a safe phone-side handoff that can actually request legacy → verified `(google, sub)` linking on first Google sign-in when a legitimate legacy principal exists; never solve this by embedding the legacy server bearer in the APK.
+- [x] Preserve existing entitlement/quota state in the server-side same-user linking path; retain conflict/idempotency tests for duplicate Google identity and ownership collisions.
 - [x] Define account deletion, session revocation and Google-identity unlink behavior before production launch.
 - [x] Keep account merging/recovery explicit and auditable; never merge accounts solely because email strings match.
 
@@ -165,6 +170,7 @@ Implement after the current production RTDN hardening, and before calling the me
 - Different Google accounts cannot inherit each other's Pro entitlement, quota, Play purchase binding or sessions.
 - Client-modified email/user ID/`isPro` fields cannot grant membership.
 - Play restore and RTDN update entitlement by internal user ID after real Google verification.
+- Wear managed AI authenticates using a scoped runtime WristBrief session, not a build-time/server-wide bearer.
 - No Google ID token, raw purchase token, OAuth authorization header or session bearer token appears in Git, application logs or public error bodies.
 - Gateway remains serverless and is still the only required backend for AI, identity, membership and quota.
 
@@ -212,6 +218,8 @@ Do not call WristBrief production-ready until all of the following are true:
 - Gateway errors do not expose provider credentials or upstream bodies.
 - Wear screens pass round/small display and large-font review on devices/emulators.
 - Tile/complication behavior is battery-conscious.
-- CI is green from a clean checkout.
+- Phone and Wear artifacts use the same Play application ID and production signing identity, with non-conflicting multi-APK version codes.
+- No global/server-wide Gateway bearer is embedded in either Android artifact; Wear receives only a scoped runtime account session once the bridge is implemented.
+- CI is green from a clean checkout; commits produced during Actions-capacity static-review mode remain unverified until this succeeds.
 - Real Play verification/RTDN and durable production membership storage are deployed and exercised in an internal-test environment.
 - Release signing/versioning, deployment, secret-management, privacy and recovery docs/checklists are complete.

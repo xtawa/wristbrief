@@ -63,6 +63,24 @@ The Gateway has a guarded `linkLegacy=true` server path, but the current phone G
 
 Before a production migration is required, either define a one-time server-issued migration credential/recovery flow or explicitly declare that no production legacy accounts require migration. The ROADMAP acceptance language should not be interpreted as proof that a real deployed legacy-phone migration has already been exercised.
 
+### Managed-AI quota admission race
+
+The current managed-AI request path reads quota before invoking the provider and increments usage after a successful provider response. D1 prevents the persisted counter from incrementing beyond the configured limit, but concurrent requests can read the same remaining slot and both incur upstream provider work before one later fails to record usage.
+
+Before paid quota enforcement is considered cost-safe, replace the check-then-act admission with an atomic reservation/consumption design (and an explicit refund/failure policy if quota is intended to count successful summaries only). Do not weaken BYOK's separate no-managed-quota contract.
+
+### Pub/Sub duplicate delivery cost
+
+RTDN entitlement writes are idempotent, but Pub/Sub is at-least-once and the current route does not deduplicate the Pub/Sub `messageId`. Duplicate deliveries can therefore repeat Android Publisher verification and consume avoidable Google API quota.
+
+Add bounded durable message-id deduplication before production scale. Authentication must happen before accepting the dedup key, and deduplication must never make an unauthenticated payload capable of suppressing a later legitimate notification.
+
+### External Android/Play configuration after package alignment
+
+The phone application ID is now `ink.underflo.wristbrief`, matching Wear as required by the Data Layer. Before an internal Play/OAuth test, update or recreate any Android OAuth client registration that was previously bound to `ink.underflo.wristbrief.mobile`, and ensure phone/Wear production artifacts use the same signing certificate identity expected by the Data Layer.
+
+The shared Play package also requires non-conflicting multi-APK version codes. Do not upload old `versionCode=1` artifacts after the lane change.
+
 ### Paired-device and production validation
 
 Still required after GitHub Actions capacity returns and production/test credentials are available:

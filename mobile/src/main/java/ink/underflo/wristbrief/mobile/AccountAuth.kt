@@ -74,6 +74,7 @@ class GoogleAccountAuthClient(
     private val httpClient: OkHttpClient = OkHttpClient(),
     private val credentialManager: CredentialManager = CredentialManager.create(context),
     private val sessionPreferences: AccountSessionPreferences = AccountSessionPreferences(context),
+    private val sessionBridge: AccountSessionBridge = GoogleWearAccountSessionBridge(context),
     private val webClientId: String = BuildConfig.GOOGLE_WEB_CLIENT_ID,
     private val gatewayBaseUrl: String = BuildConfig.GATEWAY_BASE_URL,
 ) {
@@ -123,6 +124,7 @@ class GoogleAccountAuthClient(
             }
         }
         sessionPreferences.clear()
+        sessionBridge.clear()
         try {
             credentialManager.clearCredentialState(ClearCredentialStateRequest())
         } catch (_: Exception) {
@@ -149,6 +151,7 @@ class GoogleAccountAuthClient(
                 val session = parseAccountSession(responseBody)
                     ?: return@withContext AccountAuthResult.Failure("invalid_auth_response")
                 sessionPreferences.write(session)
+                sessionBridge.publish(session)
                 AccountAuthResult.Success(session)
             }
         } catch (_: Exception) {

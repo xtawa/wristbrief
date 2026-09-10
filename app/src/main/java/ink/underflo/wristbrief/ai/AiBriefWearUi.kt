@@ -1,5 +1,7 @@
 package ink.underflo.wristbrief.ai
 
+import ink.underflo.wristbrief.sync.WearAccountSessionRuntime
+
 data class WearAiBriefPresentation(
     val label: String,
     val detail: String,
@@ -8,57 +10,17 @@ data class WearAiBriefPresentation(
 )
 
 fun isAiGatewayConfigured(gatewayUrl: String, gatewayToken: String): Boolean =
-    gatewayUrl.startsWith("https://") && gatewayToken.isNotBlank()
+    gatewayUrl.startsWith("https://") && (gatewayToken.isNotBlank() || WearAccountSessionRuntime.currentToken() != null)
 
 fun AiBriefUiState.toWearPresentation(isGatewayConfigured: Boolean): WearAiBriefPresentation = when (this) {
     AiBriefUiState.Idle -> if (isGatewayConfigured) {
-        WearAiBriefPresentation(
-            label = "Generate AI brief",
-            detail = "Original reader stays available",
-            actionEnabled = true,
-            showReadyBrief = false
-        )
+        WearAiBriefPresentation("Generate AI brief", "Original reader stays available", true, false)
     } else {
-        WearAiBriefPresentation(
-            label = "AI brief unavailable",
-            detail = "Configure the gateway for this build",
-            actionEnabled = false,
-            showReadyBrief = false
-        )
+        WearAiBriefPresentation("AI brief unavailable", "Sign in on the paired phone", false, false)
     }
-
-    AiBriefUiState.Loading -> WearAiBriefPresentation(
-        label = "Summarizing…",
-        detail = "Reader and podcast remain usable",
-        actionEnabled = false,
-        showReadyBrief = false
-    )
-
-    is AiBriefUiState.Ready -> WearAiBriefPresentation(
-        label = brief.tiny,
-        detail = brief.brief,
-        actionEnabled = false,
-        showReadyBrief = true
-    )
-
-    AiBriefUiState.QuotaExceeded -> WearAiBriefPresentation(
-        label = "AI quota reached",
-        detail = "Original article and podcast are still available",
-        actionEnabled = false,
-        showReadyBrief = false
-    )
-
-    AiBriefUiState.ProviderUnavailable -> WearAiBriefPresentation(
-        label = "AI temporarily unavailable",
-        detail = "Tap to retry; original content still works",
-        actionEnabled = isGatewayConfigured,
-        showReadyBrief = false
-    )
-
-    is AiBriefUiState.Error -> WearAiBriefPresentation(
-        label = message,
-        detail = "Tap to retry; original content still works",
-        actionEnabled = isGatewayConfigured,
-        showReadyBrief = false
-    )
+    AiBriefUiState.Loading -> WearAiBriefPresentation("Summarizing…", "Reader and podcast remain usable", false, false)
+    is AiBriefUiState.Ready -> WearAiBriefPresentation(brief.tiny, brief.brief, false, true)
+    AiBriefUiState.QuotaExceeded -> WearAiBriefPresentation("AI quota reached", "Original article and podcast are still available", false, false)
+    AiBriefUiState.ProviderUnavailable -> WearAiBriefPresentation("AI temporarily unavailable", "Tap to retry; original content still works", isGatewayConfigured, false)
+    is AiBriefUiState.Error -> WearAiBriefPresentation(message, "Tap to retry; original content still works", isGatewayConfigured, false)
 }

@@ -1,5 +1,6 @@
 package ink.underflo.wristbrief.ai
 
+import ink.underflo.wristbrief.sync.WearAccountSessionRuntime
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 import okhttp3.MediaType.Companion.toMediaType
@@ -15,7 +16,8 @@ class AiSummaryClient(
 ) {
     fun summarize(gatewayUrl: String, gatewayToken: String, title: String?, content: String): AiBrief {
         require(gatewayUrl.startsWith("https://")) { "Gateway must use HTTPS" }
-        require(gatewayToken.isNotBlank()) { "Gateway token is required" }
+        val scopedSession = gatewayToken.takeIf { it.isNotBlank() } ?: WearAccountSessionRuntime.currentToken()
+        require(!scopedSession.isNullOrBlank()) { "Gateway session is required" }
 
         val payload = JSONObject()
             .put("title", title)
@@ -24,7 +26,7 @@ class AiSummaryClient(
 
         val request = Request.Builder()
             .url(gatewayUrl.trimEnd('/') + "/v1/summary")
-            .header("Authorization", "Bearer $gatewayToken")
+            .header("Authorization", "Bearer $scopedSession")
             .post(payload.toRequestBody("application/json; charset=utf-8".toMediaType()))
             .build()
 

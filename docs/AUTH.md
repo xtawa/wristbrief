@@ -1,6 +1,6 @@
 # WristBrief account identity
 
-This document tracks the P8.1 account layer that will live inside the existing serverless AI Gateway.
+This document tracks the P8.1 account layer that lives inside the existing serverless AI Gateway.
 
 ## Identity rule
 
@@ -10,40 +10,48 @@ Google email is display/recovery metadata only. The durable external identity ke
 
 The gateway has a production Google ID-token verifier boundary that:
 
-- accepts a compact Google ID token only from the caller of the future auth route;
+- accepts a compact Google ID token only at the Google auth exchange route;
 - verifies RS256 against Google's fixed public JWKS endpoint;
 - validates the Google issuer, exact configured OAuth audience, `iat`, optional `nbf`, `exp`, `sub`, `email` and `email_verified`;
-- can validate an expected nonce supplied by the future sign-in challenge/session flow;
+- can validate an expected nonce when the future sign-in challenge flow supplies one;
 - returns bounded identity metadata and never treats email as the account key;
 - caches Google public keys for a bounded interval and refreshes once for an unknown signing `kid`;
 - fails closed on malformed tokens, bad signatures, wrong audience, expiry or claim mismatches.
 
 Production configuration uses `GOOGLE_OAUTH_CLIENT_ID`, which is the server/web OAuth client ID also supplied as the Android Sign in with Google `serverClientId`. This value is not a secret. No Google client secret is required in the APK.
 
-The D1-compatible `0003_google_identity.sql` migration adds `users` and `identities` tables with a unique `(provider, provider_subject)` identity key. It is not automatically applied and does not claim a production deployment.
+## D1 identity + session persistence
 
-## WristBrief session foundation
+`0003_google_identity.sql` adds `users` and `identities` with a unique `(provider, provider_subject)` key. `0004_account_sessions.sql` adds revocable sessions with a unique SHA-256 token hash.
 
-Google ID tokens are exchange credentials, not the long-lived credential used for normal WristBrief API calls. After successful Google verification and identity resolution, the Gateway will issue its own revocable session bearer.
+When an `ACCOUNT_DB` D1 binding is supplied, the Gateway can construct production account stores directly. Google identity resolution uses an atomic D1 batch: it creates a candidate internal user, inserts the unique Google subject binding if absent, updates non-authoritative profile metadata, removes a losing candidate user after a concurrent/existing binding wins, then resolves the authoritative active user. Different Google subjects are never merged because their email strings match.
 
-The session foundation:
+Session persistence stores only the SHA-256 hash of the opaque bearer. Raw WristBrief bearer credentials are returned once to the client at issue time and are not stored by the account store. Sessions are expiring and revocable.
 
-- generates 256 bits of random session-token entropy on the server;
-- prefixes opaque bearer credentials with `wbs_` for strict parsing;
-- stores only the SHA-256 token hash, never the raw bearer;
-- expires sessions with a bounded server-owned TTL (30 days by default, at most 90 days);
-- supports server-side revocation and fails closed for expired/revoked/malformed credentials;
-- keeps the internal WristBrief `userId` as the authenticated principal.
+These migrations and bindings are deployment foundations only. The repository does not claim that a production D1 database has been provisioned or migrated.
 
-`0004_account_sessions.sql` adds the D1-compatible session table with a unique token hash and user foreign key. As with the other migrations, schema presence is not a claim that production D1 has already been provisioned or migrated.
+## Google auth exchange
+
+Route: `POST /v1/auth/google`
+
+Request body:
+
+```json
+{ "idToken": "<short-lived Google ID token>" }
+```
+
+The route is intentionally reachable without a legacy WristBrief bearer because it is the credential-exchange entry point. It does not accept client-supplied `userId`, email, plan, entitlement or `isPro` as authority. The Gateway verifies the Google token, resolves `(google, sub)` to the internal user, then issues a WristBrief session.
+
+Successful responses contain the internal user ID plus a new opaque `sessionToken` and `expiresAt`. They do not echo the Google ID token. `ACCOUNT_SESSION_TTL_SECONDS` can override the bounded server-owned session TTL; invalid TTL configuration fails closed.
+
+Current normal Gateway APIs still authenticate with the existing legacy Gateway bearer until the next migration stage explicitly enables WristBrief sessions alongside that path. Issuing a new session does not silently change legacy authentication behavior.
 
 ## Planned next steps
 
-1. Add a durable D1 implementation of the account identity and session stores with transaction-safe identity resolve/create behavior.
-2. Add short-lived sign-in challenges/nonces where needed by the Android sign-in flow.
-3. Expose `POST /v1/auth/google`, verify the ID token, resolve the internal user, then issue an expiring WristBrief session credential.
-4. Make normal Gateway authentication accept WristBrief sessions while retaining an explicit migration path from the current legacy gateway token.
-5. Add the phone Credential Manager / Sign in with Google flow and store only the WristBrief session credential locally.
-6. Bind Play restore and RTDN ownership to the authenticated internal user ID.
+1. Make normal Gateway authentication accept WristBrief sessions while retaining an explicit migration path from the current legacy gateway token.
+2. Add short-lived sign-in challenges/nonces if required by the final Android Credential Manager flow.
+3. Add the phone Credential Manager / Sign in with Google flow and store only the WristBrief session credential locally.
+4. Bind Play restore and RTDN ownership to the authenticated internal user ID and exercise cross-device restore.
+5. Define session revocation/sign-out, account deletion/unlink, and legacy-user linking/recovery policy before production launch.
 
-ID tokens, session bearer credentials, Play purchase tokens and authorization headers must never be written to Git, normal application logs or public error bodies.
+Google ID tokens, session bearer credentials, Play purchase tokens and authorization headers must never be written to Git, normal application logs or public error bodies.

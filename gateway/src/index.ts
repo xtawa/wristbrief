@@ -30,13 +30,19 @@ import {
   type BillingResult,
   type BillingServerEnv
 } from "./billingServer";
+import {
+  exchangeGoogleIdToken,
+  type AuthResult,
+  type AuthServerEnv
+} from "./authServer";
 
-interface Env extends ProviderEnv, SummaryCacheEnv, MembershipEnv, BillingServerEnv {}
+interface Env extends ProviderEnv, SummaryCacheEnv, MembershipEnv, BillingServerEnv, AuthServerEnv {}
 type SummaryRequest = { title?: string; content?: string };
 type ByokSummaryRequest = SummaryRequest & { provider?: string; model?: string };
 const DEFAULT_PROVIDER_ID = "openai-compatible";
 const MAX_REQUEST_BYTES = 64 * 1024;
 const MAX_BILLING_REQUEST_BYTES = 16 * 1024;
+const MAX_AUTH_REQUEST_BYTES = 20 * 1024;
 const MAX_CONTENT_CHARS = 50_000;
 const BYOK_API_KEY_HEADER = "X-WristBrief-BYOK-Key";
 
@@ -46,9 +52,25 @@ export default {
     const respond = (value: unknown, status = 200) => json(value, status, requestId);
     const respondBilling = (result: BillingResult) =>
       result.status === 204 ? empty(204, requestId) : respond(result.body, result.status);
+    const respondAuth = (result: AuthResult) => respond(result.body, result.status);
     const url = new URL(request.url);
 
     if (request.method === "GET" && url.pathname === "/health") return respond({ ok: true });
+
+    if (request.method === "POST" && url.pathname === "/v1/auth/google") {
+      const parsedBody = await readJsonBodyLimited<unknown>(request, MAX_AUTH_REQUEST_BYTES);
+      if (parsedBody.error) {
+        return respond(
+          { error: parsedBody.error },
+          parsedBody.error === "request_too_large" ? 413 : 400
+        );
+      }
+      try {
+        return respondAuth(await exchangeGoogleIdToken(parsedBody.value, env));
+      } catch {
+        return respond({ error: "auth_unavailable" }, 503);
+      }
+    }
 
     const user = authenticateGatewayUser(request, env);
 

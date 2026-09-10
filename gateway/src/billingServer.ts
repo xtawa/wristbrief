@@ -36,6 +36,10 @@ export type BillingServerEnv = GooglePlayVerifierEnv & PubSubPushAuthEnv & Durab
 
 export type BillingResult = { status: number; body: Record<string, unknown> };
 
+type ParsedPlayRtdn =
+  | { kind: "test"; packageName: string }
+  | { kind: "subscription"; packageName: string; purchaseToken: string };
+
 export async function restorePlayPurchase(user: AuthenticatedUser, body: unknown, env: BillingServerEnv): Promise<BillingResult> {
   const config = configuredBilling(env);
   if (!config) return result(503, "billing_not_configured");
@@ -65,6 +69,7 @@ export async function processPlayRtdn(request: Request, env: BillingServerEnv): 
   const notification = await parseRtdn(request);
   if (!notification) return result(400, "invalid_rtdn");
   if (notification.packageName !== config.packageName) return result(400, "package_mismatch");
+  if (notification.kind === "test") return { status: 204, body: {} };
 
   const tokenHash = await sha256(notification.purchaseToken);
   const userId = await config.store.userForTokenHash(tokenHash);
@@ -123,15 +128,25 @@ function parseRestoreBody(value: unknown): { packageName: string; productId: str
   return { packageName, productId, purchaseToken };
 }
 
-async function parseRtdn(request: Request): Promise<{ packageName: string; purchaseToken: string } | null> {
+async function parseRtdn(request: Request): Promise<ParsedPlayRtdn | null> {
   try {
     const envelope = await request.json() as { message?: { data?: string } };
     const data = envelope.message?.data;
     if (!data) return null;
-    const decoded = JSON.parse(decodeBase64Utf8(data)) as { packageName?: string; subscriptionNotification?: { purchaseToken?: string } };
+    const decoded = JSON.parse(decodeBase64Utf8(data)) as {
+      packageName?: string;
+      subscriptionNotification?: { purchaseToken?: string } | null;
+      testNotification?: unknown;
+    };
     const packageName = decoded.packageName?.trim();
+    if (!packageName || packageName.length > 200) return null;
+
     const purchaseToken = decoded.subscriptionNotification?.purchaseToken?.trim();
-    return packageName && purchaseToken ? { packageName, purchaseToken } : null;
+    const isTest = decoded.testNotification !== undefined && decoded.testNotification !== null;
+    if (isTest && purchaseToken) return null;
+    if (isTest) return { kind: "test", packageName };
+    if (!purchaseToken || purchaseToken.length > 4096) return null;
+    return { kind: "subscription", packageName, purchaseToken };
   } catch { return null; }
 }
 

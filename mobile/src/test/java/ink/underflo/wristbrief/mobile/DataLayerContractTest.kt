@@ -20,6 +20,15 @@ class DataLayerContractTest {
         assertTrue(payload.subscriptions.single().watchKeywords.isEmpty())
     }
 
+    @Test fun explicitEmptySubscriptions_remainsAValidClearOperation() {
+        assertTrue(WearDataLayerContract.decode("""{"version":1,"subscriptions":[]}""").subscriptions.isEmpty())
+    }
+
+    @Test(expected = IllegalStateException::class)
+    fun missingSubscriptions_isRejectedInsteadOfBecomingAnImplicitClear() {
+        WearDataLayerContract.decode("""{"version":1}""")
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun futurePayloadVersion_isRejected() { WearDataLayerContract.decode("{\"version\":2,\"subscriptions\":[]}") }
 }

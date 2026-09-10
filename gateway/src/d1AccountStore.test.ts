@@ -53,9 +53,11 @@ class FakeD1 {
       }
     } else if (sql.startsWith("INSERT OR IGNORE INTO identities")) {
       const subject = String(v[0]);
+      const userId = String(v[1]);
+      if (!this.users.has(userId)) throw new Error("foreign_key_constraint");
       if (!this.identities.has(subject)) {
         this.identities.set(subject, {
-          userId: String(v[1]),
+          userId,
           email: String(v[2]),
           displayName: v[3] === null ? null : String(v[3]),
           pictureUrl: v[4] === null ? null : String(v[4])
@@ -120,10 +122,8 @@ describe("D1 account stores", () => {
     expect(db.identities.get("sub-1")?.email).toBe("new@example.com");
   });
 
-  it("links Google sub to an existing user idempotently and rejects conflicting ownership", async () => {
+  it("creates the legacy user before linking Google sub and rejects conflicting ownership", async () => {
     const db = new FakeD1();
-    db.users.set("legacy-user-a", "active");
-    db.users.set("legacy-user-b", "active");
     const store = new D1AccountIdentityStore(db as unknown as D1Database);
     const base = {
       provider: "google" as const,
@@ -133,6 +133,7 @@ describe("D1 account stores", () => {
     };
 
     await expect(store.linkGoogleIdentityToUser(base)).resolves.toEqual({ userId: "legacy-user-a", created: true });
+    expect(db.users.has("legacy-user-a")).toBe(true);
     await expect(store.linkGoogleIdentityToUser({ ...base, email: "updated@example.com" })).resolves.toEqual({
       userId: "legacy-user-a",
       created: false
@@ -144,6 +145,7 @@ describe("D1 account stores", () => {
       userId: "legacy-user-b",
       email: "attacker@example.com"
     })).rejects.toThrow("identity_conflict");
+    expect(db.users.has("legacy-user-b")).toBe(false);
     expect(db.identities.get("sub-link")).toMatchObject({
       userId: "legacy-user-a",
       email: "updated@example.com"

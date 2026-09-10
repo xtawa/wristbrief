@@ -36,7 +36,8 @@ class SubscriptionDataLayerService : WearableListenerService() {
         fun decodeSubscriptions(raw: String): List<FeedSubscription>? = runCatching {
             val root = json.parseToJsonElement(raw).jsonObject
             require(root["version"]?.jsonPrimitive?.intOrNull == 1)
-            root["subscriptions"]?.jsonArray?.map { element ->
+            val subscriptions = root["subscriptions"]?.jsonArray ?: error("Missing subscriptions")
+            subscriptions.map { element ->
                 val item = element.jsonObject
                 val id = item["id"]!!.jsonPrimitive.content
                 val title = item["title"]!!.jsonPrimitive.content
@@ -50,7 +51,7 @@ class SubscriptionDataLayerService : WearableListenerService() {
                     enabled = item["enabled"]?.jsonPrimitive?.booleanOrNull ?: true,
                     watchKeywords = normalizeWatchKeywords(keywords),
                 )
-            } ?: emptyList()
+            }
         }.getOrNull()
     }
 }

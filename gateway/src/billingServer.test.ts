@@ -32,6 +32,14 @@ function env(status: "active" | "canceled" | "expired" | "grace" | "on_hold" | "
   };
 }
 
+function rtdnRequest(payload: Record<string, unknown>) {
+  const data = btoa(JSON.stringify(payload));
+  return new Request("https://gateway.example/v1/billing/rtdn", {
+    method: "POST",
+    body: JSON.stringify({ message: { data } })
+  });
+}
+
 describe("Play billing server foundation", () => {
   it("maps Play subscription states to server-owned entitlement", () => {
     expect(entitlementFor({ packageName, productId, status: "active" }).plan).toBe("PRO");
@@ -81,22 +89,44 @@ describe("Play billing server foundation", () => {
     await restorePlayPurchase({ id: "u1" }, { packageName, productId, purchaseToken: "rtdn-token" }, setup.value);
     setup.store.entitlements.set("u1", { plan: "FREE", source: "test" });
 
-    const data = btoa(JSON.stringify({
+    const response = await processPlayRtdn(rtdnRequest({
       packageName,
       subscriptionNotification: {
         notificationType: 13,
         purchaseToken: "rtdn-token",
         subscriptionId: "attacker-value-is-ignored"
       }
-    }));
-    const response = await processPlayRtdn(new Request("https://gateway.example/v1/billing/rtdn", {
-      method: "POST",
-      body: JSON.stringify({ message: { data } })
     }), setup.value);
 
     expect(response.status).toBe(204);
     expect(setup.verifier.calls).toBe(2);
     expect(setup.store.entitlements.get("u1")?.plan).toBe("PRO");
+  });
+
+  it("acknowledges authenticated Play Console test notifications without touching entitlement", async () => {
+    const setup = env();
+    const response = await processPlayRtdn(rtdnRequest({
+      version: "1.0",
+      packageName,
+      eventTimeMillis: "1503350156918",
+      testNotification: { version: "1.0" }
+    }), setup.value);
+
+    expect(response).toEqual({ status: 204, body: {} });
+    expect(setup.verifier.calls).toBe(0);
+    expect(setup.store.entitlements.size).toBe(0);
+  });
+
+  it("rejects ambiguous RTDN carrying both test and subscription payloads", async () => {
+    const setup = env();
+    const response = await processPlayRtdn(rtdnRequest({
+      packageName,
+      testNotification: { version: "1.0" },
+      subscriptionNotification: { purchaseToken: "should-not-be-used" }
+    }), setup.value);
+
+    expect(response).toEqual({ status: 400, body: { error: "invalid_rtdn" } });
+    expect(setup.verifier.calls).toBe(0);
   });
 
   it("rejects unauthenticated Pub/Sub push before reading entitlement state", async () => {

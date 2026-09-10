@@ -49,25 +49,28 @@ export class D1AccountIdentityStore implements AccountIdentityStore {
   async linkGoogleIdentityToUser(input: GoogleIdentityRecord): Promise<GoogleIdentityResolution> {
     const statements = [
       this.db.prepare(
+        "INSERT OR IGNORE INTO users (id, status, created_at, updated_at) VALUES (?, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+      ).bind(input.userId),
+      this.db.prepare(
         "INSERT OR IGNORE INTO identities (provider, provider_subject, user_id, email, display_name, picture_url, created_at, updated_at) VALUES ('google', ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
       ).bind(input.providerSubject, input.userId, input.email, input.displayName ?? null, input.pictureUrl ?? null),
       this.db.prepare(
-        "INSERT OR IGNORE INTO users (id, status, created_at, updated_at) SELECT ?, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP WHERE EXISTS (SELECT 1 FROM identities WHERE provider = 'google' AND provider_subject = ? AND user_id = ?)"
-      ).bind(input.userId, input.providerSubject, input.userId),
-      this.db.prepare(
         "UPDATE identities SET email = ?, display_name = ?, picture_url = ?, updated_at = CURRENT_TIMESTAMP WHERE provider = 'google' AND provider_subject = ? AND user_id = ?"
       ).bind(input.email, input.displayName ?? null, input.pictureUrl ?? null, input.providerSubject, input.userId),
+      this.db.prepare(
+        "DELETE FROM users WHERE id = ? AND NOT EXISTS (SELECT 1 FROM identities WHERE user_id = ?)"
+      ).bind(input.userId, input.userId),
       this.db.prepare(
         "SELECT i.user_id, u.status FROM identities i JOIN users u ON u.id = i.user_id WHERE i.provider = 'google' AND i.provider_subject = ? LIMIT 1"
       ).bind(input.providerSubject)
     ];
 
     const results = await this.db.batch<{ user_id?: string; status?: string }>(statements);
-    const row = results[3]?.results?.[0];
+    const row = results[4]?.results?.[0];
     if (!row?.user_id) throw new Error("identity_persistence_failed");
     if (row.user_id !== input.userId) throw new Error("identity_conflict");
     if (row.status !== "active") throw new Error("account_disabled");
-    return { userId: row.user_id, created: (results[0]?.meta?.changes ?? 0) > 0 };
+    return { userId: row.user_id, created: (results[1]?.meta?.changes ?? 0) > 0 };
   }
 }
 

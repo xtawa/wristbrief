@@ -55,7 +55,8 @@ object WearDataLayerContract {
         val root = json.parseToJsonElement(raw).jsonObject
         val version = root["version"]?.jsonPrimitive?.intOrNull ?: error("Missing version")
         require(version == WearSyncPayload.CURRENT_VERSION) { "Unsupported sync payload version" }
-        val feeds = root["subscriptions"]?.jsonArray?.map { element ->
+        val subscriptions = root["subscriptions"]?.jsonArray ?: error("Missing subscriptions")
+        val feeds = subscriptions.map { element ->
             val item = element.jsonObject
             SyncFeed(
                 id = item.requiredString("id"),
@@ -64,7 +65,7 @@ object WearDataLayerContract {
                 enabled = item["enabled"]?.jsonPrimitive?.booleanOrNull ?: true,
                 watchKeywords = normalizeWatchKeywords(item.stringList("watchKeywords")),
             )
-        } ?: emptyList()
+        }
         return WearSyncPayload(
             version = version,
             subscriptions = feeds,

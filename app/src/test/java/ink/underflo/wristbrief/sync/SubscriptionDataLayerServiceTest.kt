@@ -19,6 +19,14 @@ class SubscriptionDataLayerServiceTest {
         assertTrue(decoded.single().watchKeywords.isEmpty())
     }
 
+    @Test fun decoder_acceptsExplicitEmptySubscriptionList() {
+        assertEquals(emptyList<Any>(), SubscriptionDataLayerService.decodeSubscriptions("""{"version":1,"subscriptions":[]}"""))
+    }
+
+    @Test fun decoder_rejectsMissingSubscriptionsToAvoidAccidentalWipe() {
+        assertNull(SubscriptionDataLayerService.decodeSubscriptions("""{"version":1}"""))
+    }
+
     @Test fun decoder_rejectsUnknownVersionAndNonHttpsFeed() {
         assertNull(SubscriptionDataLayerService.decodeSubscriptions("""{"version":2,"subscriptions":[]}"""))
         assertNull(SubscriptionDataLayerService.decodeSubscriptions("""{"version":1,"subscriptions":[{"id":"a","title":"Feed","url":"http://example.com/feed"}]}"""))

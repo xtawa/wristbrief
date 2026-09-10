@@ -19,12 +19,41 @@ sealed interface MembershipRestoreResult {
     data class Failure(val code: String) : MembershipRestoreResult
 }
 
+data class ServerMembershipSnapshot(
+    val userId: String,
+    val plan: String,
+    val source: String,
+    val expiresAt: String?,
+    val managedAiLimit: Int?,
+    val managedAiUsed: Int,
+    val managedAiRemaining: Int?,
+)
+
+sealed interface MembershipSnapshotResult {
+    data class Success(val snapshot: ServerMembershipSnapshot) : MembershipSnapshotResult
+    data object SignedOut : MembershipSnapshotResult
+    data class Failure(val code: String) : MembershipSnapshotResult
+}
+
 class MembershipApiClient(
     private val sessionProvider: () -> AccountSession?,
     private val gatewayBaseUrl: String,
     private val packageName: String,
     private val httpClient: OkHttpClient = OkHttpClient(),
 ) {
+    suspend fun loadMembership(): MembershipSnapshotResult = withContext(Dispatchers.IO) {
+        val session = sessionProvider() ?: return@withContext MembershipSnapshotResult.SignedOut
+        val request = buildMembershipSnapshotRequest(gatewayBaseUrl, session.sessionToken)
+            ?: return@withContext MembershipSnapshotResult.Failure("membership_not_configured")
+        try {
+            httpClient.newCall(request).execute().use { response ->
+                parseMembershipSnapshotResponse(response.code, response.body?.string().orEmpty())
+            }
+        } catch (_: Exception) {
+            MembershipSnapshotResult.Failure("membership_network_error")
+        }
+    }
+
     suspend fun restorePurchases(purchases: List<BillingPurchase>): MembershipRestoreResult = withContext(Dispatchers.IO) {
         val session = sessionProvider() ?: return@withContext MembershipRestoreResult.SignedOut
         val baseUrl = validatedGatewayBaseUrl(gatewayBaseUrl)
@@ -66,6 +95,52 @@ class MembershipApiClient(
         }
         MembershipRestoreResult.Success(restored, latestPlan)
     }
+}
+
+internal fun buildMembershipSnapshotRequest(baseUrl: String, sessionToken: String): Request? {
+    val validated = validatedGatewayBaseUrl(baseUrl) ?: return null
+    if (!validSessionToken(sessionToken)) return null
+    return Request.Builder()
+        .url(validated + "/v1/me")
+        .get()
+        .header("Authorization", "Bearer $sessionToken")
+        .build()
+}
+
+internal fun parseMembershipSnapshotResponse(status: Int, body: String): MembershipSnapshotResult {
+    if (status == 401) return MembershipSnapshotResult.SignedOut
+    val root = runCatching { Json.parseToJsonElement(body).jsonObject }.getOrNull()
+    if (status !in 200..299) {
+        val error = root?.get("error")?.jsonPrimitive?.contentOrNull
+            ?.takeIf { Regex("^[a-z0-9_]{1,64}$").matches(it) }
+        return MembershipSnapshotResult.Failure(error ?: "membership_load_failed")
+    }
+    val userId = root?.get("user")?.jsonObject?.get("id")?.jsonPrimitive?.contentOrNull
+        ?.takeIf { validDisplayValue(it, 128) }
+        ?: return MembershipSnapshotResult.Failure("invalid_membership_response")
+    val entitlement = root["entitlement"]?.jsonObject
+        ?: return MembershipSnapshotResult.Failure("invalid_membership_response")
+    val plan = entitlement["plan"]?.jsonPrimitive?.contentOrNull
+        ?.takeIf { it == "FREE" || it == "PRO" }
+        ?: return MembershipSnapshotResult.Failure("invalid_membership_response")
+    val source = entitlement["source"]?.jsonPrimitive?.contentOrNull
+        ?.takeIf { validDisplayValue(it, 32) }
+        ?: return MembershipSnapshotResult.Failure("invalid_membership_response")
+    val expiresAt = entitlement["expiresAt"]?.jsonPrimitive?.contentOrNull
+        ?.takeIf { validDisplayValue(it, 128) }
+    val quota = root["managedAiQuota"]?.jsonObject
+        ?: return MembershipSnapshotResult.Failure("invalid_membership_response")
+    val used = quota["used"]?.jsonPrimitive?.contentOrNull?.toIntOrNull()
+        ?.takeIf { it >= 0 }
+        ?: return MembershipSnapshotResult.Failure("invalid_membership_response")
+    val limit = quota["limit"]?.jsonPrimitive?.contentOrNull?.toIntOrNull()?.takeIf { it >= 0 }
+    val remaining = quota["remaining"]?.jsonPrimitive?.contentOrNull?.toIntOrNull()?.takeIf { it >= 0 }
+    if (limit != null && used > limit) return MembershipSnapshotResult.Failure("invalid_membership_response")
+    if (limit != null && remaining != (limit - used).coerceAtLeast(0)) return MembershipSnapshotResult.Failure("invalid_membership_response")
+    if (limit == null && remaining != null) return MembershipSnapshotResult.Failure("invalid_membership_response")
+    return MembershipSnapshotResult.Success(
+        ServerMembershipSnapshot(userId, plan, source, expiresAt, limit, used, remaining),
+    )
 }
 
 internal fun buildMembershipRestoreRequest(
@@ -113,4 +188,7 @@ fun validatedGatewayBaseUrl(raw: String): String? {
 }
 
 private fun validRestoreValue(value: String, maxLength: Int): Boolean =
+    value.isNotBlank() && value.length <= maxLength && value == value.trim() && value.none { it.code < 0x20 || it.code == 0x7f }
+
+private fun validDisplayValue(value: String, maxLength: Int): Boolean =
     value.isNotBlank() && value.length <= maxLength && value == value.trim() && value.none { it.code < 0x20 || it.code == 0x7f }

@@ -26,17 +26,39 @@ describe("membership foundation", () => {
     expect((await service.snapshot({ id: "u1" })).managedAiQuota).toEqual({ limit: 2, used: 1, remaining: 1 });
   });
 
-  it("consumes managed quota and blocks the next request at the limit", async () => {
+  it("reserves managed quota during admission and blocks the next request at the limit", async () => {
     const store = new InMemoryMembershipStore([
       { userId: "u1", plan: "FREE", managedAiLimit: 1, managedAiUsed: 0 }
     ]);
     const service = new MembershipService(store);
 
-    expect((await service.canUseAi("u1", "managed")).allowed).toBe(true);
+    expect(await service.canUseAi("u1", "managed")).toEqual({
+      allowed: true,
+      quota: { limit: 1, used: 1, remaining: 0 }
+    });
     await service.recordAiUsage("u1", "managed");
 
     expect((await service.snapshot({ id: "u1" })).managedAiQuota).toEqual({ limit: 1, used: 1, remaining: 0 });
-    expect((await service.canUseAi("u1", "managed")).allowed).toBe(false);
+    expect(await service.canUseAi("u1", "managed")).toEqual({
+      allowed: false,
+      quota: { limit: 1, used: 1, remaining: 0 }
+    });
+  });
+
+  it("admits only one of concurrent managed requests when one quota unit remains", async () => {
+    const store = new InMemoryMembershipStore([
+      { userId: "u1", plan: "FREE", managedAiLimit: 1, managedAiUsed: 0 }
+    ]);
+    const service = new MembershipService(store);
+
+    const results = await Promise.all([
+      service.canUseAi("u1", "managed"),
+      service.canUseAi("u1", "managed")
+    ]);
+
+    expect(results.filter(result => result.allowed)).toHaveLength(1);
+    expect(results.filter(result => !result.allowed)).toHaveLength(1);
+    expect((await service.snapshot({ id: "u1" })).managedAiQuota).toEqual({ limit: 1, used: 1, remaining: 0 });
   });
 
   it("blocks managed AI after quota exhaustion", async () => {

@@ -73,16 +73,24 @@ export class MembershipService {
   }
 
   async canUseAi(userId: string, kind: AiUsageKind): Promise<{ allowed: boolean; quota: ManagedAiQuota }> {
-    const quota = normalizeQuota(await this.store.getManagedAiQuota(userId));
-    if (kind === "byok") return { allowed: true, quota };
-    return {
-      allowed: quota.remaining === null || quota.remaining > 0,
-      quota
-    };
+    if (kind === "byok") {
+      return { allowed: true, quota: normalizeQuota(await this.store.getManagedAiQuota(userId)) };
+    }
+
+    // Managed-AI admission reserves quota atomically before any upstream provider work.
+    // Durable stores must enforce the limit inside incrementManagedAiUsage rather than via a prior read.
+    try {
+      await this.store.incrementManagedAiUsage(userId);
+      return { allowed: true, quota: normalizeQuota(await this.store.getManagedAiQuota(userId)) };
+    } catch (error) {
+      if (!(error instanceof Error) || error.message !== "managed_ai_quota_unavailable") throw error;
+      return { allowed: false, quota: normalizeQuota(await this.store.getManagedAiQuota(userId)) };
+    }
   }
 
-  async recordAiUsage(userId: string, kind: AiUsageKind): Promise<void> {
-    if (kind === "managed") await this.store.incrementManagedAiUsage(userId);
+  async recordAiUsage(_userId: string, _kind: AiUsageKind): Promise<void> {
+    // Managed usage is reserved during canUseAi so concurrent requests cannot all pass a stale quota read.
+    // BYOK never consumes managed quota.
   }
 }
 
@@ -108,8 +116,8 @@ class LegacyScopedMembershipStore implements MembershipStore {
   }
 
   async incrementManagedAiUsage(userId: string): Promise<void> {
-    if (userId !== this.legacyUserId) throw new Error("membership_store_required");
-    // Compatibility mode for the configured legacy principal only.
+    if (userId !== this.legacyUserId) throw new Error("managed_ai_quota_unavailable");
+    // Compatibility mode for the configured legacy principal only; its quota is unlimited.
   }
 }
 
@@ -145,7 +153,11 @@ export class InMemoryMembershipStore implements MembershipStore {
 
   async incrementManagedAiUsage(userId: string): Promise<void> {
     const record = this.require(userId);
-    record.managedAiUsed = (record.managedAiUsed ?? 0) + 1;
+    const used = record.managedAiUsed ?? 0;
+    if (record.managedAiLimit !== null && used >= record.managedAiLimit) {
+      throw new Error("managed_ai_quota_unavailable");
+    }
+    record.managedAiUsed = used + 1;
   }
 
   private require(userId: string): InMemoryMembershipRecord {

@@ -1,3 +1,5 @@
+import { createConfiguredD1MembershipStore, type DurableMembershipEnv } from "./d1MembershipStore";
+
 export type Plan = "FREE" | "PRO";
 export type AiUsageKind = "managed" | "byok";
 
@@ -41,7 +43,7 @@ export class FakeBillingVerifier implements BillingVerifier {
   }
 }
 
-export type MembershipEnv = {
+export type MembershipEnv = DurableMembershipEnv & {
   GATEWAY_TOKEN?: string;
   GATEWAY_USER_ID?: string;
   MEMBERSHIP_STORE?: MembershipStore;
@@ -86,7 +88,8 @@ export class MembershipService {
 
 export function createMembershipService(env: MembershipEnv): MembershipService {
   const legacyUserId = env.GATEWAY_USER_ID?.trim() || "legacy-user";
-  return new MembershipService(env.MEMBERSHIP_STORE ?? new LegacyScopedMembershipStore(legacyUserId));
+  const store = env.MEMBERSHIP_STORE ?? createConfiguredD1MembershipStore(env) ?? new LegacyScopedMembershipStore(legacyUserId);
+  return new MembershipService(store);
 }
 
 class LegacyScopedMembershipStore implements MembershipStore {

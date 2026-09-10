@@ -48,6 +48,28 @@ class ItemStateSyncTest {
         assertTrue(merged.saved!!.value)
     }
 
+    @Test fun wirePayloadRoundTripsIndependentFieldClocks() {
+        val states = listOf(
+            ItemStateClock(
+                itemId = "item-1",
+                read = VersionedFlag(true, 100, SyncOrigin.WEAR),
+                saved = VersionedFlag(false, 90, SyncOrigin.PHONE),
+            ),
+        )
+
+        assertEquals(states, ItemStateWireContract.decode(ItemStateWireContract.encode(states)))
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun futureWireVersionIsRejected() {
+        ItemStateWireContract.decode("""{"version":2,"items":[]}""")
+    }
+
+    @Test(expected = IllegalStateException::class)
+    fun missingWireItemsIsRejected() {
+        ItemStateWireContract.decode("""{"version":1}""")
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun differentItemIdsCannotBeMerged() {
         mergeItemState(ItemStateClock("a"), ItemStateClock("b"))

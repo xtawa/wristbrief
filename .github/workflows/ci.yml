@@ -103,22 +103,19 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Accept Android SDK licenses
-        run: |
-          sdk_root="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
-          sdkmanager_path="$sdk_root/cmdline-tools/latest/bin/sdkmanager"
-          if [ ! -x "$sdkmanager_path" ]; then
-            sdkmanager_path="$(find "$sdk_root/cmdline-tools" -type f -path '*/bin/sdkmanager' -print | sort | tail -n 1)"
-          fi
-          test -x "$sdkmanager_path"
-          yes | "$sdkmanager_path" --licenses >/dev/null
       - name: Enable KVM access
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
       - name: Run Wear Small Round instrumentation smoke test
-        run: gradle :app:wearSmallRoundApi30DebugAndroidTest --stacktrace
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: android-wear
+          arch: x86
+          profile: wearos_small_round
+          script: gradle :app:connectedDebugAndroidTest --stacktrace
       - name: Upload instrumentation reports on failure
         if: failure()
         uses: actions/upload-artifact@v4

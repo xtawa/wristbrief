@@ -38,6 +38,18 @@ android {
         // only this incompatible detector while preserving every other release lint check.
         disable += "NullSafeMutableLiveData"
     }
+
+    testOptions {
+        managedDevices {
+            localDevices {
+                create("wearSmallRoundApi30") {
+                    device = "Wear OS Small Round"
+                    apiLevel = 30
+                    systemImageSource = "android-wear"
+                }
+            }
+        }
+    }
 }
 
 dependencies {

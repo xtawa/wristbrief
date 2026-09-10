@@ -13,5 +13,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <service android:name=".ItemStateDataLayerService" android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
+                <data android:scheme="wear" android:host="*" android:path="/wristbrief/item-state/v1/wear" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>

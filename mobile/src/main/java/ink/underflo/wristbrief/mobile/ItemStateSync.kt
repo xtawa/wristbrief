@@ -11,14 +11,9 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 
-/** Device identifier used both for deterministic conflict resolution and path ownership. */
 enum class SyncOrigin { PHONE, WEAR }
 
-data class VersionedFlag(
-    val value: Boolean,
-    val changedAtEpochMs: Long,
-    val origin: SyncOrigin,
-)
+data class VersionedFlag(val value: Boolean, val changedAtEpochMs: Long, val origin: SyncOrigin)
 
 data class ItemStateClock(
     val itemId: String,
@@ -26,19 +21,41 @@ data class ItemStateClock(
     val saved: VersionedFlag? = null,
 )
 
-/**
- * Merge read and saved independently. Newer timestamps win; equal timestamps use
- * a stable origin ordering so both devices converge regardless of delivery order.
- */
 fun mergeItemState(local: ItemStateClock?, remote: ItemStateClock): ItemStateClock {
     require(remote.itemId.isNotBlank()) { "itemId must not be blank" }
     require(local == null || local.itemId == remote.itemId) { "Cannot merge different items" }
-    return ItemStateClock(
-        itemId = remote.itemId,
-        read = chooseFlag(local?.read, remote.read),
-        saved = chooseFlag(local?.saved, remote.saved),
+    return ItemStateClock(remote.itemId, chooseFlag(local?.read, remote.read), chooseFlag(local?.saved, remote.saved))
+}
+
+fun localMutation(
+    local: ItemStateClock?,
+    itemId: String,
+    read: Boolean?,
+    saved: Boolean?,
+    nowEpochMs: Long,
+    origin: SyncOrigin,
+): ItemStateClock {
+    require(itemId.isNotBlank()) { "itemId must not be blank" }
+    require(read != null || saved != null) { "At least one field must change" }
+    require(nowEpochMs >= 0) { "Timestamp must be non-negative" }
+    val base = local ?: ItemStateClock(itemId)
+    require(base.itemId == itemId) { "Cannot mutate a different item" }
+    return base.copy(
+        read = read?.let { VersionedFlag(it, monotonicTimestamp(base.read, nowEpochMs), origin) } ?: base.read,
+        saved = saved?.let { VersionedFlag(it, monotonicTimestamp(base.saved, nowEpochMs), origin) } ?: base.saved,
     )
 }
+
+fun ownedStates(states: Collection<ItemStateClock>, origin: SyncOrigin): List<ItemStateClock> =
+    states.mapNotNull { state ->
+        val owned = state.copy(
+            read = state.read?.takeIf { it.origin == origin },
+            saved = state.saved?.takeIf { it.origin == origin },
+        )
+        owned.takeIf { it.read != null || it.saved != null }
+    }
+
+private fun monotonicTimestamp(existing: VersionedFlag?, nowEpochMs: Long): Long = maxOf(nowEpochMs, (existing?.changedAtEpochMs ?: -1L) + 1L)
 
 private fun chooseFlag(local: VersionedFlag?, remote: VersionedFlag?): VersionedFlag? = when {
     local == null -> remote
@@ -49,7 +66,6 @@ private fun chooseFlag(local: VersionedFlag?, remote: VersionedFlag?): Versioned
     else -> local
 }
 
-/** Versioned, bounded Data Layer wire format for read/saved state. */
 object ItemStateWireContract {
     const val PHONE_PATH = "/wristbrief/item-state/v1/phone"
     const val WEAR_PATH = "/wristbrief/item-state/v1/wear"
@@ -58,15 +74,8 @@ object ItemStateWireContract {
     const val MAX_ITEMS = 500
     private val json = Json { ignoreUnknownKeys = true }
 
-    fun pathFor(origin: SyncOrigin): String = when (origin) {
-        SyncOrigin.PHONE -> PHONE_PATH
-        SyncOrigin.WEAR -> WEAR_PATH
-    }
-
-    fun remotePathFor(localOrigin: SyncOrigin): String = when (localOrigin) {
-        SyncOrigin.PHONE -> WEAR_PATH
-        SyncOrigin.WEAR -> PHONE_PATH
-    }
+    fun pathFor(origin: SyncOrigin): String = if (origin == SyncOrigin.PHONE) PHONE_PATH else WEAR_PATH
+    fun remotePathFor(localOrigin: SyncOrigin): String = if (localOrigin == SyncOrigin.PHONE) WEAR_PATH else PHONE_PATH
 
     fun encode(states: Collection<ItemStateClock>): String = buildJsonObject {
         put("version", VERSION)
@@ -88,28 +97,20 @@ object ItemStateWireContract {
         require(items.size <= MAX_ITEMS) { "Too many item-state records" }
         return items.map { element ->
             val item = element.jsonObject
-            val itemId = item["itemId"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }
-                ?: error("Missing itemId")
-            ItemStateClock(
-                itemId = itemId,
-                read = item["read"]?.jsonObject?.decodeFlag(),
-                saved = item["saved"]?.jsonObject?.decodeFlag(),
-            )
+            val itemId = item["itemId"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() } ?: error("Missing itemId")
+            ItemStateClock(itemId, item["read"]?.jsonObject?.decodeFlag(), item["saved"]?.jsonObject?.decodeFlag())
         }
     }
 
     private fun encodeFlag(flag: VersionedFlag): JsonObject = buildJsonObject {
-        put("value", flag.value)
-        put("changedAtEpochMs", flag.changedAtEpochMs)
-        put("origin", flag.origin.name)
+        put("value", flag.value); put("changedAtEpochMs", flag.changedAtEpochMs); put("origin", flag.origin.name)
     }
 
     private fun JsonObject.decodeFlag(): VersionedFlag {
         val value = this["value"]?.jsonPrimitive?.booleanOrNull ?: error("Missing flag value")
         val changedAt = this["changedAtEpochMs"]?.jsonPrimitive?.longOrNull ?: error("Missing flag timestamp")
         require(changedAt >= 0) { "Invalid flag timestamp" }
-        val origin = this["origin"]?.jsonPrimitive?.content?.let { SyncOrigin.valueOf(it) }
-            ?: error("Missing flag origin")
+        val origin = this["origin"]?.jsonPrimitive?.content?.let { SyncOrigin.valueOf(it) } ?: error("Missing flag origin")
         return VersionedFlag(value, changedAt, origin)
     }
 }

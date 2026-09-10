@@ -9,6 +9,7 @@ import ink.underflo.wristbrief.data.FeedInboxRepository
 import ink.underflo.wristbrief.data.FeedRepository
 import ink.underflo.wristbrief.data.SharedPreferencesFeedStore
 import ink.underflo.wristbrief.data.SubscriptionMutationResult
+import ink.underflo.wristbrief.sync.WearItemStateSyncManager
 import ink.underflo.wristbrief.tile.requestLatestUnreadTileUpdate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,6 +33,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         loader = FeedRepository(),
         store = SharedPreferencesFeedStore(application)
     )
+    private val itemStateSync = WearItemStateSyncManager(application)
 
     private val _uiState = MutableStateFlow(buildState())
     val uiState: StateFlow<InboxUiState> = _uiState.asStateFlow()
@@ -75,6 +77,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setItemRead(id: String, isRead: Boolean) {
         if (repository.setRead(id, isRead)) {
+            itemStateSync.recordRead(id, isRead)
             rebuildPreservingTransientState()
             requestGlanceUpdates()
         } else {
@@ -84,6 +87,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setItemSaved(id: String, isSaved: Boolean) {
         if (repository.setSaved(id, isSaved)) {
+            itemStateSync.recordSaved(id, isSaved)
             rebuildPreservingTransientState()
         } else {
             _uiState.value = _uiState.value.copy(errorMessage = "Brief is no longer available")

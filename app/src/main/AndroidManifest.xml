@@ -6,7 +6,6 @@
     <uses-feature android:name="android.hardware.type.watch" android:required="true" />
 
     <application android:allowBackup="false" android:label="WristBrief" android:usesCleartextTraffic="false">
-        <!-- Authentication currently originates on the phone and is bridged to Wear, so this is not yet a fully standalone Play app. -->
         <meta-data android:name="com.google.android.wearable.standalone" android:value="false" />
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
@@ -18,6 +17,12 @@
             <intent-filter>
                 <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
                 <data android:scheme="wear" android:host="*" android:pathPrefix="/wristbrief/subscriptions/" />
+            </intent-filter>
+        </service>
+        <service android:name=".sync.ItemStateDataLayerService" android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
+                <data android:scheme="wear" android:host="*" android:path="/wristbrief/item-state/v1/phone" />
             </intent-filter>
         </service>
         <service android:name=".tile.LatestUnreadTileService" android:exported="true" android:label="Latest briefs" android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">

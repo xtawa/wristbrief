@@ -30,6 +30,13 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
+
+    lint {
+        // Lifecycle 2.8.7's NullSafeMutableLiveData detector crashes against the current Kotlin
+        // analysis API during lintVitalRelease. WristBrief does not use MutableLiveData, so disable
+        // only this incompatible detector while preserving every other release lint check.
+        disable += "NullSafeMutableLiveData"
+    }
 }
 
 dependencies {

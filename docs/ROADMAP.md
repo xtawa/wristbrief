@@ -103,7 +103,7 @@ Only implement after the managed AI path and identity model are stable.
 - [x] Managed AI usage quota.
 - [x] BYOK does not consume managed AI quota.
 - [x] Google Play Billing purchase flow on the phone.
-- [ ] Server-side purchase verification with the real Google Android Publisher API.
+- [x] Server-side purchase verification with the real Google Android Publisher API.
 - [x] Restore purchases contract/client foundation.
 - [ ] Production RTDN lifecycle handling with authenticated Pub/Sub verification.
 - [x] Authoritative entitlement state lives server-side, not in client preferences.

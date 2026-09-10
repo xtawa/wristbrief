@@ -125,8 +125,9 @@ jobs:
           arch: x86
           profile: ${{ matrix.profile }}
           script: |
-            adb shell settings put system font_scale ${{ matrix.font_scale }}
-            adb shell am broadcast -a android.intent.action.CONFIGURATION_CHANGED
+            if [ "${{ matrix.font_scale }}" != "1.00" ]; then
+              adb shell settings put system font_scale ${{ matrix.font_scale }}
+            fi
             gradle :app:connectedDebugAndroidTest --stacktrace
       - name: Upload instrumentation reports on failure
         if: failure()

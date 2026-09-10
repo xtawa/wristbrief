@@ -14,15 +14,19 @@ function playResponse(state = "SUBSCRIPTION_STATE_ACTIVE", productId = "wristbri
   return new Response(JSON.stringify({ subscriptionState: state, lineItems: [{ productId, expiryTime: "2026-10-01T00:00:00Z" }] }), { status: 200 });
 }
 
+function asFetch(fake: (...args: unknown[]) => Promise<Response>): typeof fetch {
+  return fake as unknown as typeof fetch;
+}
+
 describe("Google Android Publisher purchase verifier", () => {
   it("calls only the fixed subscriptionsv2 endpoint with OAuth in the header", async () => {
     let calledUrl = "";
     let calledInit: RequestInit | undefined;
-    const fetchImpl: typeof fetch = async (input, init) => {
-      calledUrl = String(input);
-      calledInit = init;
+    const fetchImpl = asFetch(async (...args) => {
+      calledUrl = String(args[0] ?? "");
+      calledInit = args[1] as RequestInit | undefined;
       return playResponse();
-    };
+    });
     const verifier = new GoogleAndroidPublisherPurchaseVerifier(accessTokens, fetchImpl);
     await expect(verifier.verifySubscription({ packageName, purchaseToken })).resolves.toEqual({
       packageName, productId: "wristbrief_pro", status: "active", expiresAt: "2026-10-01T00:00:00.000Z"
@@ -41,27 +45,28 @@ describe("Google Android Publisher purchase verifier", () => {
     ["SUBSCRIPTION_STATE_PAUSED", "revoked"],
     ["SUBSCRIPTION_STATE_PENDING_PURCHASE_CANCELED", "revoked"]
   ])("maps %s to %s", async (playState, expected) => {
-    const fetchImpl: typeof fetch = async () => playResponse(playState);
-    const verifier = new GoogleAndroidPublisherPurchaseVerifier(accessTokens, fetchImpl);
+    const verifier = new GoogleAndroidPublisherPurchaseVerifier(accessTokens, asFetch(async () => playResponse(playState)));
     await expect(verifier.verifySubscription({ packageName, purchaseToken })).resolves.toMatchObject({ status: expected });
   });
 
   it("fails closed when Play returns multiple distinct products", async () => {
-    const fetchImpl: typeof fetch = async () => new Response(JSON.stringify({
+    const fetchImpl = asFetch(async () => new Response(JSON.stringify({
       subscriptionState: "SUBSCRIPTION_STATE_ACTIVE",
       lineItems: [
         { productId: "wristbrief_pro", expiryTime: "2026-10-01T00:00:00Z" },
         { productId: "other_product", expiryTime: "2026-11-01T00:00:00Z" }
       ]
-    }), { status: 200 });
+    }), { status: 200 }));
     const verifier = new GoogleAndroidPublisherPurchaseVerifier(accessTokens, fetchImpl);
     await expect(verifier.verifySubscription({ packageName, purchaseToken })).rejects.toMatchObject({ code: "ambiguous_play_product" });
   });
 
   it("does not surface purchase tokens or upstream error bodies", async () => {
     const upstreamBody = "credential details that must stay private";
-    const fetchImpl: typeof fetch = async () => new Response(upstreamBody, { status: 403 });
-    const verifier = new GoogleAndroidPublisherPurchaseVerifier(accessTokens, fetchImpl);
+    const verifier = new GoogleAndroidPublisherPurchaseVerifier(
+      accessTokens,
+      asFetch(async () => new Response(upstreamBody, { status: 403 }))
+    );
     let caught: unknown;
     try { await verifier.verifySubscription({ packageName, purchaseToken }); } catch (error) { caught = error; }
     expect(caught).toBeInstanceOf(GooglePlayVerificationError);
@@ -91,9 +96,10 @@ describe("Google service-account access tokens", () => {
     const pem = toPem(new Uint8Array(await crypto.subtle.exportKey("pkcs8", generated.privateKey)));
     let fetchCount = 0;
     let tokenEndpoint = "";
-    const fetchImpl: typeof fetch = async (input, init) => {
+    const fetchImpl = asFetch(async (...args) => {
       fetchCount += 1;
-      tokenEndpoint = String(input);
+      tokenEndpoint = String(args[0] ?? "");
+      const init = args[1] as RequestInit | undefined;
       const assertion = new URLSearchParams(String(init?.body ?? "")).get("assertion");
       expect(assertion).toBeTruthy();
       const [, payload] = assertion!.split(".");
@@ -105,7 +111,7 @@ describe("Google service-account access tokens", () => {
         exp: 1_800_003_600
       });
       return new Response(JSON.stringify({ access_token: "server-oauth-token", expires_in: 3600 }), { status: 200 });
-    };
+    });
     const provider = new GoogleServiceAccountAccessTokenProvider(
       "service@example.iam.gserviceaccount.com", pem, fetchImpl, () => 1_800_000_000_000
     );

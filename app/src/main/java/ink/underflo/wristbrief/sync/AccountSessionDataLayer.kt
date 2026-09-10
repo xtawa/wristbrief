@@ -36,7 +36,9 @@ internal class WearAccountSessionStore(context: Context) {
 
     fun read(now: Instant = Instant.now()): WearAccountSession? {
         val token = preferences.getString("token", null) ?: return null
-        val expiresAt = preferences.getString("expires_at", null)?.let { runCatching(Instant::parse).getOrNull() } ?: return invalid()
+        val expiresAt = preferences.getString("expires_at", null)?.let { raw ->
+            runCatching { Instant.parse(raw) }.getOrNull()
+        } ?: return invalid()
         val userId = preferences.getString("user_id", null) ?: return invalid()
         val session = WearAccountSession(token, expiresAt, userId)
         return if (valid(session, now)) session else invalid()

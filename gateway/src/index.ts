@@ -34,6 +34,8 @@ import {
   type AuthResult,
   type AuthServerEnv
 } from "./authServer";
+import { AccountSessionService } from "./accountSession";
+import { createConfiguredD1AccountStores } from "./d1AccountStore";
 import { authenticateRequestUser } from "./requestAuth";
 
 interface Env extends ProviderEnv, SummaryCacheEnv, MembershipEnv, BillingServerEnv, AuthServerEnv {}
@@ -67,6 +69,18 @@ export default {
       }
       try {
         return respondAuth(await exchangeGoogleIdToken(parsedBody.value, env));
+      } catch {
+        return respond({ error: "auth_unavailable" }, 503);
+      }
+    }
+
+    if (request.method === "POST" && url.pathname === "/v1/auth/logout") {
+      const sessionStore = env.ACCOUNT_SESSION_STORE ?? createConfiguredD1AccountStores(env)?.sessionStore;
+      if (!sessionStore) return respond({ error: "auth_not_configured" }, 503);
+      try {
+        const revoked = await new AccountSessionService(sessionStore)
+          .revokeAuthorizationHeader(request.headers.get("Authorization"));
+        return revoked ? empty(204, requestId) : respond({ error: "unauthorized" }, 401);
       } catch {
         return respond({ error: "auth_unavailable" }, 503);
       }

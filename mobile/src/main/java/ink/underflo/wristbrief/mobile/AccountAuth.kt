@@ -28,6 +28,12 @@ data class AccountSession(
 
 data class AccountUser(val id: String)
 
+sealed interface AccountPresentation {
+    data object NotConfigured : AccountPresentation
+    data object SignedOut : AccountPresentation
+    data class SignedIn(val userId: String, val expiresAt: String) : AccountPresentation
+}
+
 sealed interface AccountAuthResult {
     data class Success(val session: AccountSession) : AccountAuthResult
     data object SignedOut : AccountAuthResult
@@ -173,6 +179,12 @@ fun accountAuthConfig(webClientId: String, gatewayBaseUrl: String): AccountAuthC
     if (parsed.scheme != "https" || parsed.host.isNullOrBlank() || parsed.userInfo != null || parsed.query != null || parsed.fragment != null) return null
     if (parsed.path != null && parsed.path.isNotEmpty() && parsed.path != "/") return null
     return AccountAuthConfig(clientId, baseUrl)
+}
+
+fun accountPresentation(configured: Boolean, session: AccountSession?): AccountPresentation = when {
+    !configured -> AccountPresentation.NotConfigured
+    session == null -> AccountPresentation.SignedOut
+    else -> AccountPresentation.SignedIn(session.user.id, session.expiresAt)
 }
 
 fun validSessionToken(value: String): Boolean = Regex("^wbs_[A-Za-z0-9_-]{43}$").matches(value)

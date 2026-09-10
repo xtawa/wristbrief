@@ -1,6 +1,7 @@
 import type { AuthenticatedUser, Entitlement } from "./membership";
 import { createConfiguredGooglePlayPurchaseVerifier, type GooglePlayVerifierEnv } from "./googlePlayVerifier";
 import { createConfiguredPubSubPushAuthenticator, type PubSubPushAuthEnv } from "./pubSubPushAuthenticator";
+import { createConfiguredD1BillingStateStore, type DurableMembershipEnv } from "./d1MembershipStore";
 
 export type PlaySubscriptionStatus = "active" | "canceled" | "expired" | "grace" | "on_hold" | "revoked";
 
@@ -25,7 +26,7 @@ export interface BillingStateStore {
   setBillingEntitlement(userId: string, entitlement: Entitlement): Promise<void>;
 }
 
-export type BillingServerEnv = GooglePlayVerifierEnv & PubSubPushAuthEnv & {
+export type BillingServerEnv = GooglePlayVerifierEnv & PubSubPushAuthEnv & DurableMembershipEnv & {
   PLAY_PACKAGE_NAME?: string;
   PLAY_SUBSCRIPTION_PRODUCT_IDS?: string;
   PLAY_PURCHASE_VERIFIER?: GooglePlayPurchaseVerifier;
@@ -108,7 +109,7 @@ function configuredBilling(env: BillingServerEnv) {
   const packageName = env.PLAY_PACKAGE_NAME?.trim();
   const productIds = new Set((env.PLAY_SUBSCRIPTION_PRODUCT_IDS ?? "").split(",").map((v) => v.trim()).filter(Boolean));
   const verifier = env.PLAY_PURCHASE_VERIFIER ?? createConfiguredGooglePlayPurchaseVerifier(env);
-  const store = env.PLAY_BILLING_STATE_STORE;
+  const store = env.PLAY_BILLING_STATE_STORE ?? createConfiguredD1BillingStateStore(env);
   return packageName && productIds.size && verifier && store ? { packageName, productIds, verifier, store } : null;
 }
 

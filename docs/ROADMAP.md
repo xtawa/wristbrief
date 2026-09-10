@@ -105,7 +105,7 @@ Only implement after the managed AI path and identity model are stable.
 - [x] Google Play Billing purchase flow on the phone.
 - [x] Server-side purchase verification with the real Google Android Publisher API.
 - [x] Restore purchases contract/client foundation.
-- [ ] Production RTDN lifecycle handling with authenticated Pub/Sub verification.
+- [x] Production RTDN lifecycle handling with authenticated Pub/Sub verification.
 - [x] Authoritative entitlement state lives server-side, not in client preferences.
 
 ### P8.1 — Google account identity + membership binding (planned)

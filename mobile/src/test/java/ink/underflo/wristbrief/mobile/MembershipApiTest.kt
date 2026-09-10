@@ -11,6 +11,51 @@ class MembershipApiTest {
     private val sessionToken = "wbs_${"A".repeat(43)}"
 
     @Test
+    fun buildsFixedGatewayMembershipSnapshotRequestWithSessionAuth() {
+        val request = buildMembershipSnapshotRequest("https://gateway.example.com", sessionToken)!!
+        assertEquals("https://gateway.example.com/v1/me", request.url.toString())
+        assertEquals("GET", request.method)
+        assertEquals("Bearer $sessionToken", request.header("Authorization"))
+        assertNull(request.body)
+    }
+
+    @Test
+    fun parsesAuthoritativeMembershipAndQuotaSnapshot() {
+        val response = parseMembershipSnapshotResponse(
+            200,
+            """{"user":{"id":"usr_123"},"entitlement":{"plan":"PRO","source":"billing","expiresAt":"2026-10-01T00:00:00Z"},"managedAiQuota":{"limit":100,"used":12,"remaining":88}}""",
+        )
+        assertEquals(
+            MembershipSnapshotResult.Success(
+                ServerMembershipSnapshot("usr_123", "PRO", "billing", "2026-10-01T00:00:00Z", 100, 12, 88),
+            ),
+            response,
+        )
+        assertEquals(
+            MembershipSnapshotResult.SignedOut,
+            parseMembershipSnapshotResponse(401, """{"error":"unauthorized"}"""),
+        )
+    }
+
+    @Test
+    fun rejectsInconsistentOrClientLikeMembershipSnapshots() {
+        assertEquals(
+            MembershipSnapshotResult.Failure("invalid_membership_response"),
+            parseMembershipSnapshotResponse(
+                200,
+                """{"user":{"id":"usr_123"},"entitlement":{"plan":"PRO","source":"billing"},"managedAiQuota":{"limit":10,"used":2,"remaining":99}}""",
+            ),
+        )
+        assertEquals(
+            MembershipSnapshotResult.Failure("invalid_membership_response"),
+            parseMembershipSnapshotResponse(
+                200,
+                """{"user":{"id":"usr_123"},"entitlement":{"plan":"SUPERPRO","source":"billing"},"managedAiQuota":{"limit":null,"used":0,"remaining":null}}""",
+            ),
+        )
+    }
+
+    @Test
     fun buildsFixedGatewayRestoreRequestWithSessionAuth() {
         val request = buildMembershipRestoreRequest(
             baseUrl = "https://gateway.example.com",

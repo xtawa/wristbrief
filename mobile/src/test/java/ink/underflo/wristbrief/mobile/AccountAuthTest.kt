@@ -52,4 +52,20 @@ class AccountAuthTest {
         assertFalse(validSessionToken("wbs_${"A".repeat(42)}!"))
         assertFalse(validSessionToken("Bearer wbs_$payload"))
     }
+
+    @Test
+    fun accountPresentationRequiresConfigurationBeforeOfferingSignIn() {
+        val session = AccountSession(
+            sessionToken = "wbs_${"A".repeat(43)}",
+            expiresAt = "2026-10-01T00:00:00Z",
+            user = AccountUser("usr_123"),
+        )
+
+        assertEquals(AccountPresentation.NotConfigured, accountPresentation(false, session))
+        assertEquals(AccountPresentation.SignedOut, accountPresentation(true, null))
+        assertEquals(
+            AccountPresentation.SignedIn("usr_123", "2026-10-01T00:00:00Z"),
+            accountPresentation(true, session),
+        )
+    }
 }

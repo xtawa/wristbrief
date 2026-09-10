@@ -74,7 +74,7 @@ WristBrief is a Wear OS-first inbox for RSS, Atom and podcast feeds. The watch s
 - [x] OpenRouter configuration.
 - [x] Gemini adapter.
 - [ ] Anthropic adapter if product demand warrants it.
-- [ ] BYOK support without shipping managed provider secrets in the APK.
+- [x] BYOK support without shipping managed provider secrets in the APK.
 - [x] Never allow the public gateway to proxy arbitrary client-supplied hosts.
 
 ## P6 — Wear surfaces

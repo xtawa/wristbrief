@@ -3,6 +3,12 @@ import worker from "./index";
 import { AccountSessionService, InMemoryAccountSessionStore } from "./accountSession";
 import { InMemoryMembershipStore } from "./membership";
 
+const providerEnv = {
+  AI_API_KEY: "test-key",
+  AI_BASE_URL: "https://api.example.com/v1",
+  AI_MODEL: "test-model"
+};
+
 async function sessionFor(store: InMemoryAccountSessionStore, userId: string) {
   return new AccountSessionService(store).issue(userId);
 }
@@ -18,6 +24,7 @@ describe("WristBrief session route authentication", () => {
     const response = await worker.fetch(new Request("https://gateway.example/v1/me", {
       headers: { Authorization: `Bearer ${session.token}` }
     }), {
+      ...providerEnv,
       ACCOUNT_SESSION_STORE: sessionStore,
       MEMBERSHIP_STORE: membershipStore
     });
@@ -36,6 +43,7 @@ describe("WristBrief session route authentication", () => {
     const response = await worker.fetch(new Request("https://gateway.example/v1/me", {
       headers: { Authorization: `Bearer ${session.token}` }
     }), {
+      ...providerEnv,
       ACCOUNT_SESSION_STORE: sessionStore,
       GATEWAY_TOKEN: "legacy-secret",
       GATEWAY_USER_ID: "legacy-user"
@@ -58,6 +66,7 @@ describe("WristBrief session route authentication", () => {
     const response = await worker.fetch(new Request("https://gateway.example/v1/me", {
       headers: { Authorization: `Bearer ${session.token}` }
     }), {
+      ...providerEnv,
       ACCOUNT_SESSION_STORE: sessionStore,
       MEMBERSHIP_STORE: new InMemoryMembershipStore([
         { userId: "google-user-1", plan: "PRO", managedAiLimit: 50 }
@@ -70,6 +79,7 @@ describe("WristBrief session route authentication", () => {
     const response = await worker.fetch(new Request("https://gateway.example/v1/me", {
       headers: { Authorization: "Bearer legacy-secret" }
     }), {
+      ...providerEnv,
       GATEWAY_TOKEN: "legacy-secret",
       GATEWAY_USER_ID: "legacy-user"
     });

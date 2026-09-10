@@ -1,5 +1,6 @@
 import type { AuthenticatedUser, Entitlement } from "./membership";
 import { createConfiguredGooglePlayPurchaseVerifier, type GooglePlayVerifierEnv } from "./googlePlayVerifier";
+import { createConfiguredPubSubPushAuthenticator, type PubSubPushAuthEnv } from "./pubSubPushAuthenticator";
 
 export type PlaySubscriptionStatus = "active" | "canceled" | "expired" | "grace" | "on_hold" | "revoked";
 
@@ -24,7 +25,7 @@ export interface BillingStateStore {
   setBillingEntitlement(userId: string, entitlement: Entitlement): Promise<void>;
 }
 
-export type BillingServerEnv = GooglePlayVerifierEnv & {
+export type BillingServerEnv = GooglePlayVerifierEnv & PubSubPushAuthEnv & {
   PLAY_PACKAGE_NAME?: string;
   PLAY_SUBSCRIPTION_PRODUCT_IDS?: string;
   PLAY_PURCHASE_VERIFIER?: GooglePlayPurchaseVerifier;
@@ -57,8 +58,9 @@ export async function restorePlayPurchase(user: AuthenticatedUser, body: unknown
 
 export async function processPlayRtdn(request: Request, env: BillingServerEnv): Promise<BillingResult> {
   const config = configuredBilling(env);
-  if (!config || !env.PUBSUB_PUSH_AUTHENTICATOR) return result(503, "billing_not_configured");
-  if (!(await env.PUBSUB_PUSH_AUTHENTICATOR.verify(request))) return result(401, "unauthorized");
+  const authenticator = env.PUBSUB_PUSH_AUTHENTICATOR ?? createConfiguredPubSubPushAuthenticator(env);
+  if (!config || !authenticator) return result(503, "billing_not_configured");
+  if (!(await authenticator.verify(request))) return result(401, "unauthorized");
   const notification = await parseRtdn(request);
   if (!notification) return result(400, "invalid_rtdn");
   if (notification.packageName !== config.packageName) return result(400, "package_mismatch");

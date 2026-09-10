@@ -44,6 +44,21 @@ Success returns the normalized subscription state and server-owned entitlement, 
 
 Production mapping uses the current `purchases.subscriptionsv2` state and expiry data rather than client claims. Distinct product IDs in one Play response are rejected as ambiguous until product-transition handling is explicitly modeled rather than guessed.
 
+## Production RTDN authentication
+
+Route: `POST /v1/billing/rtdn`.
+
+The production gateway can authenticate Google Cloud Pub/Sub push requests when both of these server-side values are configured:
+
+- `PUBSUB_PUSH_SERVICE_ACCOUNT_EMAIL`: the user-managed service account configured on the Pub/Sub push subscription.
+- `PUBSUB_PUSH_AUDIENCE`: the exact HTTPS audience configured for the push OIDC token, normally the production RTDN endpoint URL.
+
+The gateway reads the OIDC JWT only from `Authorization: Bearer ...`. It verifies RS256 against Google's fixed public JWKS endpoint, caches those public keys for a bounded interval, and validates the Google issuer plus exact audience, service-account email, `email_verified`, `sub`, `iat`, and `exp`. Missing/malformed tokens, unknown signing keys, signature failures, wrong audience/account, and expired/invalid claims fail closed.
+
+The client cannot configure the JWKS URL, issuer, audience, or service-account identity. JWTs and Authorization headers must never be logged or returned in public errors. `PUBSUB_PUSH_AUTHENTICATOR` remains injectable only as a test/fake boundary; production should use the configured Google verifier.
+
+After push authentication, RTDN is still only a change signal: the gateway hashes the purchase token to resolve ownership and re-queries the Android Publisher API before changing entitlement. Notification type or subscription ID supplied by the RTDN payload is never sufficient to grant Pro.
+
 ## Production setup checklist
 
 - Create subscription/base plans/offers in Play Console.
@@ -51,7 +66,10 @@ Production mapping uses the current `purchases.subscriptionsv2` state and expiry
 - Provision a Google Cloud service account with only required Android Publisher access.
 - Store `GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL` and `GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY` only in the deployment secret store.
 - Grant the service account access to the Play Console app and verify `purchases.subscriptionsv2.get` against a license-test purchase.
-- Configure authenticated RTDN Pub/Sub push and verify push JWTs.
+- Create the RTDN Pub/Sub topic and authenticated push subscription.
+- Configure the push subscription's user-managed service account and exact HTTPS OIDC audience.
+- Configure matching `PUBSUB_PUSH_SERVICE_ACCOUNT_EMAIL` and `PUBSUB_PUSH_AUDIENCE` values on the gateway.
+- Grant the Pub/Sub service agent the permissions required to mint OIDC tokens for the selected push service account.
 - Test license-test accounts, grace period, account hold, cancellation, expiration and revoke flows.
 
 No production deployment is claimed until those external Play Console / Google Cloud steps are completed and exercised against the internal-test track.

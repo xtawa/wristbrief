@@ -38,6 +38,23 @@ class MembershipApiTest {
     }
 
     @Test
+    fun bindsMembershipSnapshotToTheSessionUser() {
+        val session = AccountSession(sessionToken, "2026-10-01T00:00:00Z", AccountUser("usr_123"))
+        val matching = MembershipSnapshotResult.Success(
+            ServerMembershipSnapshot("usr_123", "PRO", "billing", null, 10, 2, 8),
+        )
+        val otherUser = MembershipSnapshotResult.Success(
+            ServerMembershipSnapshot("usr_other", "PRO", "billing", null, 10, 2, 8),
+        )
+
+        assertEquals(matching, membershipResultForSession(session, matching))
+        assertEquals(
+            MembershipSnapshotResult.Failure("membership_identity_mismatch"),
+            membershipResultForSession(session, otherUser),
+        )
+    }
+
+    @Test
     fun rejectsInconsistentOrClientLikeMembershipSnapshots() {
         assertEquals(
             MembershipSnapshotResult.Failure("invalid_membership_response"),

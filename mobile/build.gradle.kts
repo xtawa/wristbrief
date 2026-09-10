@@ -9,10 +9,12 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "ink.underflo.wristbrief.mobile"
+        // Data Layer requires phone and Wear packages (and production signatures) to match.
+        applicationId = "ink.underflo.wristbrief"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
+        // Shared Play package uses separate multi-APK lanes: 2xxxxxx = mobile, 3xxxxxx = Wear.
+        versionCode = 2000100
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField(

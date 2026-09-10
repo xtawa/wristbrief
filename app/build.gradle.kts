@@ -8,7 +8,6 @@ fun String.asBuildConfigString(): String =
     "\"" + replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
 val wristBriefGatewayUrl = providers.gradleProperty("WRISTBRIEF_GATEWAY_URL").orElse("").get()
-val wristBriefGatewayToken = providers.gradleProperty("WRISTBRIEF_GATEWAY_TOKEN").orElse("").get()
 
 android {
     namespace = "ink.underflo.wristbrief"
@@ -18,11 +17,13 @@ android {
         applicationId = "ink.underflo.wristbrief"
         minSdk = 30
         targetSdk = 35
-        versionCode = 1
+        // Shared Play package uses separate multi-APK lanes: 3xxxxxx = Wear, 2xxxxxx = mobile.
+        versionCode = 3000100
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "AI_GATEWAY_URL", wristBriefGatewayUrl.asBuildConfigString())
-        buildConfigField("String", "AI_GATEWAY_TOKEN", wristBriefGatewayToken.asBuildConfigString())
+        // Never embed the legacy server bearer in an APK. Wear account-session bridging is runtime-only.
+        buildConfigField("String", "AI_GATEWAY_TOKEN", "".asBuildConfigString())
     }
 
     buildFeatures { compose = true; buildConfig = true }

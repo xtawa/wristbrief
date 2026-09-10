@@ -6,7 +6,7 @@ This document tracks the P8.1 account layer that will live inside the existing s
 
 Google email is display/recovery metadata only. The durable external identity key is the verified Google OpenID Connect `sub` claim. WristBrief maps `(provider = google, provider_subject = sub)` to an immutable internal `userId`; entitlement, managed-AI quota, Play purchase ownership and future account data use that internal ID.
 
-## Current foundation
+## Google identity foundation
 
 The gateway has a production Google ID-token verifier boundary that:
 
@@ -22,11 +22,26 @@ Production configuration uses `GOOGLE_OAUTH_CLIENT_ID`, which is the server/web 
 
 The D1-compatible `0003_google_identity.sql` migration adds `users` and `identities` tables with a unique `(provider, provider_subject)` identity key. It is not automatically applied and does not claim a production deployment.
 
+## WristBrief session foundation
+
+Google ID tokens are exchange credentials, not the long-lived credential used for normal WristBrief API calls. After successful Google verification and identity resolution, the Gateway will issue its own revocable session bearer.
+
+The session foundation:
+
+- generates 256 bits of random session-token entropy on the server;
+- prefixes opaque bearer credentials with `wbs_` for strict parsing;
+- stores only the SHA-256 token hash, never the raw bearer;
+- expires sessions with a bounded server-owned TTL (30 days by default, at most 90 days);
+- supports server-side revocation and fails closed for expired/revoked/malformed credentials;
+- keeps the internal WristBrief `userId` as the authenticated principal.
+
+`0004_account_sessions.sql` adds the D1-compatible session table with a unique token hash and user foreign key. As with the other migrations, schema presence is not a claim that production D1 has already been provisioned or migrated.
+
 ## Planned next steps
 
-1. Add a durable D1 implementation of the account identity store with transaction-safe resolve/create behavior.
-2. Add short-lived sign-in challenges/nonces and a server-owned session model.
-3. Expose `POST /v1/auth/google`, verify the ID token and challenge, resolve the internal user, then issue an expiring WristBrief session credential.
+1. Add a durable D1 implementation of the account identity and session stores with transaction-safe identity resolve/create behavior.
+2. Add short-lived sign-in challenges/nonces where needed by the Android sign-in flow.
+3. Expose `POST /v1/auth/google`, verify the ID token, resolve the internal user, then issue an expiring WristBrief session credential.
 4. Make normal Gateway authentication accept WristBrief sessions while retaining an explicit migration path from the current legacy gateway token.
 5. Add the phone Credential Manager / Sign in with Google flow and store only the WristBrief session credential locally.
 6. Bind Play restore and RTDN ownership to the authenticated internal user ID.

@@ -7,6 +7,7 @@ import {
   processPlayRtdn,
   restorePlayPurchase
 } from "./billingServer";
+import { InMemoryRtdnDedupStore } from "./rtdnDedupStore";
 
 const packageName = "ink.underflo.wristbrief";
 const productId = "wristbrief_pro";
@@ -27,16 +28,18 @@ function env(status: "active" | "canceled" | "expired" | "grace" | "on_hold" | "
       PLAY_SUBSCRIPTION_PRODUCT_IDS: productId,
       PLAY_PURCHASE_VERIFIER: verifier,
       PLAY_BILLING_STATE_STORE: store,
-      PUBSUB_PUSH_AUTHENTICATOR: new FakePubSubPushAuthenticator(true)
+      PUBSUB_PUSH_AUTHENTICATOR: new FakePubSubPushAuthenticator(true),
+      RTDN_DEDUP_STORE: new InMemoryRtdnDedupStore()
     }
   };
 }
 
-function rtdnRequest(payload: Record<string, unknown>) {
+let nextMessage = 0;
+function rtdnRequest(payload: Record<string, unknown>, messageId = `msg-${++nextMessage}`) {
   const data = btoa(JSON.stringify(payload));
   return new Request("https://gateway.example/v1/billing/rtdn", {
     method: "POST",
-    body: JSON.stringify({ message: { data } })
+    body: JSON.stringify({ message: { data, messageId } })
   });
 }
 
@@ -103,6 +106,35 @@ describe("Play billing server foundation", () => {
     expect(setup.store.entitlements.get("u1")?.plan).toBe("PRO");
   });
 
+  it("deduplicates the same Pub/Sub message before a second Play verification", async () => {
+    const setup = env("active");
+    await restorePlayPurchase({ id: "u1" }, { packageName, productId, purchaseToken: "dedup-token" }, setup.value);
+    const payload = { packageName, subscriptionNotification: { purchaseToken: "dedup-token" } };
+
+    expect((await processPlayRtdn(rtdnRequest(payload, "pubsub-42"), setup.value).then((value) => value.status))).toBe(204);
+    expect((await processPlayRtdn(rtdnRequest(payload, "pubsub-42"), setup.value).then((value) => value.status))).toBe(204);
+    expect(setup.verifier.calls).toBe(2); // one restore + exactly one RTDN verification
+  });
+
+  it("releases the message claim when Play verification fails so Pub/Sub retry can recover", async () => {
+    const setup = env("active");
+    await restorePlayPurchase({ id: "u1" }, { packageName, productId, purchaseToken: "retry-token" }, setup.value);
+    let attempts = 0;
+    const retryingVerifier = {
+      async verifySubscription() {
+        attempts += 1;
+        if (attempts === 1) throw new Error("temporary_play_failure");
+        return { packageName, productId, status: "active" as const };
+      }
+    };
+    const retryEnv = { ...setup.value, PLAY_PURCHASE_VERIFIER: retryingVerifier };
+    const payload = { packageName, subscriptionNotification: { purchaseToken: "retry-token" } };
+
+    await expect(processPlayRtdn(rtdnRequest(payload, "pubsub-retry"), retryEnv)).rejects.toThrow("temporary_play_failure");
+    await expect(processPlayRtdn(rtdnRequest(payload, "pubsub-retry"), retryEnv)).resolves.toEqual({ status: 204, body: {} });
+    expect(attempts).toBe(2);
+  });
+
   it("acknowledges authenticated Play Console test notifications without touching entitlement", async () => {
     const setup = env();
     const response = await processPlayRtdn(rtdnRequest({
@@ -125,6 +157,17 @@ describe("Play billing server foundation", () => {
       subscriptionNotification: { purchaseToken: "should-not-be-used" }
     }), setup.value);
 
+    expect(response).toEqual({ status: 400, body: { error: "invalid_rtdn" } });
+    expect(setup.verifier.calls).toBe(0);
+  });
+
+  it("rejects RTDN without a Pub/Sub message id", async () => {
+    const setup = env();
+    const data = btoa(JSON.stringify({ packageName, subscriptionNotification: { purchaseToken: "token" } }));
+    const response = await processPlayRtdn(new Request("https://gateway.example/v1/billing/rtdn", {
+      method: "POST",
+      body: JSON.stringify({ message: { data } })
+    }), setup.value);
     expect(response).toEqual({ status: 400, body: { error: "invalid_rtdn" } });
     expect(setup.verifier.calls).toBe(0);
   });

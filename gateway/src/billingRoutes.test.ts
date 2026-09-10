@@ -5,6 +5,7 @@ import {
   FakePubSubPushAuthenticator,
   InMemoryBillingStateStore
 } from "./billingServer";
+import { InMemoryRtdnDedupStore } from "./rtdnDedupStore";
 
 const baseEnv = {
   AI_API_KEY: "provider-secret",
@@ -26,7 +27,8 @@ function restoreRequest(body: unknown, token = baseEnv.GATEWAY_TOKEN) {
   });
 }
 
-function rtdnRequest(purchaseToken: string) {
+let nextMessage = 0;
+function rtdnRequest(purchaseToken: string, messageId = `route-msg-${++nextMessage}`) {
   const notification = {
     packageName: baseEnv.PLAY_PACKAGE_NAME,
     subscriptionNotification: {
@@ -39,7 +41,7 @@ function rtdnRequest(purchaseToken: string) {
   return new Request("https://gateway.example/v1/billing/rtdn", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message: { data } })
+    body: JSON.stringify({ message: { data, messageId } })
   });
 }
 
@@ -154,7 +156,8 @@ describe("billing HTTP routes", () => {
       ...baseEnv,
       PLAY_PURCHASE_VERIFIER: verifier,
       PLAY_BILLING_STATE_STORE: store,
-      PUBSUB_PUSH_AUTHENTICATOR: new FakePubSubPushAuthenticator(true)
+      PUBSUB_PUSH_AUTHENTICATOR: new FakePubSubPushAuthenticator(true),
+      RTDN_DEDUP_STORE: new InMemoryRtdnDedupStore()
     });
 
     expect(response.status).toBe(204);
@@ -177,7 +180,8 @@ describe("billing HTTP routes", () => {
       ...baseEnv,
       PLAY_PURCHASE_VERIFIER: verifier,
       PLAY_BILLING_STATE_STORE: new InMemoryBillingStateStore(),
-      PUBSUB_PUSH_AUTHENTICATOR: new FakePubSubPushAuthenticator(false)
+      PUBSUB_PUSH_AUTHENTICATOR: new FakePubSubPushAuthenticator(false),
+      RTDN_DEDUP_STORE: new InMemoryRtdnDedupStore()
     });
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual({ error: "unauthorized" });

@@ -2,6 +2,7 @@ import type { AuthenticatedUser, Entitlement } from "./membership";
 import { createConfiguredGooglePlayPurchaseVerifier, type GooglePlayVerifierEnv } from "./googlePlayVerifier";
 import { createConfiguredPubSubPushAuthenticator, type PubSubPushAuthEnv } from "./pubSubPushAuthenticator";
 import { createConfiguredD1BillingStateStore, type DurableMembershipEnv } from "./d1MembershipStore";
+import { createConfiguredD1RtdnDedupStore, type RtdnDedupStore } from "./rtdnDedupStore";
 
 export type PlaySubscriptionStatus = "active" | "canceled" | "expired" | "grace" | "on_hold" | "revoked";
 
@@ -32,13 +33,14 @@ export type BillingServerEnv = GooglePlayVerifierEnv & PubSubPushAuthEnv & Durab
   PLAY_PURCHASE_VERIFIER?: GooglePlayPurchaseVerifier;
   PLAY_BILLING_STATE_STORE?: BillingStateStore;
   PUBSUB_PUSH_AUTHENTICATOR?: PubSubPushAuthenticator;
+  RTDN_DEDUP_STORE?: RtdnDedupStore;
 };
 
 export type BillingResult = { status: number; body: Record<string, unknown> };
 
 type ParsedPlayRtdn =
-  | { kind: "test"; packageName: string }
-  | { kind: "subscription"; packageName: string; purchaseToken: string };
+  | { kind: "test"; packageName: string; messageId: string }
+  | { kind: "subscription"; packageName: string; purchaseToken: string; messageId: string };
 
 export async function restorePlayPurchase(user: AuthenticatedUser, body: unknown, env: BillingServerEnv): Promise<BillingResult> {
   const config = configuredBilling(env);
@@ -64,7 +66,8 @@ export async function restorePlayPurchase(user: AuthenticatedUser, body: unknown
 export async function processPlayRtdn(request: Request, env: BillingServerEnv): Promise<BillingResult> {
   const config = configuredBilling(env);
   const authenticator = env.PUBSUB_PUSH_AUTHENTICATOR ?? createConfiguredPubSubPushAuthenticator(env);
-  if (!config || !authenticator) return result(503, "billing_not_configured");
+  const dedup = env.RTDN_DEDUP_STORE ?? createConfiguredD1RtdnDedupStore(env);
+  if (!config || !authenticator || !dedup) return result(503, "billing_not_configured");
   if (!(await authenticator.verify(request))) return result(401, "unauthorized");
   const notification = await parseRtdn(request);
   if (!notification) return result(400, "invalid_rtdn");
@@ -74,10 +77,20 @@ export async function processPlayRtdn(request: Request, env: BillingServerEnv): 
   const tokenHash = await sha256(notification.purchaseToken);
   const userId = await config.store.userForTokenHash(tokenHash);
   if (!userId) return { status: 204, body: {} };
-  const verified = await config.verifier.verifySubscription({ packageName: config.packageName, purchaseToken: notification.purchaseToken });
-  if (verified.packageName !== config.packageName || !config.productIds.has(verified.productId)) return result(400, "purchase_mismatch");
-  await config.store.setBillingEntitlement(userId, entitlementFor(verified));
-  return { status: 204, body: {} };
+
+  const claimed = await dedup.claim(notification.messageId);
+  if (!claimed) return { status: 204, body: {} };
+
+  try {
+    const verified = await config.verifier.verifySubscription({ packageName: config.packageName, purchaseToken: notification.purchaseToken });
+    if (verified.packageName !== config.packageName || !config.productIds.has(verified.productId)) return result(400, "purchase_mismatch");
+    await config.store.setBillingEntitlement(userId, entitlementFor(verified));
+    return { status: 204, body: {} };
+  } catch (error) {
+    // Do not convert a transient verifier/storage failure into a permanently acknowledged duplicate.
+    await dedup.release(notification.messageId);
+    throw error;
+  }
 }
 
 export function entitlementFor(subscription: VerifiedPlaySubscription): Entitlement {
@@ -107,7 +120,7 @@ export class FakeGooglePlayPurchaseVerifier implements GooglePlayPurchaseVerifie
 
 export class FakePubSubPushAuthenticator implements PubSubPushAuthenticator {
   constructor(private readonly allowed = true) {}
-  async verify(request: Request): Promise<boolean> { return this.allowed; }
+  async verify(_request: Request): Promise<boolean> { return this.allowed; }
 }
 
 function configuredBilling(env: BillingServerEnv) {
@@ -130,9 +143,10 @@ function parseRestoreBody(value: unknown): { packageName: string; productId: str
 
 async function parseRtdn(request: Request): Promise<ParsedPlayRtdn | null> {
   try {
-    const envelope = await request.json() as { message?: { data?: string } };
+    const envelope = await request.json() as { message?: { data?: string; messageId?: string } };
     const data = envelope.message?.data;
-    if (!data) return null;
+    const messageId = envelope.message?.messageId?.trim();
+    if (!data || !messageId || messageId.length > 512) return null;
     const decoded = JSON.parse(decodeBase64Utf8(data)) as {
       packageName?: string;
       subscriptionNotification?: { purchaseToken?: string } | null;
@@ -144,9 +158,9 @@ async function parseRtdn(request: Request): Promise<ParsedPlayRtdn | null> {
     const purchaseToken = decoded.subscriptionNotification?.purchaseToken?.trim();
     const isTest = decoded.testNotification !== undefined && decoded.testNotification !== null;
     if (isTest && purchaseToken) return null;
-    if (isTest) return { kind: "test", packageName };
+    if (isTest) return { kind: "test", packageName, messageId };
     if (!purchaseToken || purchaseToken.length > 4096) return null;
-    return { kind: "subscription", packageName, purchaseToken };
+    return { kind: "subscription", packageName, purchaseToken, messageId };
   } catch { return null; }
 }
 

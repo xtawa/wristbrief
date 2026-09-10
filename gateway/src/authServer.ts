@@ -30,7 +30,15 @@ export type AuthResult = {
   body: Record<string, unknown>;
 };
 
-export async function exchangeGoogleIdToken(body: unknown, env: AuthServerEnv): Promise<AuthResult> {
+export type GoogleExchangeOptions = {
+  existingUserId?: string;
+};
+
+export async function exchangeGoogleIdToken(
+  body: unknown,
+  env: AuthServerEnv,
+  options: GoogleExchangeOptions = {}
+): Promise<AuthResult> {
   const idToken = parseIdToken(body);
   if (!idToken) return result(400, "invalid_request");
 
@@ -44,7 +52,10 @@ export async function exchangeGoogleIdToken(body: unknown, env: AuthServerEnv): 
   if (!verified) return result(401, "invalid_google_identity");
 
   try {
-    const identity = await new AccountIdentityService(identityStore).resolveGoogle(verified);
+    const identities = new AccountIdentityService(identityStore);
+    const identity = options.existingUserId
+      ? await identities.linkGoogleToExistingUser(options.existingUserId, verified)
+      : await identities.resolveGoogle(verified);
     const sessions = new AccountSessionService(sessionStore, {
       ttlSeconds: parseSessionTtl(env.ACCOUNT_SESSION_TTL_SECONDS)
     });
@@ -59,6 +70,7 @@ export async function exchangeGoogleIdToken(body: unknown, env: AuthServerEnv): 
       }
     };
   } catch (error) {
+    if (error instanceof Error && error.message === "identity_conflict") return result(409, "identity_conflict");
     if (error instanceof Error && error.message === "account_disabled") return result(403, "account_disabled");
     return result(503, "auth_unavailable");
   }

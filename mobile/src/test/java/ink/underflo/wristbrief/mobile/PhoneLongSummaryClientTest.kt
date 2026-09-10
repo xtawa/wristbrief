@@ -81,6 +81,22 @@ class PhoneLongSummaryClientTest {
     }
 
     @Test
+    fun `maps byok provider credential rejection separately from gateway auth`() {
+        assertEquals(
+            PhoneSummaryFailure.ByokProviderUnauthorized,
+            mapPhoneSummaryStatus(status = 422, isByokRequest = true),
+        )
+        assertEquals(
+            PhoneSummaryFailure.InvalidResponse,
+            mapPhoneSummaryStatus(status = 422, isByokRequest = false),
+        )
+        assertEquals(
+            PhoneSummaryFailure.Unauthorized,
+            mapPhoneSummaryStatus(status = 401, isByokRequest = true),
+        )
+    }
+
+    @Test
     fun `omits null title from request payload`() {
         val transport = RecordingTransport(validResponse())
         PhoneLongSummaryClient(transport).summarize(
@@ -186,6 +202,41 @@ class PhoneLongSummaryClientTest {
 
         assertEquals(PhoneSummaryFailure.ProviderUnavailable, error.failure)
         assertFalse(error.message.orEmpty().contains("never-log-this-key"))
+    }
+
+    @Test
+    fun `does not expose byok key for provider credential rejection`() {
+        val client = PhoneLongSummaryClient(
+            object : PhoneSummaryTransport {
+                override fun post(endpoint: String, bearerToken: String, jsonBody: String): String = validResponse()
+
+                override fun postWithHeaders(
+                    endpoint: String,
+                    bearerToken: String,
+                    jsonBody: String,
+                    headers: Map<String, String>,
+                ): String {
+                    throw PhoneSummaryRequestException(PhoneSummaryFailure.ByokProviderUnauthorized)
+                }
+            },
+        )
+
+        val error = runCatching {
+            client.summarizeByok(
+                gatewayUrl = "https://gateway.example.com",
+                gatewayToken = "session",
+                title = null,
+                content = "body",
+                config = PhoneByokConfig(
+                    provider = PhoneByokProvider.OpenRouter,
+                    model = "openai/gpt-5-mini",
+                    apiKey = "revoked-provider-secret",
+                ),
+            )
+        }.exceptionOrNull() as PhoneSummaryRequestException
+
+        assertEquals(PhoneSummaryFailure.ByokProviderUnauthorized, error.failure)
+        assertFalse(error.message.orEmpty().contains("revoked-provider-secret"))
     }
 
     @Test

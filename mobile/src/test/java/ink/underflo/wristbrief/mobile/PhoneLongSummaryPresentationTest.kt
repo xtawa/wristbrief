@@ -91,6 +91,10 @@ class PhoneLongSummaryPresentationTest {
             phoneLongSummaryFailureState(PhoneSummaryFailure.Unauthorized),
         )
         assertEquals(
+            PhoneLongSummaryUiState.Error("The selected AI provider rejected this BYOK key. Check or replace the provider key and try again."),
+            phoneLongSummaryFailureState(PhoneSummaryFailure.ByokProviderUnauthorized),
+        )
+        assertEquals(
             PhoneLongSummaryUiState.Error("Managed AI quota is currently exhausted."),
             phoneLongSummaryFailureState(PhoneSummaryFailure.Quota),
         )

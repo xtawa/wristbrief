@@ -39,6 +39,7 @@ fun phoneLongSummaryFailureState(failure: PhoneSummaryFailure): PhoneLongSummary
         when (failure) {
             PhoneSummaryFailure.Network -> "Could not reach WristBrief Gateway. Check the connection and try again."
             PhoneSummaryFailure.Unauthorized -> "Gateway authentication was rejected. Check the access token and try again."
+            PhoneSummaryFailure.ByokProviderUnauthorized -> "The selected AI provider rejected this BYOK key. Check or replace the provider key and try again."
             PhoneSummaryFailure.Quota -> "Managed AI quota is currently exhausted."
             PhoneSummaryFailure.ProviderUnavailable -> "The configured AI provider is temporarily unavailable."
             PhoneSummaryFailure.InvalidResponse -> "The Gateway returned an invalid or unsupported summary response."

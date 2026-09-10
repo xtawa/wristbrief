@@ -48,7 +48,12 @@ internal class OkHttpPhoneSummaryTransport(
         try {
             client.newCall(requestBuilder.build()).execute().use { response ->
                 if (!response.isSuccessful) {
-                    throw PhoneSummaryRequestException(mapStatus(response.code))
+                    throw PhoneSummaryRequestException(
+                        mapPhoneSummaryStatus(
+                            status = response.code,
+                            isByokRequest = headers.containsKey(BYOK_API_KEY_HEADER),
+                        ),
+                    )
                 }
                 val body = response.body?.string().orEmpty()
                 if (body.isBlank()) throw PhoneSummaryRequestException(PhoneSummaryFailure.InvalidResponse)
@@ -60,18 +65,20 @@ internal class OkHttpPhoneSummaryTransport(
             throw PhoneSummaryRequestException(PhoneSummaryFailure.Network)
         }
     }
+}
 
-    private fun mapStatus(status: Int): PhoneSummaryFailure = when (status) {
-        401, 403 -> PhoneSummaryFailure.Unauthorized
-        429 -> PhoneSummaryFailure.Quota
-        502, 503, 504 -> PhoneSummaryFailure.ProviderUnavailable
-        else -> PhoneSummaryFailure.InvalidResponse
-    }
+internal fun mapPhoneSummaryStatus(status: Int, isByokRequest: Boolean): PhoneSummaryFailure = when {
+    status == 401 || status == 403 -> PhoneSummaryFailure.Unauthorized
+    status == 422 && isByokRequest -> PhoneSummaryFailure.ByokProviderUnauthorized
+    status == 429 -> PhoneSummaryFailure.Quota
+    status == 502 || status == 503 || status == 504 -> PhoneSummaryFailure.ProviderUnavailable
+    else -> PhoneSummaryFailure.InvalidResponse
 }
 
 enum class PhoneSummaryFailure {
     Network,
     Unauthorized,
+    ByokProviderUnauthorized,
     Quota,
     ProviderUnavailable,
     InvalidResponse,

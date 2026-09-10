@@ -20,6 +20,7 @@ import {
   type SummaryCacheEnv
 } from "./summaryCache";
 import {
+  authenticateGatewayUser,
   createMembershipService,
   type MembershipEnv
 } from "./membership";
@@ -67,8 +68,15 @@ export default {
           parsedBody.error === "request_too_large" ? 413 : 400
         );
       }
+      const linkLegacy = requestsLegacyLink(parsedBody.value);
+      const legacyUser = linkLegacy ? authenticateGatewayUser(request, env) : null;
+      if (linkLegacy && !legacyUser) return respond({ error: "legacy_auth_required" }, 401);
       try {
-        return respondAuth(await exchangeGoogleIdToken(parsedBody.value, env));
+        return respondAuth(await exchangeGoogleIdToken(
+          parsedBody.value,
+          env,
+          legacyUser ? { existingUserId: legacyUser.id } : {}
+        ));
       } catch {
         return respond({ error: "auth_unavailable" }, 503);
       }
@@ -215,6 +223,10 @@ export default {
     }
   }
 };
+
+function requestsLegacyLink(value: unknown): boolean {
+  return Boolean(value && typeof value === "object" && (value as Record<string, unknown>).linkLegacy === true);
+}
 
 async function summarizeWithFallback(
   registry: AiProviderRegistry,

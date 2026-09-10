@@ -122,7 +122,7 @@ describe("D1 account stores", () => {
     expect(db.identities.get("sub-1")?.email).toBe("new@example.com");
   });
 
-  it("creates the legacy user before linking Google sub and rejects conflicting ownership", async () => {
+  it("creates the legacy user before linking Google sub and rejects conflicting ownership without deleting the legacy principal", async () => {
     const db = new FakeD1();
     const store = new D1AccountIdentityStore(db as unknown as D1Database);
     const base = {
@@ -145,7 +145,7 @@ describe("D1 account stores", () => {
       userId: "legacy-user-b",
       email: "attacker@example.com"
     })).rejects.toThrow("identity_conflict");
-    expect(db.users.has("legacy-user-b")).toBe(false);
+    expect(db.users.has("legacy-user-b")).toBe(true);
     expect(db.identities.get("sub-link")).toMatchObject({
       userId: "legacy-user-a",
       email: "updated@example.com"

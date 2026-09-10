@@ -58,16 +58,15 @@ export class D1AccountIdentityStore implements AccountIdentityStore {
         "UPDATE identities SET email = ?, display_name = ?, picture_url = ?, updated_at = CURRENT_TIMESTAMP WHERE provider = 'google' AND provider_subject = ? AND user_id = ?"
       ).bind(input.email, input.displayName ?? null, input.pictureUrl ?? null, input.providerSubject, input.userId),
       this.db.prepare(
-        "DELETE FROM users WHERE id = ? AND NOT EXISTS (SELECT 1 FROM identities WHERE user_id = ?)"
-      ).bind(input.userId, input.userId),
-      this.db.prepare(
         "SELECT i.user_id, u.status FROM identities i JOIN users u ON u.id = i.user_id WHERE i.provider = 'google' AND i.provider_subject = ? LIMIT 1"
       ).bind(input.providerSubject)
     ];
 
     const results = await this.db.batch<{ user_id?: string; status?: string }>(statements);
-    const row = results[4]?.results?.[0];
+    const row = results[3]?.results?.[0];
     if (!row?.user_id) throw new Error("identity_persistence_failed");
+    // Unlike resolve-or-create, input.userId is an authenticated legacy principal rather than a
+    // disposable random candidate. Never delete it when the Google subject belongs to someone else.
     if (row.user_id !== input.userId) throw new Error("identity_conflict");
     if (row.status !== "active") throw new Error("account_disabled");
     return { userId: row.user_id, created: (results[1]?.meta?.changes ?? 0) > 0 };

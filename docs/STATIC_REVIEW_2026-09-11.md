@@ -4,11 +4,11 @@ This review was performed while GitHub Actions execution was unavailable because
 
 ## Fixed statically in this review
 
-### D1 Google identity linking order
+### D1 Google identity linking order and conflict preservation
 
 `identities.user_id` references `users.id` with foreign keys enabled. The legacy-to-Google link path previously attempted to insert the identity before ensuring that the legacy user existed in `users`, which could fail on a real D1 database even though the FakeD1 tests passed.
 
-The link batch now creates the candidate/existing user row before inserting the Google identity, removes an unreferenced losing candidate after an identity conflict, and derives `created` from the identity insertion rather than the user insertion. FakeD1 now enforces the same parent-before-child requirement so the ordering regression is testable.
+The link path now ensures the authenticated legacy user row exists before inserting the Google identity. A conflict never deletes that legacy principal: if the Google `sub` already belongs to another user, the link fails and the legacy account remains intact. The separate normal Google sign-in `resolveOrCreate` path may still remove its own unreferenced losing candidate user because that ID is newly generated and disposable. FakeD1 now enforces parent-before-child foreign-key ordering and tests both cleanup semantics.
 
 ### Corrupt Data Layer subscription payloads
 
@@ -74,6 +74,12 @@ Before paid quota enforcement is considered cost-safe, replace the check-then-ac
 RTDN entitlement writes are idempotent, but Pub/Sub is at-least-once and the current route does not deduplicate the Pub/Sub `messageId`. Duplicate deliveries can therefore repeat Android Publisher verification and consume avoidable Google API quota.
 
 Add bounded durable message-id deduplication before production scale. Authentication must happen before accepting the dedup key, and deduplication must never make an unauthenticated payload capable of suppressing a later legitimate notification.
+
+### Gateway dependency reproducibility
+
+`gateway/` currently has no committed `package-lock.json`; CI uses `npm install`, and TypeScript uses a caret range. A source-identical build can therefore resolve a different dependency graph later.
+
+When registry/Actions access is available, generate the lockfile with the real npm resolver, review it, commit it, and change CI to `npm ci`. Do not hand-author a guessed lockfile while the registry is unavailable.
 
 ### External Android/Play configuration after package alignment
 

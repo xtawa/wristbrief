@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   GoogleAndroidPublisherPurchaseVerifier,
   GooglePlayVerificationError,
@@ -16,14 +16,19 @@ function playResponse(state = "SUBSCRIPTION_STATE_ACTIVE", productId = "wristbri
 
 describe("Google Android Publisher purchase verifier", () => {
   it("calls only the fixed subscriptionsv2 endpoint with OAuth in the header", async () => {
-    const fetchImpl = vi.fn(async (..._args: Parameters<typeof fetch>) => playResponse());
-    const verifier = new GoogleAndroidPublisherPurchaseVerifier(accessTokens, fetchImpl as typeof fetch);
+    let calledUrl = "";
+    let calledInit: RequestInit | undefined;
+    const fetchImpl: typeof fetch = async (input, init) => {
+      calledUrl = String(input);
+      calledInit = init;
+      return playResponse();
+    };
+    const verifier = new GoogleAndroidPublisherPurchaseVerifier(accessTokens, fetchImpl);
     await expect(verifier.verifySubscription({ packageName, purchaseToken })).resolves.toEqual({
       packageName, productId: "wristbrief_pro", status: "active", expiresAt: "2026-10-01T00:00:00.000Z"
     });
-    const [url, init] = fetchImpl.mock.calls[0]!;
-    expect(url).toBe("https://androidpublisher.googleapis.com/androidpublisher/v3/applications/ink.underflo.wristbrief/purchases/subscriptionsv2/tokens/secret%2Ftoken%2Bvalue");
-    expect(init).toMatchObject({ method: "GET", redirect: "error", headers: { Accept: "application/json", Authorization: "Bearer oauth-access-token" } });
+    expect(calledUrl).toBe("https://androidpublisher.googleapis.com/androidpublisher/v3/applications/ink.underflo.wristbrief/purchases/subscriptionsv2/tokens/secret%2Ftoken%2Bvalue");
+    expect(calledInit).toMatchObject({ method: "GET", redirect: "error", headers: { Accept: "application/json", Authorization: "Bearer oauth-access-token" } });
   });
 
   it.each([
@@ -36,25 +41,27 @@ describe("Google Android Publisher purchase verifier", () => {
     ["SUBSCRIPTION_STATE_PAUSED", "revoked"],
     ["SUBSCRIPTION_STATE_PENDING_PURCHASE_CANCELED", "revoked"]
   ])("maps %s to %s", async (playState, expected) => {
-    const verifier = new GoogleAndroidPublisherPurchaseVerifier(accessTokens, vi.fn(async () => playResponse(playState)) as unknown as typeof fetch);
+    const fetchImpl: typeof fetch = async () => playResponse(playState);
+    const verifier = new GoogleAndroidPublisherPurchaseVerifier(accessTokens, fetchImpl);
     await expect(verifier.verifySubscription({ packageName, purchaseToken })).resolves.toMatchObject({ status: expected });
   });
 
   it("fails closed when Play returns multiple distinct products", async () => {
-    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({
+    const fetchImpl: typeof fetch = async () => new Response(JSON.stringify({
       subscriptionState: "SUBSCRIPTION_STATE_ACTIVE",
       lineItems: [
         { productId: "wristbrief_pro", expiryTime: "2026-10-01T00:00:00Z" },
         { productId: "other_product", expiryTime: "2026-11-01T00:00:00Z" }
       ]
-    }), { status: 200 }));
-    const verifier = new GoogleAndroidPublisherPurchaseVerifier(accessTokens, fetchImpl as typeof fetch);
+    }), { status: 200 });
+    const verifier = new GoogleAndroidPublisherPurchaseVerifier(accessTokens, fetchImpl);
     await expect(verifier.verifySubscription({ packageName, purchaseToken })).rejects.toMatchObject({ code: "ambiguous_play_product" });
   });
 
   it("does not surface purchase tokens or upstream error bodies", async () => {
     const upstreamBody = "credential details that must stay private";
-    const verifier = new GoogleAndroidPublisherPurchaseVerifier(accessTokens, vi.fn(async () => new Response(upstreamBody, { status: 403 })) as unknown as typeof fetch);
+    const fetchImpl: typeof fetch = async () => new Response(upstreamBody, { status: 403 });
+    const verifier = new GoogleAndroidPublisherPurchaseVerifier(accessTokens, fetchImpl);
     let caught: unknown;
     try { await verifier.verifySubscription({ packageName, purchaseToken }); } catch (error) { caught = error; }
     expect(caught).toBeInstanceOf(GooglePlayVerificationError);
@@ -75,14 +82,18 @@ describe("Google Android Publisher purchase verifier", () => {
 
 describe("Google service-account access tokens", () => {
   it("signs the Android Publisher OAuth assertion and caches the returned access token", async () => {
-    const keys = await crypto.subtle.generateKey(
+    const generated = await crypto.subtle.generateKey(
       { name: "RSASSA-PKCS1-v1_5", modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256" },
       true,
       ["sign", "verify"]
     );
-    if (!("privateKey" in keys)) throw new Error("expected generated RSA key pair");
-    const pem = toPem(new Uint8Array(await crypto.subtle.exportKey("pkcs8", keys.privateKey)));
-    const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+    if (!("privateKey" in generated)) throw new Error("expected generated RSA key pair");
+    const pem = toPem(new Uint8Array(await crypto.subtle.exportKey("pkcs8", generated.privateKey)));
+    let fetchCount = 0;
+    let tokenEndpoint = "";
+    const fetchImpl: typeof fetch = async (input, init) => {
+      fetchCount += 1;
+      tokenEndpoint = String(input);
       const assertion = new URLSearchParams(String(init?.body ?? "")).get("assertion");
       expect(assertion).toBeTruthy();
       const [, payload] = assertion!.split(".");
@@ -94,14 +105,14 @@ describe("Google service-account access tokens", () => {
         exp: 1_800_003_600
       });
       return new Response(JSON.stringify({ access_token: "server-oauth-token", expires_in: 3600 }), { status: 200 });
-    });
+    };
     const provider = new GoogleServiceAccountAccessTokenProvider(
-      "service@example.iam.gserviceaccount.com", pem, fetchImpl as typeof fetch, () => 1_800_000_000_000
+      "service@example.iam.gserviceaccount.com", pem, fetchImpl, () => 1_800_000_000_000
     );
     await expect(provider.getAccessToken()).resolves.toBe("server-oauth-token");
     await expect(provider.getAccessToken()).resolves.toBe("server-oauth-token");
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
-    expect(fetchImpl.mock.calls[0]?.[0]).toBe("https://oauth2.googleapis.com/token");
+    expect(fetchCount).toBe(1);
+    expect(tokenEndpoint).toBe("https://oauth2.googleapis.com/token");
   });
 });
 

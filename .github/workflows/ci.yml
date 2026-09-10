@@ -26,7 +26,31 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - run: gradle :app:testDebugUnitTest :app:assembleDebug :mobile:testDebugUnitTest :mobile:assembleDebug --stacktrace
+      - name: Test and build debug apps
+        run: gradle :app:testDebugUnitTest :app:assembleDebug :mobile:testDebugUnitTest :mobile:assembleDebug --stacktrace
+      - name: Build unsigned release artifacts
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: gradle :app:assembleRelease :app:bundleRelease :mobile:assembleRelease :mobile:bundleRelease --stacktrace
+      - name: Upload Wear release artifacts
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: wristbrief-wear-release-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/bundle/release/*.aab
+      - name: Upload Mobile release artifacts
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: wristbrief-mobile-release-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            mobile/build/outputs/apk/release/*.apk
+            mobile/build/outputs/bundle/release/*.aab
 
   gateway:
     runs-on: ubuntu-latest

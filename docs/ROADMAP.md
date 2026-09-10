@@ -114,13 +114,13 @@ Implement after the current production RTDN hardening, and before calling the me
 
 #### Target framework
 
-- [ ] Use Google OAuth / OpenID Connect on the phone as the primary account sign-in path.
-- [ ] The phone obtains a Google ID token through the current Android-recommended identity flow; the Gateway verifies the token server-side before trusting any identity claim.
-- [ ] Never use Google email as the durable membership key. Persist a provider identity keyed by `(provider = google, providerSubject = Google sub)` and map it to an immutable WristBrief `userId`.
-- [ ] Keep entitlement, managed-AI quota, Play purchase ownership and future account data keyed by the internal `userId`, not by device ID, email, Android account name or raw purchase token.
-- [ ] Use durable serverless storage for authoritative account state (D1-compatible schema preferred). KV/cache may accelerate reads but must not become the membership source of truth.
-- [ ] Keep the current Gateway as the single server authority for `/v1/me`, auth sessions, entitlement and quota decisions.
-- [ ] Do not ship Google client secrets, Play service-account material, session signing secrets or provider credentials in the APK.
+- [x] Use Google OAuth / OpenID Connect on the phone as the primary account sign-in path.
+- [x] The phone obtains a Google ID token through the current Android-recommended identity flow; the Gateway verifies the token server-side before trusting any identity claim.
+- [x] Never use Google email as the durable membership key. Persist a provider identity keyed by `(provider = google, providerSubject = Google sub)` and map it to an immutable WristBrief `userId`.
+- [x] Keep entitlement, managed-AI quota, Play purchase ownership and future account data keyed by the internal `userId`, not by device ID, email, Android account name or raw purchase token.
+- [x] Use durable serverless storage for authoritative account state (D1-compatible schema preferred). KV/cache may accelerate reads but must not become the membership source of truth.
+- [x] Keep the current Gateway as the single server authority for `/v1/me`, auth sessions, entitlement and quota decisions.
+- [x] Do not ship Google client secrets, Play service-account material, session signing secrets or provider credentials in the APK.
 
 #### Authentication flow
 
@@ -144,20 +144,20 @@ Implement after the current production RTDN hardening, and before calling the me
 
 #### Planned serverless data model
 
-- [ ] `users`: immutable WristBrief user ID + created/status metadata.
-- [ ] `identities`: provider, provider subject (`sub`), user ID, optional display/email metadata; unique on provider + provider subject.
-- [ ] `sessions`: revocable/expiring session records or equivalent signed-session design with a server-side revocation strategy; never store raw bearer tokens when a one-way hash is sufficient.
-- [ ] `entitlements`: authoritative FREE/PRO state, source, expiry/status metadata and last verification time.
-- [ ] `play_purchase_bindings`: purchase-token hash -> internal user ID + package/product/status metadata; raw purchase token is not persisted unless a narrowly justified Google re-query workflow requires protected storage.
-- [ ] `quota_usage`: managed-AI quota counters keyed by internal user ID and quota window; BYOK remains excluded.
+- [x] `users`: immutable WristBrief user ID + created/status metadata.
+- [x] `identities`: provider, provider subject (`sub`), user ID, optional display/email metadata; unique on provider + provider subject.
+- [x] `sessions`: revocable/expiring session records or equivalent signed-session design with a server-side revocation strategy; never store raw bearer tokens when a one-way hash is sufficient.
+- [x] `entitlements`: authoritative FREE/PRO state, source, expiry/status metadata and last verification time.
+- [x] `play_purchase_bindings`: purchase-token hash -> internal user ID + package/product/status metadata; raw purchase token is not persisted unless a narrowly justified Google re-query workflow requires protected storage.
+- [x] `quota_usage`: managed-AI quota counters keyed by internal user ID and quota window; BYOK remains excluded.
 
 #### Migration and recovery
 
-- [ ] Define a one-time upgrade path from the current serverless identity to Google-backed identity without silently creating duplicate paid accounts.
+- [x] Define a one-time upgrade path from the current serverless identity to Google-backed identity without silently creating duplicate paid accounts.
 - [ ] On first Google sign-in, explicitly link the existing authenticated WristBrief identity/session to the verified `(google, sub)` only after ownership checks pass.
 - [ ] Preserve existing entitlement/quota state when linking identities; add tests for duplicate Google identity, conflicting purchase ownership and repeated linking.
-- [ ] Define account deletion, session revocation and Google-identity unlink behavior before production launch.
-- [ ] Keep account merging/recovery explicit and auditable; never merge accounts solely because email strings match.
+- [x] Define account deletion, session revocation and Google-identity unlink behavior before production launch.
+- [x] Keep account merging/recovery explicit and auditable; never merge accounts solely because email strings match.
 
 #### Acceptance
 

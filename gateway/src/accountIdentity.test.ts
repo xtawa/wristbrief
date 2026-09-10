@@ -37,4 +37,33 @@ describe("Google account identity resolution", () => {
     const service = new AccountIdentityService(new InMemoryAccountIdentityStore(), () => "bad\nuser");
     await expect(service.resolveGoogle(googleIdentity("123", "person@example.com"))).rejects.toThrow("invalid_generated_user_id");
   });
+
+  it("links a first Google identity to the authenticated legacy user id without moving account state", async () => {
+    const store = new InMemoryAccountIdentityStore();
+    const service = new AccountIdentityService(store, () => "unused-new-user");
+
+    const linked = await service.linkGoogleToExistingUser(
+      "legacy-user-1",
+      googleIdentity("google-sub-link", "person@example.com")
+    );
+
+    expect(linked).toEqual({ userId: "legacy-user-1", created: true });
+    expect(store.identityForGoogleSubject("google-sub-link")?.userId).toBe("legacy-user-1");
+  });
+
+  it("makes repeated legacy linking idempotent and rejects a Google sub owned by another user", async () => {
+    const store = new InMemoryAccountIdentityStore();
+    const service = new AccountIdentityService(store, () => "fresh-google-user");
+    const verified = googleIdentity("google-sub-conflict", "person@example.com");
+
+    await expect(service.linkGoogleToExistingUser("legacy-user-1", verified)).resolves.toEqual({
+      userId: "legacy-user-1",
+      created: true
+    });
+    await expect(service.linkGoogleToExistingUser("legacy-user-1", verified)).resolves.toEqual({
+      userId: "legacy-user-1",
+      created: false
+    });
+    await expect(service.linkGoogleToExistingUser("legacy-user-2", verified)).rejects.toThrow("identity_conflict");
+  });
 });

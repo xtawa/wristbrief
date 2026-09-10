@@ -146,6 +146,13 @@ class MainActivity : ComponentActivity() {
 @Composable private fun MembershipDestination(padding: PaddingValues) {
     val context = LocalContext.current
     val activity = context as? Activity
+    val scope = rememberCoroutineScope()
+    val sessionPreferences = remember(context) { AccountSessionPreferences(context) }
+    val accountClient = remember(context) { GoogleAccountAuthClient(context, sessionPreferences = sessionPreferences) }
+    val accountConfigured = remember { accountAuthConfig(BuildConfig.GOOGLE_WEB_CLIENT_ID, BuildConfig.GATEWAY_BASE_URL) != null }
+    var accountSession by remember { mutableStateOf(sessionPreferences.read()) }
+    var accountBusy by remember { mutableStateOf(false) }
+    var accountMessage by remember { mutableStateOf<String?>(null) }
     val repository = remember(context) {
         GooglePlayBillingRepository(
             context = context,
@@ -160,10 +167,63 @@ class MainActivity : ComponentActivity() {
         onDispose { repository.close() }
     }
 
+    val account = accountPresentation(accountConfigured, accountSession)
     val presentation = billingState.toMembershipPresentation()
     LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item { Text("Membership", style = MaterialTheme.typography.headlineMedium) }
-        item { Text("Plans and prices below come from Google Play. Entitlement verification remains server-owned in the next foundation stage.", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        item {
+            when (account) {
+                AccountPresentation.NotConfigured -> MembershipStatusCard(
+                    "Google account not configured",
+                    "Set the production Google web client ID and HTTPS Gateway origin for this build before account sign-in is available.",
+                )
+                AccountPresentation.SignedOut -> Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+                    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("WristBrief account", style = MaterialTheme.typography.titleLarge)
+                        Text("Sign in with Google to bind membership and managed AI quota to your WristBrief account across devices.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Button(
+                            enabled = !accountBusy,
+                            onClick = {
+                                scope.launch {
+                                    accountBusy = true
+                                    accountMessage = null
+                                    when (val result = accountClient.signIn()) {
+                                        is AccountAuthResult.Success -> {
+                                            accountSession = result.session
+                                            accountMessage = "Signed in."
+                                        }
+                                        is AccountAuthResult.Failure -> accountMessage = "Sign-in failed: ${result.code}"
+                                        AccountAuthResult.SignedOut -> accountSession = null
+                                    }
+                                    accountBusy = false
+                                }
+                            },
+                        ) { Text(if (accountBusy) "Signing in…" else "Sign in with Google") }
+                    }
+                }
+                is AccountPresentation.SignedIn -> Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Signed in", style = MaterialTheme.typography.titleLarge)
+                        Text("WristBrief user ${account.userId}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Session expires ${account.expiresAt}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        OutlinedButton(
+                            enabled = !accountBusy,
+                            onClick = {
+                                scope.launch {
+                                    accountBusy = true
+                                    accountClient.signOut()
+                                    accountSession = null
+                                    accountMessage = "Signed out on this device."
+                                    accountBusy = false
+                                }
+                            },
+                        ) { Text(if (accountBusy) "Signing out…" else "Sign out") }
+                    }
+                }
+            }
+        }
+        accountMessage?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant) } }
+        item { Text("Plans and prices below come from Google Play. Final membership remains server-owned and is associated with the signed-in WristBrief account.", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         actionMessage?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant) } }
         when (presentation) {
             MembershipPresentation.Loading -> item { MembershipStatusCard("Loading Play products…", "Checking products and existing purchases.") }
@@ -210,12 +270,12 @@ class MainActivity : ComponentActivity() {
                                         if (result.responseCode == BillingResponseCode.ITEM_ALREADY_OWNED) repository.refresh()
                                     }
                                 },
-                                enabled = !product.alreadyPurchased && activity != null,
-                            ) { Text(if (product.alreadyPurchased) "Already purchased" else "Subscribe") }
+                                enabled = account is AccountPresentation.SignedIn && !product.alreadyPurchased && activity != null,
+                            ) { Text(if (product.alreadyPurchased) "Already purchased" else if (account is AccountPresentation.SignedIn) "Subscribe" else "Sign in to subscribe") }
                         }
                     }
                 }
-                item { OutlinedButton(onClick = { actionMessage = "Refreshing purchases…"; repository.refresh() }) { Text("Restore purchases") } }
+                item { OutlinedButton(onClick = { actionMessage = "Refreshing purchases…"; repository.refresh() }) { Text("Restore Play purchases") } }
             }
         }
     }

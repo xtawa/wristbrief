@@ -49,6 +49,18 @@ internal fun PhoneSummaryAccessMode.toRequestConfig(editor: PhoneByokEditorState
         )
     }
 
+internal fun byokKeyAfterAccessModeChange(
+    previousMode: PhoneSummaryAccessMode,
+    newMode: PhoneSummaryAccessMode,
+    currentKey: String,
+): String = if (previousMode == PhoneSummaryAccessMode.Byok && newMode == PhoneSummaryAccessMode.Managed) "" else currentKey
+
+internal fun byokKeyAfterProviderChange(
+    previousProvider: PhoneByokProvider,
+    newProvider: PhoneByokProvider,
+    currentKey: String,
+): String = if (previousProvider != newProvider) "" else currentKey
+
 @Composable
 fun PhoneLongSummaryDestination(
     padding: PaddingValues,
@@ -88,7 +100,14 @@ fun PhoneLongSummaryDestination(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Button(
-                    onClick = { accessModeName = PhoneSummaryAccessMode.Managed.name },
+                    onClick = {
+                        byokApiKey = byokKeyAfterAccessModeChange(
+                            previousMode = accessMode,
+                            newMode = PhoneSummaryAccessMode.Managed,
+                            currentKey = byokApiKey,
+                        )
+                        accessModeName = PhoneSummaryAccessMode.Managed.name
+                    },
                     enabled = !loading && accessMode != PhoneSummaryAccessMode.Managed,
                     modifier = Modifier.weight(1f),
                 ) { Text("Managed") }
@@ -115,12 +134,26 @@ fun PhoneLongSummaryDestination(
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
                             Button(
-                                onClick = { providerName = PhoneByokProvider.OpenRouter.name },
+                                onClick = {
+                                    byokApiKey = byokKeyAfterProviderChange(
+                                        previousProvider = provider,
+                                        newProvider = PhoneByokProvider.OpenRouter,
+                                        currentKey = byokApiKey,
+                                    )
+                                    providerName = PhoneByokProvider.OpenRouter.name
+                                },
                                 enabled = !loading && provider != PhoneByokProvider.OpenRouter,
                                 modifier = Modifier.weight(1f),
                             ) { Text("OpenRouter") }
                             OutlinedButton(
-                                onClick = { providerName = PhoneByokProvider.Gemini.name },
+                                onClick = {
+                                    byokApiKey = byokKeyAfterProviderChange(
+                                        previousProvider = provider,
+                                        newProvider = PhoneByokProvider.Gemini,
+                                        currentKey = byokApiKey,
+                                    )
+                                    providerName = PhoneByokProvider.Gemini.name
+                                },
                                 enabled = !loading && provider != PhoneByokProvider.Gemini,
                                 modifier = Modifier.weight(1f),
                             ) { Text("Gemini") }
@@ -143,7 +176,7 @@ fun PhoneLongSummaryDestination(
                             enabled = !loading,
                         )
                         Text(
-                            "The provider key is sent only in the dedicated BYOK request header. It is not placed in the request body or saved locally.",
+                            "The provider key is sent only in the dedicated BYOK request header. It is cleared when you leave BYOK mode or switch providers, and is never saved locally.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

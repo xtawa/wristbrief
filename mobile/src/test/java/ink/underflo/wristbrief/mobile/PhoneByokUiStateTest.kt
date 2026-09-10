@@ -45,4 +45,40 @@ class PhoneByokUiStateTest {
         assertEquals("gemini-2.5-flash", config.model)
         assertEquals("gemini-key", config.apiKey)
     }
+
+    @Test
+    fun `leaving byok mode clears provider key`() {
+        assertEquals(
+            "",
+            byokKeyAfterAccessModeChange(
+                previousMode = PhoneSummaryAccessMode.Byok,
+                newMode = PhoneSummaryAccessMode.Managed,
+                currentKey = "provider-secret",
+            ),
+        )
+    }
+
+    @Test
+    fun `switching byok providers clears provider key`() {
+        assertEquals(
+            "",
+            byokKeyAfterProviderChange(
+                previousProvider = PhoneByokProvider.OpenRouter,
+                newProvider = PhoneByokProvider.Gemini,
+                currentKey = "openrouter-secret",
+            ),
+        )
+    }
+
+    @Test
+    fun `staying on same byok provider preserves current key`() {
+        assertEquals(
+            "gemini-secret",
+            byokKeyAfterProviderChange(
+                previousProvider = PhoneByokProvider.Gemini,
+                newProvider = PhoneByokProvider.Gemini,
+                currentKey = "gemini-secret",
+            ),
+        )
+    }
 }

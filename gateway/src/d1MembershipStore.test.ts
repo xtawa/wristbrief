@@ -66,9 +66,11 @@ class FakeD1 {
 }
 
 describe("D1 membership persistence", () => {
+  const now = () => Date.parse("2026-09-11T00:00:00Z");
+
   it("defaults unknown users to free with zero managed quota", async () => {
     const db = new FakeD1();
-    const store = new D1MembershipStore(db as unknown as D1Database, () => "2026-09");
+    const store = new D1MembershipStore(db as unknown as D1Database, () => "2026-09", now);
     await expect(store.getEntitlement("user-a")).resolves.toEqual({ plan: "FREE", source: "default" });
     await expect(store.getManagedAiQuota("user-a")).resolves.toEqual({ limit: 0, used: 0 });
   });
@@ -76,7 +78,7 @@ describe("D1 membership persistence", () => {
   it("persists verified billing entitlement and token ownership for the same internal user", async () => {
     const db = new FakeD1();
     const billing = new D1BillingStateStore(db as unknown as D1Database);
-    const membership = new D1MembershipStore(db as unknown as D1Database, () => "2026-09");
+    const membership = new D1MembershipStore(db as unknown as D1Database, () => "2026-09", now);
     const tokenHash = "a".repeat(64);
 
     await expect(billing.bindTokenHash("user-a", tokenHash)).resolves.toBe("bound");
@@ -95,10 +97,33 @@ describe("D1 membership persistence", () => {
     await expect(billing.bindTokenHash("user-b", tokenHash)).resolves.toBe("conflict");
   });
 
+  it("fails safe to FREE after a persisted PRO entitlement expires even if RTDN was missed", async () => {
+    const db = new FakeD1();
+    db.entitlements.set("user-a", {
+      plan: "PRO",
+      source: "billing",
+      expiresAt: "2026-09-10T23:59:59Z"
+    });
+    const membership = new D1MembershipStore(db as unknown as D1Database, () => "2026-09", now);
+
+    await expect(membership.getEntitlement("user-a")).resolves.toEqual({
+      plan: "FREE",
+      source: "billing",
+      expiresAt: "2026-09-10T23:59:59Z"
+    });
+  });
+
+  it("rejects malformed persisted entitlement expiry instead of granting PRO", async () => {
+    const db = new FakeD1();
+    db.entitlements.set("user-a", { plan: "PRO", source: "billing", expiresAt: "not-a-date" });
+    const membership = new D1MembershipStore(db as unknown as D1Database, () => "2026-09", now);
+    await expect(membership.getEntitlement("user-a")).rejects.toThrow("invalid_membership_state");
+  });
+
   it("increments only provisioned quota rows and refuses use at the limit", async () => {
     const db = new FakeD1();
     db.quotas.set("user-a:2026-09", { used: 1, limit: 2 });
-    const store = new D1MembershipStore(db as unknown as D1Database, () => "2026-09");
+    const store = new D1MembershipStore(db as unknown as D1Database, () => "2026-09", now);
 
     await store.incrementManagedAiUsage("user-a");
     await expect(store.getManagedAiQuota("user-a")).resolves.toEqual({ limit: 2, used: 2 });

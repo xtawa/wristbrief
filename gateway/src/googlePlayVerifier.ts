@@ -72,11 +72,17 @@ export class GoogleAndroidPublisherPurchaseVerifier implements GooglePlayPurchas
       throw new GooglePlayVerificationError("invalid_play_response");
     }
 
+    const status = mapSubscriptionState(payload.subscriptionState);
     const product = parseSingleProduct(payload.lineItems);
+    // Any Play state that can grant Pro must carry a valid server-supplied expiry. Otherwise a
+    // malformed/stale response could create a non-expiring billing entitlement.
+    if (grantsSubscriptionAccess(status) && !product.expiresAt) {
+      throw new GooglePlayVerificationError("invalid_play_response");
+    }
     return {
       packageName,
       productId: product.productId,
-      status: mapSubscriptionState(payload.subscriptionState),
+      status,
       expiresAt: product.expiresAt
     };
   }
@@ -210,6 +216,10 @@ function mapSubscriptionState(value: string | undefined): PlaySubscriptionStatus
     case "SUBSCRIPTION_STATE_PENDING_PURCHASE_CANCELED": return "revoked";
     default: throw new GooglePlayVerificationError("invalid_play_response");
   }
+}
+
+function grantsSubscriptionAccess(status: PlaySubscriptionStatus): boolean {
+  return status === "active" || status === "grace" || status === "canceled";
 }
 
 function pemToArrayBuffer(pem: string): ArrayBuffer {

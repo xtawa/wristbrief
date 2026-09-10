@@ -38,8 +38,15 @@ Ee3uFQeIF15kQsdwFqPjR6u9WqpK3gDxa0ib9cjvLESmXFKk62nxMFdyRUfsD0zV
 2s57Bg1Pxi+Z6aIvQR4DgN/u
 -----END PRIVATE KEY-----`;
 
-function playResponse(state = "SUBSCRIPTION_STATE_ACTIVE", productId = "wristbrief_pro") {
-  return new Response(JSON.stringify({ subscriptionState: state, lineItems: [{ productId, expiryTime: "2026-10-01T00:00:00Z" }] }), { status: 200 });
+function playResponse(
+  state = "SUBSCRIPTION_STATE_ACTIVE",
+  productId = "wristbrief_pro",
+  expiryTime: string | null = "2026-10-01T00:00:00Z"
+) {
+  return new Response(JSON.stringify({
+    subscriptionState: state,
+    lineItems: [{ productId, ...(expiryTime ? { expiryTime } : {}) }]
+  }), { status: 200 });
 }
 
 function asFetch(fake: (...args: unknown[]) => Promise<Response>): typeof fetch {
@@ -75,6 +82,20 @@ describe("Google Android Publisher purchase verifier", () => {
   ])("maps %s to %s", async (playState, expected) => {
     const verifier = new GoogleAndroidPublisherPurchaseVerifier(accessTokens, asFetch(async () => playResponse(playState)));
     await expect(verifier.verifySubscription({ packageName, purchaseToken })).resolves.toMatchObject({ status: expected });
+  });
+
+  it.each([
+    "SUBSCRIPTION_STATE_ACTIVE",
+    "SUBSCRIPTION_STATE_IN_GRACE_PERIOD",
+    "SUBSCRIPTION_STATE_CANCELED"
+  ])("fails closed when a Pro-granting %s response has no valid expiry", async (playState) => {
+    const verifier = new GoogleAndroidPublisherPurchaseVerifier(
+      accessTokens,
+      asFetch(async () => playResponse(playState, "wristbrief_pro", null))
+    );
+    await expect(verifier.verifySubscription({ packageName, purchaseToken })).rejects.toMatchObject({
+      code: "invalid_play_response"
+    });
   });
 
   it("fails closed when Play returns multiple distinct products", async () => {

@@ -8,7 +8,8 @@ export type DurableMembershipEnv = {
 export class D1MembershipStore implements MembershipStore {
   constructor(
     private readonly db: D1Database,
-    private readonly periodKey: () => string = currentUtcMonth
+    private readonly periodKey: () => string = currentUtcMonth,
+    private readonly now: () => number = Date.now
   ) {}
 
   async getEntitlement(userId: string): Promise<Entitlement> {
@@ -19,10 +20,20 @@ export class D1MembershipStore implements MembershipStore {
     if ((row.plan !== "FREE" && row.plan !== "PRO") || !validSource(row.source)) {
       throw new Error("invalid_membership_state");
     }
+
+    const expiresAt = row.expires_at ?? undefined;
+    if (expiresAt) {
+      const expiryMs = Date.parse(expiresAt);
+      if (!Number.isFinite(expiryMs)) throw new Error("invalid_membership_state");
+      if (row.plan === "PRO" && expiryMs <= this.now()) {
+        return { plan: "FREE", source: row.source, expiresAt };
+      }
+    }
+
     return {
       plan: row.plan,
       source: row.source,
-      ...(row.expires_at ? { expiresAt: row.expires_at } : {})
+      ...(expiresAt ? { expiresAt } : {})
     };
   }
 

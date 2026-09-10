@@ -92,13 +92,17 @@ jobs:
             mobile/build/outputs/androidTest-results/**
 
   instrumentation-wear:
-    name: instrumentation-wear-${{ matrix.profile }}
+    name: instrumentation-wear-${{ matrix.profile }}-font-${{ matrix.font_scale }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        profile: [wearos_small_round, wearos_large_round]
+        include:
+          - profile: wearos_small_round
+            font_scale: '1.30'
+          - profile: wearos_large_round
+            font_scale: '1.00'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -120,7 +124,10 @@ jobs:
           target: android-wear
           arch: x86
           profile: ${{ matrix.profile }}
-          script: gradle :app:connectedDebugAndroidTest --stacktrace
+          script: |
+            adb shell settings put system font_scale ${{ matrix.font_scale }}
+            adb shell am broadcast -a android.intent.action.CONFIGURATION_CHANGED
+            gradle :app:connectedDebugAndroidTest --stacktrace
       - name: Upload instrumentation reports on failure
         if: failure()
         uses: actions/upload-artifact@v4

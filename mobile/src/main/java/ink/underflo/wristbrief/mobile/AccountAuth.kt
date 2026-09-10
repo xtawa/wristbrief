@@ -9,32 +9,28 @@ import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 
-@Serializable
 data class AccountSession(
     val sessionToken: String,
     val expiresAt: String,
     val user: AccountUser,
 )
 
-@Serializable
 data class AccountUser(val id: String)
-
-@Serializable
-private data class GoogleAuthRequest(val idToken: String)
-
-@Serializable
-private data class AuthError(@SerialName("error") val code: String? = null)
 
 sealed interface AccountAuthResult {
     data class Success(val session: AccountSession) : AccountAuthResult
+    data object SignedOut : AccountAuthResult
     data class Failure(val code: String) : AccountAuthResult
 }
 
@@ -54,9 +50,7 @@ class AccountSessionPreferences(context: Context) {
     }
 
     fun write(session: AccountSession) {
-        require(validSessionToken(session.sessionToken))
-        require(validOpaqueValue(session.user.id, 128))
-        require(validOpaqueValue(session.expiresAt, 128))
+        require(validSession(session))
         preferences.edit()
             .putString("token", session.sessionToken)
             .putString("expires_at", session.expiresAt)
@@ -128,12 +122,12 @@ class GoogleAccountAuthClient(
         } catch (_: Exception) {
             // The WristBrief session is already cleared locally; Google chooser state is best-effort.
         }
-        AccountAuthResult.Success(AccountSession("", "", AccountUser("")))
+        AccountAuthResult.SignedOut
     }
 
     private suspend fun exchangeIdToken(baseUrl: String, idToken: String): AccountAuthResult = withContext(Dispatchers.IO) {
         if (idToken.isBlank() || idToken.length > 16_384) return@withContext AccountAuthResult.Failure("invalid_google_identity")
-        val body = json.encodeToString(GoogleAuthRequest.serializer(), GoogleAuthRequest(idToken))
+        val body = buildJsonObject { put("idToken", idToken) }.toString()
             .toRequestBody("application/json; charset=utf-8".toMediaType())
         val request = Request.Builder()
             .url(baseUrl + "/v1/auth/google")
@@ -144,12 +138,10 @@ class GoogleAccountAuthClient(
             httpClient.newCall(request).execute().use { response ->
                 val responseBody = response.body?.string().orEmpty()
                 if (!response.isSuccessful) {
-                    val code = runCatching { json.decodeFromString(AuthError.serializer(), responseBody).code }.getOrNull()
-                    return@withContext AccountAuthResult.Failure(code ?: "auth_failed")
+                    return@withContext AccountAuthResult.Failure(parseAuthError(responseBody) ?: "auth_failed")
                 }
-                val session = runCatching { json.decodeFromString(AccountSession.serializer(), responseBody) }.getOrNull()
+                val session = parseAccountSession(responseBody)
                     ?: return@withContext AccountAuthResult.Failure("invalid_auth_response")
-                if (!validSession(session)) return@withContext AccountAuthResult.Failure("invalid_auth_response")
                 sessionPreferences.write(session)
                 AccountAuthResult.Success(session)
             }
@@ -157,6 +149,18 @@ class GoogleAccountAuthClient(
             AccountAuthResult.Failure("auth_network_error")
         }
     }
+
+    private fun parseAuthError(responseBody: String): String? = runCatching {
+        json.parseToJsonElement(responseBody).jsonObject["error"]?.jsonPrimitive?.contentOrNull
+    }.getOrNull()
+
+    private fun parseAccountSession(responseBody: String): AccountSession? = runCatching {
+        val root = json.parseToJsonElement(responseBody).jsonObject
+        val token = root["sessionToken"]?.jsonPrimitive?.contentOrNull ?: return@runCatching null
+        val expiresAt = root["expiresAt"]?.jsonPrimitive?.contentOrNull ?: return@runCatching null
+        val userId = root["user"]?.jsonObject?.get("id")?.jsonPrimitive?.contentOrNull ?: return@runCatching null
+        AccountSession(token, expiresAt, AccountUser(userId)).takeIf(::validSession)
+    }.getOrNull()
 }
 
 data class AccountAuthConfig(val webClientId: String, val gatewayBaseUrl: String)

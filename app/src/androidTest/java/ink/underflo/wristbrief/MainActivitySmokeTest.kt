@@ -7,7 +7,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import ink.underflo.wristbrief.media.PodcastPlaybackService
+import kotlin.math.abs
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -25,6 +27,23 @@ class MainActivitySmokeTest {
         assertTrue(
             "Wear release checks target 192-240dp-class round displays; actual=${configuration.screenWidthDp}dp",
             configuration.screenWidthDp in 192..240,
+        )
+    }
+
+    @Test
+    fun configuredFontScaleMatchesReleaseMatrixArgument() {
+        val expected = InstrumentationRegistry.getArguments()
+            .getString("expectedFontScale")
+            ?.toFloatOrNull()
+            ?: return
+        val actual = ApplicationProvider.getApplicationContext<Context>()
+            .resources
+            .configuration
+            .fontScale
+
+        assertTrue(
+            "Expected Wear font scale $expected but device reports $actual",
+            abs(actual - expected) < 0.01f,
         )
     }
 

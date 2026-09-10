@@ -17,6 +17,18 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class MainActivitySmokeTest {
     @Test
+    fun configuredWearDeviceIsRoundAndInSupportedWidthClass() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val configuration = context.resources.configuration
+
+        assertTrue("Wear release checks require a round display", configuration.isScreenRound)
+        assertTrue(
+            "Wear release checks target 192-240dp-class round displays; actual=${configuration.screenWidthDp}dp",
+            configuration.screenWidthDp in 192..240,
+        )
+    }
+
+    @Test
     fun mainActivityStartsWithoutFinishing() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             scenario.onActivity { activity ->

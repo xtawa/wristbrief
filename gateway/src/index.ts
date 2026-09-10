@@ -20,7 +20,6 @@ import {
   type SummaryCacheEnv
 } from "./summaryCache";
 import {
-  authenticateGatewayUser,
   createMembershipService,
   type MembershipEnv
 } from "./membership";
@@ -35,6 +34,7 @@ import {
   type AuthResult,
   type AuthServerEnv
 } from "./authServer";
+import { authenticateRequestUser } from "./requestAuth";
 
 interface Env extends ProviderEnv, SummaryCacheEnv, MembershipEnv, BillingServerEnv, AuthServerEnv {}
 type SummaryRequest = { title?: string; content?: string };
@@ -72,7 +72,7 @@ export default {
       }
     }
 
-    const user = authenticateGatewayUser(request, env);
+    const user = await authenticateRequestUser(request, env);
 
     if (request.method === "POST" && url.pathname === "/v1/billing/rtdn") {
       try {

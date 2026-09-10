@@ -7,7 +7,7 @@ export type AuthenticatedUser = {
 
 export type Entitlement = {
   plan: Plan;
-  source: "legacy" | "billing" | "admin" | "test";
+  source: "legacy" | "billing" | "admin" | "test" | "default";
   expiresAt?: string;
 };
 
@@ -42,14 +42,16 @@ export class FakeBillingVerifier implements BillingVerifier {
 }
 
 export type MembershipEnv = {
-  GATEWAY_TOKEN: string;
+  GATEWAY_TOKEN?: string;
   GATEWAY_USER_ID?: string;
   MEMBERSHIP_STORE?: MembershipStore;
 };
 
 export function authenticateGatewayUser(request: Request, env: MembershipEnv): AuthenticatedUser | null {
+  const configuredToken = env.GATEWAY_TOKEN;
+  if (!configuredToken) return null;
   const presented = request.headers.get("Authorization");
-  if (presented !== `Bearer ${env.GATEWAY_TOKEN}`) return null;
+  if (presented !== `Bearer ${configuredToken}`) return null;
   return { id: env.GATEWAY_USER_ID?.trim() || "legacy-user" };
 }
 
@@ -83,20 +85,28 @@ export class MembershipService {
 }
 
 export function createMembershipService(env: MembershipEnv): MembershipService {
-  return new MembershipService(env.MEMBERSHIP_STORE ?? new LegacyProMembershipStore());
+  const legacyUserId = env.GATEWAY_USER_ID?.trim() || "legacy-user";
+  return new MembershipService(env.MEMBERSHIP_STORE ?? new LegacyScopedMembershipStore(legacyUserId));
 }
 
-class LegacyProMembershipStore implements MembershipStore {
-  async getEntitlement(): Promise<Entitlement> {
-    return { plan: "PRO", source: "legacy" };
+class LegacyScopedMembershipStore implements MembershipStore {
+  constructor(private readonly legacyUserId: string) {}
+
+  async getEntitlement(userId: string): Promise<Entitlement> {
+    return userId === this.legacyUserId
+      ? { plan: "PRO", source: "legacy" }
+      : { plan: "FREE", source: "default" };
   }
 
-  async getManagedAiQuota(): Promise<{ limit: number | null; used: number }> {
-    return { limit: null, used: 0 };
+  async getManagedAiQuota(userId: string): Promise<{ limit: number | null; used: number }> {
+    return userId === this.legacyUserId
+      ? { limit: null, used: 0 }
+      : { limit: 0, used: 0 };
   }
 
-  async incrementManagedAiUsage(): Promise<void> {
-    // Compatibility mode until a persistent membership binding is configured.
+  async incrementManagedAiUsage(userId: string): Promise<void> {
+    if (userId !== this.legacyUserId) throw new Error("membership_store_required");
+    // Compatibility mode for the configured legacy principal only.
   }
 }
 

@@ -44,14 +44,23 @@ The route is intentionally reachable without a legacy WristBrief bearer because 
 
 Successful responses contain the internal user ID plus a new opaque `sessionToken` and `expiresAt`. They do not echo the Google ID token. `ACCOUNT_SESSION_TTL_SECONDS` can override the bounded server-owned session TTL; invalid TTL configuration fails closed.
 
-Current normal Gateway APIs still authenticate with the existing legacy Gateway bearer until the next migration stage explicitly enables WristBrief sessions alongside that path. Issuing a new session does not silently change legacy authentication behavior.
+## Normal API authentication during migration
+
+Normal Gateway APIs now accept two explicit credential classes:
+
+- WristBrief account sessions (`Bearer wbs_...`), resolved through the configured session store/D1 to the immutable internal user ID.
+- The existing legacy `GATEWAY_TOKEN`, retained temporarily as a compatibility/migration path.
+
+A syntactically valid WristBrief session never falls back to the legacy token if the session is missing, expired or revoked. Missing `GATEWAY_TOKEN` configuration also cannot accidentally authenticate a literal `Bearer undefined` value.
+
+The legacy compatibility entitlement is scoped only to the configured legacy principal. A Google/session user without a durable `MEMBERSHIP_STORE` is fail-safe FREE with zero managed-AI quota rather than inheriting legacy PRO. BYOK remains governed by its separate quota-bypass contract.
 
 ## Planned next steps
 
-1. Make normal Gateway authentication accept WristBrief sessions while retaining an explicit migration path from the current legacy gateway token.
+1. Add explicit session sign-out/revocation routing and account-level session management.
 2. Add short-lived sign-in challenges/nonces if required by the final Android Credential Manager flow.
 3. Add the phone Credential Manager / Sign in with Google flow and store only the WristBrief session credential locally.
 4. Bind Play restore and RTDN ownership to the authenticated internal user ID and exercise cross-device restore.
-5. Define session revocation/sign-out, account deletion/unlink, and legacy-user linking/recovery policy before production launch.
+5. Define account deletion/unlink and legacy-user linking/recovery policy before production launch.
 
 Google ID tokens, session bearer credentials, Play purchase tokens and authorization headers must never be written to Git, normal application logs or public error bodies.

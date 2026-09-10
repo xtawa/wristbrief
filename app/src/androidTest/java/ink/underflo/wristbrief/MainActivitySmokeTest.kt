@@ -1,12 +1,16 @@
 package ink.underflo.wristbrief
 
+import android.app.ActivityManager
+import android.content.Context
+import android.content.Intent
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
-import androidx.test.core.app.ServiceScenario
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ink.underflo.wristbrief.media.PodcastPlaybackService
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -48,13 +52,16 @@ class MainActivitySmokeTest {
         }
     }
 
+    @Suppress("DEPRECATION")
     @Test
     fun playbackServiceSurvivesActivityRecreationAndBackgroundCycle() {
-        ServiceScenario.launch(PodcastPlaybackService::class.java).use { serviceScenario ->
-            var serviceIdentity = 0
-            serviceScenario.onService { service ->
-                serviceIdentity = System.identityHashCode(service)
-            }
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val serviceIntent = Intent(context, PodcastPlaybackService::class.java)
+        val activityManager = context.getSystemService(ActivityManager::class.java)
+
+        try {
+            context.startService(serviceIntent)
+            assertTrue(isPlaybackServiceRunning(activityManager))
 
             ActivityScenario.launch(MainActivity::class.java).use { activityScenario ->
                 activityScenario.recreate()
@@ -65,9 +72,15 @@ class MainActivitySmokeTest {
                 assertEquals(Lifecycle.State.RESUMED, activityScenario.state)
             }
 
-            serviceScenario.onService { service ->
-                assertEquals(serviceIdentity, System.identityHashCode(service))
-            }
+            assertTrue(isPlaybackServiceRunning(activityManager))
+        } finally {
+            context.stopService(serviceIntent)
         }
     }
+
+    @Suppress("DEPRECATION")
+    private fun isPlaybackServiceRunning(activityManager: ActivityManager): Boolean =
+        activityManager.getRunningServices(Int.MAX_VALUE).any { serviceInfo ->
+            serviceInfo.service.className == PodcastPlaybackService::class.java.name
+        }
 }

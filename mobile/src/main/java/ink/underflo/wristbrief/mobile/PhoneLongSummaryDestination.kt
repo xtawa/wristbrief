@@ -3,6 +3,7 @@ package ink.underflo.wristbrief.mobile
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -10,6 +11,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,6 +28,27 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+enum class PhoneSummaryAccessMode {
+    Managed,
+    Byok,
+}
+
+data class PhoneByokEditorState(
+    val provider: PhoneByokProvider = PhoneByokProvider.OpenRouter,
+    val model: String = "",
+    val apiKey: String = "",
+)
+
+internal fun PhoneSummaryAccessMode.toRequestConfig(editor: PhoneByokEditorState): PhoneByokConfig? =
+    when (this) {
+        PhoneSummaryAccessMode.Managed -> null
+        PhoneSummaryAccessMode.Byok -> PhoneByokConfig(
+            provider = editor.provider,
+            model = editor.model,
+            apiKey = editor.apiKey,
+        )
+    }
+
 @Composable
 fun PhoneLongSummaryDestination(
     padding: PaddingValues,
@@ -36,7 +59,15 @@ fun PhoneLongSummaryDestination(
     var gatewayToken by remember { mutableStateOf("") }
     var title by rememberSaveable { mutableStateOf("") }
     var content by rememberSaveable { mutableStateOf("") }
+    var accessModeName by rememberSaveable { mutableStateOf(PhoneSummaryAccessMode.Managed.name) }
+    var providerName by rememberSaveable { mutableStateOf(PhoneByokProvider.OpenRouter.name) }
+    var byokModel by rememberSaveable { mutableStateOf("") }
+    var byokApiKey by remember { mutableStateOf("") }
     var state by remember { mutableStateOf<PhoneLongSummaryUiState>(PhoneLongSummaryUiState.AwaitingAuthenticatedGateway) }
+
+    val accessMode = PhoneSummaryAccessMode.valueOf(accessModeName)
+    val provider = PhoneByokProvider.valueOf(providerName)
+    val loading = state == PhoneLongSummaryUiState.Loading
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(padding),
@@ -46,10 +77,79 @@ fun PhoneLongSummaryDestination(
         item { Text("AI brief", style = MaterialTheme.typography.headlineMedium) }
         item {
             Text(
-                "Generate a phone-length summary through an authenticated WristBrief Gateway session. The access token stays in memory and is not saved to app preferences.",
+                "Use WristBrief managed AI or bring your own OpenRouter/Gemini key. Session credentials and provider keys stay in memory and are not saved to app preferences.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Button(
+                    onClick = { accessModeName = PhoneSummaryAccessMode.Managed.name },
+                    enabled = !loading && accessMode != PhoneSummaryAccessMode.Managed,
+                    modifier = Modifier.weight(1f),
+                ) { Text("Managed") }
+                OutlinedButton(
+                    onClick = { accessModeName = PhoneSummaryAccessMode.Byok.name },
+                    enabled = !loading && accessMode != PhoneSummaryAccessMode.Byok,
+                    modifier = Modifier.weight(1f),
+                ) { Text("BYOK") }
+            }
+        }
+        if (accessMode == PhoneSummaryAccessMode.Byok) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.extraLarge,
+                ) {
+                    Column(
+                        modifier = Modifier.padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Text("Provider", style = MaterialTheme.typography.titleMedium)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            Button(
+                                onClick = { providerName = PhoneByokProvider.OpenRouter.name },
+                                enabled = !loading && provider != PhoneByokProvider.OpenRouter,
+                                modifier = Modifier.weight(1f),
+                            ) { Text("OpenRouter") }
+                            OutlinedButton(
+                                onClick = { providerName = PhoneByokProvider.Gemini.name },
+                                enabled = !loading && provider != PhoneByokProvider.Gemini,
+                                modifier = Modifier.weight(1f),
+                            ) { Text("Gemini") }
+                        }
+                        OutlinedTextField(
+                            value = byokModel,
+                            onValueChange = { byokModel = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Model") },
+                            singleLine = true,
+                            enabled = !loading,
+                        )
+                        OutlinedTextField(
+                            value = byokApiKey,
+                            onValueChange = { byokApiKey = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Provider API key") },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            enabled = !loading,
+                        )
+                        Text(
+                            "The provider key is sent only in the dedicated BYOK request header. It is not placed in the request body or saved locally.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
         }
         item {
             OutlinedTextField(
@@ -58,7 +158,7 @@ fun PhoneLongSummaryDestination(
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("HTTPS Gateway URL") },
                 singleLine = true,
-                enabled = state != PhoneLongSummaryUiState.Loading,
+                enabled = !loading,
             )
         }
         item {
@@ -69,7 +169,7 @@ fun PhoneLongSummaryDestination(
                 label = { Text("Gateway access token") },
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
-                enabled = state != PhoneLongSummaryUiState.Loading,
+                enabled = !loading,
             )
         }
         item {
@@ -79,7 +179,7 @@ fun PhoneLongSummaryDestination(
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("Title (optional)") },
                 singleLine = true,
-                enabled = state != PhoneLongSummaryUiState.Loading,
+                enabled = !loading,
             )
         }
         item {
@@ -89,7 +189,7 @@ fun PhoneLongSummaryDestination(
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("Article or transcript text") },
                 minLines = 6,
-                enabled = state != PhoneLongSummaryUiState.Loading,
+                enabled = !loading,
             )
         }
         item {
@@ -98,25 +198,47 @@ fun PhoneLongSummaryDestination(
                     state = PhoneLongSummaryUiState.Loading
                     scope.launch {
                         state = try {
+                            val editor = PhoneByokEditorState(
+                                provider = provider,
+                                model = byokModel,
+                                apiKey = byokApiKey,
+                            )
+                            val byokConfig = accessMode.toRequestConfig(editor)
                             val summary = withContext(Dispatchers.IO) {
-                                client.summarize(
-                                    gatewayUrl = gatewayUrl,
-                                    gatewayToken = gatewayToken,
-                                    title = title.trim().takeIf { it.isNotEmpty() },
-                                    content = content,
-                                )
+                                if (byokConfig == null) {
+                                    client.summarize(
+                                        gatewayUrl = gatewayUrl,
+                                        gatewayToken = gatewayToken,
+                                        title = title.trim().takeIf { it.isNotEmpty() },
+                                        content = content,
+                                    )
+                                } else {
+                                    client.summarizeByok(
+                                        gatewayUrl = gatewayUrl,
+                                        gatewayToken = gatewayToken,
+                                        title = title.trim().takeIf { it.isNotEmpty() },
+                                        content = content,
+                                        config = byokConfig,
+                                    )
+                                }
                             }
                             phoneLongSummaryReadyState(summary)
                         } catch (error: PhoneSummaryRequestException) {
                             phoneLongSummaryFailureState(error.failure)
                         } catch (_: IllegalArgumentException) {
-                            PhoneLongSummaryUiState.Error("Enter a valid HTTPS Gateway URL, access token, and source text.")
+                            PhoneLongSummaryUiState.Error(
+                                if (accessMode == PhoneSummaryAccessMode.Byok) {
+                                    "Enter a valid HTTPS Gateway URL, access token, source text, BYOK model, and provider API key."
+                                } else {
+                                    "Enter a valid HTTPS Gateway URL, access token, and source text."
+                                },
+                            )
                         }
                     }
                 },
-                enabled = state != PhoneLongSummaryUiState.Loading,
+                enabled = !loading,
             ) {
-                Text(if (state == PhoneLongSummaryUiState.Loading) "Generating…" else "Generate long summary")
+                Text(if (loading) "Generating…" else "Generate long summary")
             }
         }
 
@@ -124,7 +246,7 @@ fun PhoneLongSummaryDestination(
             PhoneLongSummaryUiState.AwaitingAuthenticatedGateway -> item {
                 SummaryStateCard(
                     title = "Authenticated Gateway required",
-                    description = "Enter your WristBrief Gateway session details and source text to request a validated structured.long response.",
+                    description = "Enter your WristBrief Gateway session details and source text. BYOK additionally requires an OpenRouter or Gemini key and model.",
                 )
             }
             PhoneLongSummaryUiState.Loading -> item {

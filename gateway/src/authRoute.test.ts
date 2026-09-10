@@ -3,6 +3,7 @@ import worker from "./index";
 import { InMemoryAccountIdentityStore } from "./accountIdentity";
 import { InMemoryAccountSessionStore } from "./accountSession";
 import type { GoogleIdTokenVerifier } from "./googleIdentity";
+import { InMemoryMembershipStore } from "./membership";
 
 const verifier: GoogleIdTokenVerifier = {
   async verify(idToken: string) {
@@ -42,28 +43,62 @@ describe("POST /v1/auth/google", () => {
     expect(JSON.stringify(sessionStore.records())).not.toContain(body.sessionToken);
   });
 
-  it("links to the authenticated legacy user only when explicitly requested", async () => {
+  it("links to the authenticated legacy user idempotently and preserves membership state", async () => {
     const raw = baseEnv();
+    const membership = new InMemoryMembershipStore([{
+      userId: "legacy-user-42",
+      plan: "PRO",
+      source: "billing",
+      expiresAt: "2026-12-31T00:00:00Z",
+      managedAiLimit: 20,
+      managedAiUsed: 7
+    }]);
     const env = {
       ...raw,
       GATEWAY_TOKEN: "legacy-gateway-secret",
-      GATEWAY_USER_ID: "legacy-user-42"
+      GATEWAY_USER_ID: "legacy-user-42",
+      MEMBERSHIP_STORE: membership
     } as unknown as Parameters<typeof worker.fetch>[1];
 
-    const response = await worker.fetch(new Request("https://gateway.example/v1/auth/google", {
+    const makeLinkRequest = () => new Request("https://gateway.example/v1/auth/google", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: "Bearer legacy-gateway-secret"
       },
       body: JSON.stringify({ idToken: "route-google-token", linkLegacy: true })
-    }), env);
+    });
 
-    expect(response.status).toBe(200);
-    const body = await response.json() as { user: { id: string }; sessionToken: string };
-    expect(body.user.id).toBe("legacy-user-42");
+    const first = await worker.fetch(makeLinkRequest(), env);
+    expect(first.status).toBe(200);
+    const firstBody = await first.json() as { user: { id: string }; sessionToken: string };
+    expect(firstBody.user.id).toBe("legacy-user-42");
     expect(raw.ACCOUNT_IDENTITY_STORE.identityForGoogleSubject("route-google-sub")?.userId).toBe("legacy-user-42");
-    expect(body.sessionToken).toMatch(/^wbs_[A-Za-z0-9_-]{43}$/);
+    expect(firstBody.sessionToken).toMatch(/^wbs_[A-Za-z0-9_-]{43}$/);
+
+    const second = await worker.fetch(makeLinkRequest(), env);
+    expect(second.status).toBe(200);
+    const secondBody = await second.json() as { user: { id: string }; sessionToken: string };
+    expect(secondBody.user.id).toBe("legacy-user-42");
+    expect(raw.ACCOUNT_IDENTITY_STORE.identityForGoogleSubject("route-google-sub")?.userId).toBe("legacy-user-42");
+
+    const me = await worker.fetch(new Request("https://gateway.example/v1/me", {
+      headers: { Authorization: `Bearer ${firstBody.sessionToken}` }
+    }), env);
+    expect(me.status).toBe(200);
+    await expect(me.json()).resolves.toMatchObject({
+      user: { id: "legacy-user-42" },
+      entitlement: {
+        plan: "PRO",
+        source: "billing",
+        expiresAt: "2026-12-31T00:00:00Z"
+      },
+      managedAiQuota: {
+        limit: 20,
+        used: 7,
+        remaining: 13
+      }
+    });
   });
 
   it("rejects requested legacy linking without the valid legacy bearer", async () => {

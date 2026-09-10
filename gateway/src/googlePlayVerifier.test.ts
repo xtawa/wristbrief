@@ -16,7 +16,7 @@ function playResponse(state = "SUBSCRIPTION_STATE_ACTIVE", productId = "wristbri
 
 describe("Google Android Publisher purchase verifier", () => {
   it("calls only the fixed subscriptionsv2 endpoint with OAuth in the header", async () => {
-    const fetchImpl = vi.fn(async () => playResponse());
+    const fetchImpl = vi.fn(async (..._args: Parameters<typeof fetch>) => playResponse());
     const verifier = new GoogleAndroidPublisherPurchaseVerifier(accessTokens, fetchImpl as typeof fetch);
     await expect(verifier.verifySubscription({ packageName, purchaseToken })).resolves.toEqual({
       packageName, productId: "wristbrief_pro", status: "active", expiresAt: "2026-10-01T00:00:00.000Z"
@@ -80,6 +80,7 @@ describe("Google service-account access tokens", () => {
       true,
       ["sign", "verify"]
     );
+    if (!("privateKey" in keys)) throw new Error("expected generated RSA key pair");
     const pem = toPem(new Uint8Array(await crypto.subtle.exportKey("pkcs8", keys.privateKey)));
     const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
       const assertion = new URLSearchParams(String(init?.body ?? "")).get("assertion");

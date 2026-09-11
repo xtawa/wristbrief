@@ -27,9 +27,18 @@ data class PodcastPlaybackState(
 }
 
 /** Activity-scoped controller connection. Playback itself remains owned by MediaSessionService. */
-class PodcastPlaybackConnection(context: Context) {
+class PodcastPlaybackConnection internal constructor(
+    context: Context,
+    private val progressStore: PodcastProgressStore,
+    private val mediaItemFactory: (PodcastPlaybackRequest) -> MediaItem,
+) {
+    constructor(context: Context) : this(
+        context = context,
+        progressStore = SharedPreferencesPodcastProgressStore(context.applicationContext),
+        mediaItemFactory = ::buildPodcastMediaItem,
+    )
+
     private val appContext = context.applicationContext
-    private val progressStore: PodcastProgressStore = SharedPreferencesPodcastProgressStore(appContext)
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private var controller: MediaController? = null
     private var pendingRequest: PodcastPlaybackRequest? = null
@@ -84,12 +93,7 @@ class PodcastPlaybackConnection(context: Context) {
         }
 
         val saved = progressStore.get(request.id)
-        val mediaItem = MediaItem.Builder()
-            .setMediaId(request.id)
-            .setUri(requireHttpsPodcastUrl(request.audioUrl))
-            .setMediaMetadata(MediaMetadata.Builder().setTitle(request.title).build())
-            .build()
-        mediaController.setMediaItem(mediaItem)
+        mediaController.setMediaItem(mediaItemFactory(request))
         mediaController.prepare()
         mediaController.seekTo(normalizedResumePosition(saved?.positionMs ?: 0L, mediaController.duration))
         mediaController.setPlaybackSpeed(saved?.playbackSpeed ?: 1f)
@@ -127,3 +131,9 @@ class PodcastPlaybackConnection(context: Context) {
         )
     }
 }
+
+private fun buildPodcastMediaItem(request: PodcastPlaybackRequest): MediaItem = MediaItem.Builder()
+    .setMediaId(request.id)
+    .setUri(requireHttpsPodcastUrl(request.audioUrl))
+    .setMediaMetadata(MediaMetadata.Builder().setTitle(request.title).build())
+    .build()

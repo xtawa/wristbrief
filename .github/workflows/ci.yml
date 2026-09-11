@@ -124,7 +124,7 @@ jobs:
           target: android-wear
           arch: x86
           profile: ${{ matrix.profile }}
-          script: 'if [ "${{ matrix.font_scale }}" != "1.00" ]; then adb shell settings put system font_scale ${{ matrix.font_scale }}; actual_font_scale="$(adb shell settings get system font_scale | tr -d "\r")"; test "$actual_font_scale" = "${{ matrix.font_scale }}"; fi; gradle :app:connectedDebugAndroidTest --stacktrace'
+          script: 'if [ "${{ matrix.font_scale }}" != "1.00" ]; then adb shell settings put system font_scale ${{ matrix.font_scale }}; actual_font_scale="$(adb shell settings get system font_scale | tr -d "\r")"; test "$actual_font_scale" = "${{ matrix.font_scale }}"; fi; gradle :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.expectedFontScale=${{ matrix.font_scale }} --stacktrace'
       - name: Upload instrumentation reports on failure
         if: failure()
         uses: actions/upload-artifact@v4

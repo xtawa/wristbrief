@@ -11,6 +11,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -26,6 +27,8 @@ internal fun OpmlManagementActions(
     onBusyChange: (Boolean) -> Unit,
     onFeedsChanged: (List<MobileFeedSubscription>) -> Unit,
     onStatus: (String) -> Unit,
+    launchImport: Boolean = false,
+    onImportLaunchConsumed: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -53,6 +56,13 @@ internal fun OpmlManagementActions(
             } finally {
                 onBusyChange(false)
             }
+        }
+    }
+
+    LaunchedEffect(launchImport) {
+        if (launchImport) {
+            onImportLaunchConsumed()
+            importLauncher.launch(OPML_IMPORT_MIME_TYPES)
         }
     }
 

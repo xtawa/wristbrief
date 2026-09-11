@@ -71,20 +71,32 @@ class MainActivity : ComponentActivity() {
         val context = LocalContext.current
         val onboarding = remember(context) { OnboardingPreferences(context) }
         var onboardingComplete by rememberSaveable { mutableStateOf(onboarding.isComplete()) }
+        var onboardingAction by rememberSaveable { mutableStateOf<String?>(null) }
         if (!onboardingComplete) {
-            WristBriefOnboarding { interests ->
-                onboarding.complete(interests)
+            WristBriefOnboarding { action ->
+                onboarding.complete()
+                onboardingAction = action.name
                 onboardingComplete = true
             }
             return@WristBriefMobileTheme
         }
         var name by rememberSaveable { mutableStateOf(initialMobileDestination().name) }
-        MobileShell(MobileDestination.valueOf(name), { name = it.name })
+        MobileShell(
+            destination = MobileDestination.valueOf(name),
+            select = { name = it.name },
+            onboardingAction = onboardingAction?.let(OnboardingAction::valueOf),
+            onOnboardingActionConsumed = { onboardingAction = null },
+        )
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable private fun MobileShell(destination: MobileDestination, select: (MobileDestination) -> Unit) {
+@Composable private fun MobileShell(
+    destination: MobileDestination,
+    select: (MobileDestination) -> Unit,
+    onboardingAction: OnboardingAction?,
+    onOnboardingActionConsumed: () -> Unit,
+) {
     BoxWithConstraints {
     val useRail = maxWidth >= 600.dp
     Row(Modifier.fillMaxSize()) {
@@ -159,7 +171,11 @@ class MainActivity : ComponentActivity() {
             label = "mobile-destination",
         ) { currentDestination ->
             when (currentDestination) {
-                MobileDestination.Feeds -> CategorizedFeedManagementDestination(padding)
+                MobileDestination.Feeds -> CategorizedFeedManagementDestination(
+                    padding = padding,
+                    onboardingAction = onboardingAction,
+                    onOnboardingActionConsumed = onOnboardingActionConsumed,
+                )
                 MobileDestination.AiProvider -> PhoneLongSummaryDestination(padding)
                 MobileDestination.Membership -> MembershipDestination(padding)
             }

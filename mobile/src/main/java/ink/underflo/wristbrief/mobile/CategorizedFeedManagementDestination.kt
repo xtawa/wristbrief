@@ -20,9 +20,11 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -33,7 +35,11 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
 @Composable
-fun CategorizedFeedManagementDestination(padding: PaddingValues) {
+internal fun CategorizedFeedManagementDestination(
+    padding: PaddingValues,
+    onboardingAction: OnboardingAction? = null,
+    onOnboardingActionConsumed: () -> Unit = {},
+) {
     val context = LocalContext.current
     val manager = remember {
         MobileFeedManager(
@@ -45,9 +51,19 @@ fun CategorizedFeedManagementDestination(padding: PaddingValues) {
     val scope = rememberCoroutineScope()
     var feeds by remember { mutableStateOf(manager.feeds()) }
     var editing by remember { mutableStateOf<MobileFeedSubscription?>(null) }
-    var showEditor by remember { mutableStateOf(false) }
+    var showEditor by rememberSaveable { mutableStateOf(false) }
+    var launchOpmlImport by rememberSaveable { mutableStateOf(false) }
     var status by remember { mutableStateOf("Add feeds here; organize them into folders and choose separately what is active or sent to Wear.") }
     var busy by remember { mutableStateOf(false) }
+
+    LaunchedEffect(onboardingAction) {
+        when (onboardingAction) {
+            OnboardingAction.AddFeed -> showEditor = true
+            OnboardingAction.ImportOpml -> launchOpmlImport = true
+            OnboardingAction.Explore, null -> Unit
+        }
+        if (onboardingAction != null) onOnboardingActionConsumed()
+    }
 
     LazyColumn(
         Modifier.fillMaxSize().padding(padding),
@@ -72,6 +88,8 @@ fun CategorizedFeedManagementDestination(padding: PaddingValues) {
                 onBusyChange = { busy = it },
                 onFeedsChanged = { feeds = it },
                 onStatus = { status = it },
+                launchImport = launchOpmlImport,
+                onImportLaunchConsumed = { launchOpmlImport = false },
             )
         }
         if (feeds.isEmpty()) {

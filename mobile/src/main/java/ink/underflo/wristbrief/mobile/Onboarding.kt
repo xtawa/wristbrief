@@ -3,17 +3,15 @@ package ink.underflo.wristbrief.mobile
 import android.content.Context
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,14 +23,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,11 +50,13 @@ import androidx.compose.ui.unit.dp
 internal class OnboardingPreferences(context: Context) {
     private val preferences = context.getSharedPreferences("onboarding", Context.MODE_PRIVATE)
     fun isComplete(): Boolean = preferences.getBoolean("complete", false)
-    fun complete(interests: Set<String>) = preferences.edit()
+    fun complete() = preferences.edit()
         .putBoolean("complete", true)
-        .putStringSet("interests", interests)
+        .remove("interests")
         .apply()
 }
+
+internal enum class OnboardingAction { AddFeed, ImportOpml, Explore }
 
 private enum class OnboardingPage(@StringRes val title: Int, @StringRes val body: Int) {
     Welcome(R.string.oobe_welcome_title, R.string.oobe_welcome_body),
@@ -66,9 +66,8 @@ private enum class OnboardingPage(@StringRes val title: Int, @StringRes val body
 }
 
 @Composable
-internal fun WristBriefOnboarding(onComplete: (Set<String>) -> Unit) {
+internal fun WristBriefOnboarding(onComplete: (OnboardingAction) -> Unit) {
     var pageIndex by rememberSaveable { mutableStateOf(0) }
-    var interests by rememberSaveable { mutableStateOf(setOf<String>()) }
     val page = OnboardingPage.entries[pageIndex]
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
@@ -78,7 +77,7 @@ internal fun WristBriefOnboarding(onComplete: (Set<String>) -> Unit) {
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("WristBrief", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                if (page != OnboardingPage.Done) TextButton(onClick = { pageIndex = OnboardingPage.entries.lastIndex }) { Text(stringResource(R.string.oobe_skip)) }
+                if (page != OnboardingPage.Done) TextButton(onClick = { onComplete(OnboardingAction.Explore) }) { Text(stringResource(R.string.oobe_skip)) }
             }
             AnimatedContent(
                 targetState = page,
@@ -87,7 +86,7 @@ internal fun WristBriefOnboarding(onComplete: (Set<String>) -> Unit) {
                 label = "onboarding-page",
             ) { current ->
                 Column(
-                    Modifier.fillMaxSize(),
+                    Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
                 ) {
@@ -96,21 +95,19 @@ internal fun WristBriefOnboarding(onComplete: (Set<String>) -> Unit) {
                     Text(stringResource(current.title), style = MaterialTheme.typography.headlineLarge, textAlign = TextAlign.Center)
                     Spacer(Modifier.height(12.dp))
                     Text(stringResource(current.body), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
-                    if (current == OnboardingPage.Sources) {
+                    if (current == OnboardingPage.Done) {
                         Spacer(Modifier.height(24.dp))
-                        val choices = listOf(
-                            "technology" to R.string.interest_technology, "science" to R.string.interest_science,
-                            "business" to R.string.interest_business, "culture" to R.string.interest_culture,
-                            "podcasts" to R.string.interest_podcasts, "custom" to R.string.interest_custom,
-                        )
-                        choices.chunked(2).forEach { row ->
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                row.forEach { (id, label) -> FilterChip(
-                                    selected = id in interests,
-                                    onClick = { interests = if (id in interests) interests - id else interests + id },
-                                    label = { Text(stringResource(label)) },
-                                ) }
-                            }
+                        Button(
+                            onClick = { onComplete(OnboardingAction.AddFeed) },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text(stringResource(R.string.oobe_add_feed)) }
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = { onComplete(OnboardingAction.ImportOpml) },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text(stringResource(R.string.oobe_import_opml)) }
+                        TextButton(onClick = { onComplete(OnboardingAction.Explore) }) {
+                            Text(stringResource(R.string.oobe_explore))
                         }
                     }
                 }
@@ -122,9 +119,7 @@ internal fun WristBriefOnboarding(onComplete: (Set<String>) -> Unit) {
                         Box(Modifier.padding(4.dp).size(if (index == pageIndex) 22.dp else 8.dp, 8.dp).background(if (index == pageIndex) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant, CircleShape))
                     }
                 }
-                Button(onClick = { if (page == OnboardingPage.Done) onComplete(interests) else pageIndex++ }) {
-                    Text(stringResource(if (page == OnboardingPage.Done) R.string.oobe_start else R.string.oobe_next))
-                }
+                if (page != OnboardingPage.Done) Button(onClick = { pageIndex++ }) { Text(stringResource(R.string.oobe_next)) }
             }
         }
     }
@@ -132,8 +127,14 @@ internal fun WristBriefOnboarding(onComplete: (Set<String>) -> Unit) {
 
 @Composable
 private fun OnboardingArtwork(page: OnboardingPage) {
-    val transition = rememberInfiniteTransition(label = "onboarding-art")
-    val phase by transition.animateFloat(0f, 360f, infiniteRepeatable(tween(8000), RepeatMode.Restart), label = "orbit")
+    val animation = remember(page) { Animatable(0f) }
+    LaunchedEffect(page) {
+        animation.animateTo(
+            targetValue = 360f,
+            animationSpec = tween(if (page == OnboardingPage.Done) 1_200 else 1_800),
+        )
+    }
+    val phase = animation.value
     val primary = MaterialTheme.colorScheme.primary
     val secondary = MaterialTheme.colorScheme.tertiary
     val container = MaterialTheme.colorScheme.primaryContainer

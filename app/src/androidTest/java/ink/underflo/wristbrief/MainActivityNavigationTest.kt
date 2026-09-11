@@ -4,7 +4,6 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -19,7 +18,8 @@ class MainActivityNavigationTest {
 
     @Test
     fun savedAndFeedsRemainReachableAcrossWearReleaseProfiles() {
-        composeRule.onNodeWithText("WristBrief").assertIsDisplayed()
+        val inboxTitleMatcher = hasText("WristBrief")
+        composeRule.onNode(inboxTitleMatcher).assertIsDisplayed()
 
         val savedMatcher = hasText("Saved ·", substring = true)
         composeRule.onNode(hasScrollAction()).performScrollToNode(savedMatcher)
@@ -36,6 +36,7 @@ class MainActivityNavigationTest {
         composeRule.onNode(hasScrollAction()).performScrollToNode(backMatcher)
         composeRule.onNode(backMatcher).assertIsDisplayed().performClick()
 
-        composeRule.onNodeWithText("WristBrief").assertIsDisplayed()
+        composeRule.onNode(hasScrollAction()).performScrollToNode(inboxTitleMatcher)
+        composeRule.onNode(inboxTitleMatcher).assertIsDisplayed()
     }
 }

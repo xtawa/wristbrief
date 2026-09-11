@@ -1,6 +1,7 @@
 package ink.underflo.wristbrief.mobile
 
 import android.content.Context
+import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -12,6 +13,7 @@ interface AccountSessionBridge {
 
 object AccountSessionBridgeContract {
     const val PATH = "/wristbrief/account-session/v1"
+    const val PAYLOAD_KEY = "payload"
 
     fun encodeSet(session: AccountSession): ByteArray {
         require(validSessionToken(session.sessionToken))
@@ -31,19 +33,18 @@ object AccountSessionBridgeContract {
 }
 
 class GoogleWearAccountSessionBridge(context: Context) : AccountSessionBridge {
-    private val nodeClient = Wearable.getNodeClient(context.applicationContext)
-    private val messageClient = Wearable.getMessageClient(context.applicationContext)
+    private val dataClient = Wearable.getDataClient(context.applicationContext)
 
-    override fun publish(session: AccountSession) = send(AccountSessionBridgeContract.encodeSet(session))
+    override fun publish(session: AccountSession) = publishLatest(AccountSessionBridgeContract.encodeSet(session))
 
-    override fun clear() = send(AccountSessionBridgeContract.encodeClear())
+    override fun clear() = publishLatest(AccountSessionBridgeContract.encodeClear())
 
-    private fun send(payload: ByteArray) {
-        nodeClient.connectedNodes.addOnSuccessListener { nodes ->
-            nodes.forEach { node ->
-                // Best effort: the scoped WristBrief session is short-lived and replaceable.
-                messageClient.sendMessage(node.id, AccountSessionBridgeContract.PATH, payload)
-            }
-        }
+    private fun publishLatest(payload: ByteArray) {
+        val request = PutDataMapRequest.create(AccountSessionBridgeContract.PATH).apply {
+            dataMap.putByteArray(AccountSessionBridgeContract.PAYLOAD_KEY, payload)
+            // Force a DataItem change even when a repeated clear/set payload is otherwise identical.
+            dataMap.putLong("updatedAt", System.currentTimeMillis())
+        }.asPutDataRequest().setUrgent()
+        dataClient.putDataItem(request)
     }
 }

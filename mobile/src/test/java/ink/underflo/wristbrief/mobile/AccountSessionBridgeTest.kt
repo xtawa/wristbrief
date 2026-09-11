@@ -9,6 +9,12 @@ import org.junit.Test
 
 class AccountSessionBridgeTest {
     @Test
+    fun dataItemContractUsesSingleLatestStatePath() {
+        assertEquals("/wristbrief/account-session/v1", AccountSessionBridgeContract.PATH)
+        assertEquals("payload", AccountSessionBridgeContract.PAYLOAD_KEY)
+    }
+
+    @Test
     fun setPayloadContainsOnlyScopedWristBriefSessionFields() {
         val token = "wbs_${"A".repeat(43)}"
         val session = AccountSession(token, "2026-10-01T00:00:00Z", AccountUser("usr_123"))

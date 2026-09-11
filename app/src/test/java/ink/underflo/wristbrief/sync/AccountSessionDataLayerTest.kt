@@ -10,6 +10,12 @@ class AccountSessionDataLayerTest {
     private val token = "wbs_${"A".repeat(43)}"
 
     @Test
+    fun dataItemContractMatchesPhoneBridge() {
+        assertEquals("/wristbrief/account-session/v1", AccountSessionDataLayerService.PATH)
+        assertEquals("payload", AccountSessionDataLayerService.PAYLOAD_KEY)
+    }
+
+    @Test
     fun decodesScopedSessionAndClearMessages() {
         val set = WearAccountSessionMessageCodec.decode(
             """{"version":1,"operation":"set","sessionToken":"$token","expiresAt":"2026-10-01T00:00:00Z","userId":"usr_123"}""".encodeToByteArray()

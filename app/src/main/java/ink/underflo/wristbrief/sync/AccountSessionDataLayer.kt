@@ -1,7 +1,9 @@
 package ink.underflo.wristbrief.sync
 
 import android.content.Context
-import com.google.android.gms.wearable.MessageEvent
+import com.google.android.gms.wearable.DataEvent
+import com.google.android.gms.wearable.DataEventBuffer
+import com.google.android.gms.wearable.DataMapItem
 import com.google.android.gms.wearable.WearableListenerService
 import java.time.Instant
 import kotlinx.serialization.json.Json
@@ -94,15 +96,21 @@ internal object WearAccountSessionMessageCodec {
 }
 
 class AccountSessionDataLayerService : WearableListenerService() {
-    override fun onMessageReceived(event: MessageEvent) {
-        if (event.path != PATH) return
-        val store = WearAccountSessionStore(this)
-        when (val message = WearAccountSessionMessageCodec.decode(event.data)) {
-            is WearAccountSessionMessageCodec.Message.Set -> store.write(message.session)
-            WearAccountSessionMessageCodec.Message.Clear -> store.clear()
-            null -> Unit
+    override fun onDataChanged(events: DataEventBuffer) {
+        events.forEach { event ->
+            if (event.type != DataEvent.TYPE_CHANGED || event.dataItem.uri.path != PATH) return@forEach
+            val payload = DataMapItem.fromDataItem(event.dataItem).dataMap.getByteArray(PAYLOAD_KEY) ?: return@forEach
+            val store = WearAccountSessionStore(this)
+            when (val message = WearAccountSessionMessageCodec.decode(payload)) {
+                is WearAccountSessionMessageCodec.Message.Set -> store.write(message.session)
+                WearAccountSessionMessageCodec.Message.Clear -> store.clear()
+                null -> Unit
+            }
         }
     }
 
-    companion object { const val PATH = "/wristbrief/account-session/v1" }
+    companion object {
+        const val PATH = "/wristbrief/account-session/v1"
+        const val PAYLOAD_KEY = "payload"
+    }
 }

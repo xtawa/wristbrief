@@ -1,41 +1,83 @@
-# WristBrief Phone UI — Liquid Glass Direction
+# WristBrief UI — Liquid Glass Direction
 
-This folder is the design and implementation handoff for the **phone-side** WristBrief redesign.
+This folder is the design and implementation handoff for the approved WristBrief liquid-glass visual direction across **Android phone and Wear OS**.
 
-## Scope
+## Shared visual direction
 
-- Redesign **Android phone OOBE and phone app surfaces** only.
-- **Wear OS UI is explicitly out of scope and must remain unchanged.**
-- Preserve existing product capabilities and navigation semantics unless a product change is separately approved.
-- The visual direction is a restrained, Apple-inspired **liquid glass** treatment adapted to WristBrief and Android/Compose.
+The overall goal is a calm, system-like interface with:
 
-## Non-negotiable visual rule
+- quiet information architecture;
+- high legibility;
+- restrained translucent hierarchy;
+- mostly neutral surfaces;
+- small semantic accent usage only;
+- **no decorative gradients**.
 
-> **No gradients.**
+Liquid-glass depth should come from transparency, borders, shadows, tonal layering, and motion rather than colorful gradient fields.
 
-Do not use linear, radial, sweep, mesh, aurora, glow, rainbow, iridescent, or multi-stop color gradients anywhere in the phone UI. Liquid-glass depth must come from **transparency, blur, borders, shadows, tonal layering, and motion**, not gradient color fields.
+## Phone scope
 
-Flat semantic color accents are allowed in small areas (for example RSS orange, podcast purple, Google logo colors, or the WristBrief brand mark), but large decorative color fields are not.
+The phone direction remains the restrained monochrome liquid-glass system documented in:
+
+- [`PHONE_LIQUID_GLASS_SPEC.md`](./PHONE_LIQUID_GLASS_SPEC.md)
+- [`assets/phone-liquid-glass-concept.svg`](./assets/phone-liquid-glass-concept.svg)
+- [`examples/LiquidGlassPhoneExample.kt`](./examples/LiquidGlassPhoneExample.kt)
+
+Phone priorities:
+
+1. establish reusable glass tokens/primitives;
+2. re-skin OOBE;
+3. re-skin Home / Explore / Ask AI / Library / playback surfaces;
+4. keep information density controlled;
+5. verify light/dark themes, accessibility, and performance.
+
+## Wear OS scope
+
+The Wear direction is intentionally **sparser than phone** and follows a simple crown-scroll hierarchy:
+
+1. **Today’s Brief** — opening viewport, AI key-point summary only;
+2. **Latest in Library** — reached by scrolling/crown down, showing only the newest 1–2 items;
+3. **More** — reached by continuing down, containing only `Library`, `Now Playing`, and `Settings` entry buttons.
+
+Wear design and implementation handoff:
+
+- [`WEAR_LIQUID_GLASS_SPEC.md`](./WEAR_LIQUID_GLASS_SPEC.md)
+- [`assets/wear-liquid-glass-concepts.svg`](./assets/wear-liquid-glass-concepts.svg)
+- [`examples/WearLiquidGlassExample.kt`](./examples/WearLiquidGlassExample.kt)
+
+The Wear implementation should use `androidx.wear.compose.material3` and Wear-native scaffolds/lists rather than reusing phone Material components.
+
+## Non-negotiable visual rules
+
+### No gradients
+
+Do not use linear, radial, sweep, mesh, aurora, rainbow, iridescent, gradient-border, gradient-button, or decorative color-wash effects on either phone or Wear surfaces.
+
+Flat semantic colors are allowed in small areas when they communicate meaning, such as RSS orange, podcast purple, account/provider identity, playback state, success, warning, or error.
+
+### Avoid plastic-looking glass
+
+Especially on Wear OS, do not use thick cloudy overlays, exaggerated bevels, bright glossy edge highlights, floating glass bubbles, or milky acrylic slabs. Glass should be subtle and secondary to content.
+
+## Product behavior
+
+The visual redesign must wrap existing functionality rather than remove it. WristBrief still needs to support RSS, podcasts, AI Brief, Ask AI, playback, source/library management, onboarding, settings, account/sync, and phone ↔ Wear synchronization.
 
 ## Files
 
-- [`PHONE_LIQUID_GLASS_SPEC.md`](./PHONE_LIQUID_GLASS_SPEC.md) — design philosophy, visual system, flows, motion, accessibility, and implementation rules.
-- [`assets/phone-liquid-glass-concept.svg`](./assets/phone-liquid-glass-concept.svg) — selected concept direction.
-- [`examples/LiquidGlassPhoneExample.kt`](./examples/LiquidGlassPhoneExample.kt) — Jetpack Compose example matching the current `mobile` module stack.
+```text
+uidocs/
+  README.md
+  PHONE_LIQUID_GLASS_SPEC.md
+  WEAR_LIQUID_GLASS_SPEC.md
+  assets/
+    phone-liquid-glass-concept.svg
+    wear-liquid-glass-concepts.svg
+  examples/
+    LiquidGlassPhoneExample.kt
+    WearLiquidGlassExample.kt
+```
 
 ## Design intent in one sentence
 
-**Quiet information architecture, translucent hierarchy, high legibility, almost monochrome surfaces, and zero decorative gradients.**
-
-## Product behavior that must stay intact
-
-The redesign should wrap existing functionality rather than replacing it. The phone app still needs to support RSS, podcasts, AI Brief, Ask AI, playback, source/library management, onboarding, settings, account/sync, and existing Wear synchronization behavior.
-
-## Implementation priority
-
-1. Establish phone-only design tokens.
-2. Build reusable glass primitives.
-3. Re-skin OOBE.
-4. Re-skin Home / Explore / Ask AI / Library / playback surfaces.
-5. Verify accessibility and performance.
-6. Confirm Wear screens are byte-for-byte/functionally unaffected by the UI refactor unless a separate Wear task is opened.
+**Quiet information architecture, subtle glass hierarchy, strong typography, minimal color, and zero decorative gradients — with Wear OS using an even lower-density, crown-first layout.**

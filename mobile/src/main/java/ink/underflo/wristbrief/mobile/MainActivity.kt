@@ -12,12 +12,15 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -30,6 +33,8 @@ import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -50,6 +55,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -62,6 +68,16 @@ class MainActivity : ComponentActivity() {
 
 @Composable fun WristBriefMobileApp() {
     WristBriefMobileTheme {
+        val context = LocalContext.current
+        val onboarding = remember(context) { OnboardingPreferences(context) }
+        var onboardingComplete by rememberSaveable { mutableStateOf(onboarding.isComplete()) }
+        if (!onboardingComplete) {
+            WristBriefOnboarding { interests ->
+                onboarding.complete(interests)
+                onboardingComplete = true
+            }
+            return@WristBriefMobileTheme
+        }
         var name by rememberSaveable { mutableStateOf(initialMobileDestination().name) }
         MobileShell(MobileDestination.valueOf(name), { name = it.name })
     }
@@ -69,7 +85,21 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable private fun MobileShell(destination: MobileDestination, select: (MobileDestination) -> Unit) {
+    BoxWithConstraints {
+    val useRail = maxWidth >= 600.dp
+    Row(Modifier.fillMaxSize()) {
+    if (useRail) NavigationRail(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
+        MobileDestination.entries.forEach { item ->
+            NavigationRailItem(
+                selected = item == destination,
+                onClick = { select(item) },
+                icon = { DestinationIcon(item) },
+                label = { Text(item.localizedLabel()) },
+            )
+        }
+    }
     Scaffold(
+        modifier = Modifier.weight(1f),
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         topBar = {
             LargeTopAppBar(
@@ -85,7 +115,7 @@ class MainActivity : ComponentActivity() {
                             fontWeight = FontWeight.SemiBold,
                         )
                         Text(
-                            destination.label,
+                            destination.localizedLabel(),
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.primary,
                         )
@@ -93,7 +123,7 @@ class MainActivity : ComponentActivity() {
                 },
             )
         },
-        bottomBar = {
+        bottomBar = { if (!useRail) {
             NavigationBar(
                 containerColor = MaterialTheme.colorScheme.surfaceContainer,
                 tonalElevation = 0.dp,
@@ -109,18 +139,14 @@ class MainActivity : ComponentActivity() {
                                 color = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
                                 contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                             ) {
-                                Text(
-                                    item.shortLabel,
-                                    Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                )
+                                DestinationIcon(item, Modifier.padding(8.dp))
                             }
                         },
-                        label = { Text(item.label) },
+                        label = { Text(item.localizedLabel()) },
                     )
                 }
             }
+        }
         },
     ) { padding ->
         AnimatedContent(
@@ -136,6 +162,42 @@ class MainActivity : ComponentActivity() {
                 MobileDestination.Feeds -> CategorizedFeedManagementDestination(padding)
                 MobileDestination.AiProvider -> PhoneLongSummaryDestination(padding)
                 MobileDestination.Membership -> MembershipDestination(padding)
+            }
+        }
+    }
+    }
+    }
+}
+
+@Composable
+private fun MobileDestination.localizedLabel(): String = stringResource(
+    when (this) {
+        MobileDestination.Feeds -> R.string.nav_feeds
+        MobileDestination.AiProvider -> R.string.nav_ai
+        MobileDestination.Membership -> R.string.nav_membership
+    },
+)
+
+@Composable
+private fun DestinationIcon(destination: MobileDestination, modifier: Modifier = Modifier) {
+    val color = androidx.compose.material3.LocalContentColor.current
+    val cutout = MaterialTheme.colorScheme.surface
+    Canvas(modifier.size(24.dp)) {
+        val stroke = 2.2.dp.toPx()
+        when (destination) {
+            MobileDestination.Feeds -> {
+                drawCircle(color, 2.5.dp.toPx(), androidx.compose.ui.geometry.Offset(5.dp.toPx(), 19.dp.toPx()))
+                drawArc(color, 270f, 90f, false, androidx.compose.ui.geometry.Offset(4.dp.toPx(), 9.dp.toPx()), androidx.compose.ui.geometry.Size(11.dp.toPx(), 11.dp.toPx()), style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+                drawArc(color, 270f, 90f, false, androidx.compose.ui.geometry.Offset(4.dp.toPx(), 4.dp.toPx()), androidx.compose.ui.geometry.Size(16.dp.toPx(), 16.dp.toPx()), style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+            }
+            MobileDestination.AiProvider -> {
+                drawCircle(color, 8.dp.toPx())
+                drawLine(cutout, androidx.compose.ui.geometry.Offset(9.dp.toPx(), 12.dp.toPx()), androidx.compose.ui.geometry.Offset(15.dp.toPx(), 12.dp.toPx()), stroke)
+                drawLine(cutout, androidx.compose.ui.geometry.Offset(12.dp.toPx(), 9.dp.toPx()), androidx.compose.ui.geometry.Offset(12.dp.toPx(), 15.dp.toPx()), stroke)
+            }
+            MobileDestination.Membership -> {
+                drawCircle(color, 4.dp.toPx(), androidx.compose.ui.geometry.Offset(12.dp.toPx(), 8.dp.toPx()))
+                drawArc(color, 200f, 140f, false, androidx.compose.ui.geometry.Offset(5.dp.toPx(), 12.dp.toPx()), androidx.compose.ui.geometry.Size(14.dp.toPx(), 10.dp.toPx()), style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
             }
         }
     }
@@ -249,8 +311,8 @@ class MainActivity : ComponentActivity() {
         item {
             when (account) {
                 AccountPresentation.NotConfigured -> MembershipStatusCard(
-                    "Google account not configured",
-                    "Set the production Google web client ID and HTTPS Gateway origin for this build before account sign-in is available.",
+                    stringResource(R.string.account_preview_title),
+                    stringResource(R.string.account_preview_body),
                 )
                 AccountPresentation.SignedOut -> Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
                     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -303,7 +365,7 @@ class MainActivity : ComponentActivity() {
         when (presentation) {
             MembershipPresentation.Loading -> item { MembershipStatusCard("Loading Play products…", "Checking products and existing purchases.") }
             is MembershipPresentation.Unavailable -> item {
-                MembershipStatusCard("Google Play Billing unavailable", presentation.message)
+                MembershipStatusCard(stringResource(R.string.plans_unavailable_title), stringResource(R.string.plans_unavailable_body))
                 OutlinedButton(onClick = repository::refresh) { Text("Try again") }
             }
             is MembershipPresentation.Error -> item {

@@ -1,6 +1,7 @@
 package ink.underflo.wristbrief
 
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
@@ -43,6 +44,7 @@ class MainActivityNavigationTest {
         composeRule.onNode(inboxTitleMatcher).assertIsDisplayed()
     }
 
+    @OptIn(ExperimentalTestApi::class)
     @Test
     fun inboxRespondsToRotaryInputAcrossWearReleaseProfiles() {
         val scrollable = composeRule.onNode(hasScrollAction())

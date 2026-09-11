@@ -1,5 +1,6 @@
 package ink.underflo.wristbrief.sync
 
+import ink.underflo.wristbrief.data.FeedSubscription
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -41,6 +42,24 @@ class SubscriptionDataLayerServiceTest {
         assertEquals("a", decoded.single().id)
         assertEquals("Feed", decoded.single().title)
         assertEquals("https://example.com/feed", decoded.single().url)
+    }
+
+    @Test fun identicalNormalizedSnapshotDoesNotRequirePersistenceOrSurfaceRefresh() {
+        val current = listOf(
+            FeedSubscription(
+                id = "a",
+                title = "Feed",
+                url = "https://example.com/feed",
+                enabled = false,
+                watchKeywords = listOf("AI", "Wear OS"),
+            )
+        )
+        val incoming = SubscriptionDataLayerService.decodeSubscriptions(
+            """{"version":1,"subscriptions":[{"id":" a ","title":" Feed ","url":"HTTPS://EXAMPLE.COM:443/feed/","enabled":false,"watchKeywords":[" AI ","ai","Wear OS"]}]}"""
+        )!!
+        assertFalse(subscriptionSnapshotChanged(current, incoming))
+        assertTrue(subscriptionSnapshotChanged(current, incoming.map { it.copy(enabled = true) }))
+        assertTrue(subscriptionSnapshotChanged(current, incoming + incoming.single().copy(id = "b", url = "https://example.com/b")))
     }
 
     @Test fun decoder_rejectsDuplicateTrimmedIds() {

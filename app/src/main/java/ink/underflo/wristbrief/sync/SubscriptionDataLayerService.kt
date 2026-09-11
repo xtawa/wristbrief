@@ -18,13 +18,20 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
+internal fun subscriptionSnapshotChanged(
+    current: List<FeedSubscription>,
+    incoming: List<FeedSubscription>,
+): Boolean = current != incoming
+
 class SubscriptionDataLayerService : WearableListenerService() {
     override fun onDataChanged(events: DataEventBuffer) {
         events.forEach { event ->
             if (event.type != DataEvent.TYPE_CHANGED || event.dataItem.uri.path != PATH) return@forEach
             val raw = DataMapItem.fromDataItem(event.dataItem).dataMap.getString(PAYLOAD_KEY) ?: return@forEach
             val feeds = decodeSubscriptions(raw) ?: return@forEach
-            SharedPreferencesFeedStore(this).saveSubscriptions(feeds)
+            val store = SharedPreferencesFeedStore(this)
+            if (!subscriptionSnapshotChanged(store.subscriptions(), feeds)) return@forEach
+            store.saveSubscriptions(feeds)
             requestLatestUnreadTileUpdate(this)
             requestUnreadComplicationUpdate(this)
         }

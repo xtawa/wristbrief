@@ -93,7 +93,7 @@ WristBrief is a Wear OS-first inbox for RSS, Atom and podcast feeds. The watch s
 - [x] Categories/folders.
 - [x] Keyword watch filter.
 - [x] Standalone watch refresh when the phone is unavailable and the watch has network access.
-- [ ] Complete read/saved phone↔Wear synchronization with explicit ownership/merge semantics; the current v1 payload fields alone are not an end-to-end sync implementation.
+- [x] Complete read/saved phone↔Wear synchronization with explicit ownership/merge semantics; the current v1 payload fields alone are not an end-to-end sync implementation.
 
 ## P8 — Membership and quotas
 
@@ -108,8 +108,8 @@ Only implement after the managed AI path and identity model are stable.
 - [x] Restore purchases contract/client foundation.
 - [x] Production RTDN lifecycle handling with authenticated Pub/Sub verification.
 - [x] Authoritative entitlement state lives server-side, not in client preferences.
-- [ ] Make managed-AI quota admission concurrency-safe so parallel requests cannot create avoidable upstream cost after reading the same remaining quota.
-- [ ] Deduplicate Pub/Sub RTDN deliveries by message identity before repeated Play API verification, while keeping entitlement updates idempotent.
+- [x] Make managed-AI quota admission concurrency-safe so parallel requests cannot create avoidable upstream cost after reading the same remaining quota.
+- [x] Deduplicate Pub/Sub RTDN deliveries by message identity before repeated Play API verification, while keeping entitlement updates idempotent.
 
 ### P8.1 — Google account identity + membership binding
 
@@ -124,7 +124,7 @@ Implement after the current production RTDN hardening, and before calling the me
 - [x] Use durable serverless storage for authoritative account state (D1-compatible schema preferred). KV/cache may accelerate reads but must not become the membership source of truth.
 - [x] Keep the current Gateway as the single server authority for `/v1/me`, auth sessions, entitlement and quota decisions.
 - [x] Do not ship Google client secrets, Play service-account material, session signing secrets or provider credentials in the APK.
-- [ ] Bridge a scoped, expiring WristBrief account session from phone to Wear at runtime so Wear managed AI can authenticate without any compiled server-wide bearer; clear/replace it on sign-out and account switch.
+- [x] Bridge a scoped, expiring WristBrief account session from phone to Wear at runtime so Wear managed AI can authenticate without any compiled server-wide bearer; clear/replace it on sign-out and account switch.
 
 #### Authentication flow
 

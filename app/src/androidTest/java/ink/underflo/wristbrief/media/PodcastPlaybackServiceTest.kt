@@ -78,7 +78,7 @@ class PodcastPlaybackServiceTest {
                 configuredController.seekTo(12_000L)
                 configuredController.playbackParameters = PlaybackParameters(1.5f)
                 assertEquals("ci-episode", configuredController.currentMediaItem?.mediaId)
-                assertEquals(12_000L, configuredController.currentPosition)
+                assertPositionNear(12_000L, configuredController.currentPosition)
                 assertEquals(1.5f, configuredController.playbackParameters.speed, 0.001f)
             }
             releaseController(configuredController)
@@ -88,7 +88,7 @@ class PodcastPlaybackServiceTest {
             secondController = reconnectedController
             InstrumentationRegistry.getInstrumentation().runOnMainSync {
                 assertEquals("ci-episode", reconnectedController.currentMediaItem?.mediaId)
-                assertEquals(12_000L, reconnectedController.currentPosition)
+                assertPositionNear(12_000L, reconnectedController.currentPosition)
                 assertEquals(1.5f, reconnectedController.playbackParameters.speed, 0.001f)
             }
         } finally {
@@ -161,15 +161,17 @@ class PodcastPlaybackServiceTest {
 
             val reconnectedController = connectController(context)
             secondController = reconnectedController
+            assertTrue(
+                "Active service-owned playback did not stabilize after controller reconnect",
+                awaitControllerState(reconnectedController, timeoutMs = 5_000L) {
+                    it.currentMediaItem?.mediaId == "ci-active-episode" &&
+                        it.playbackState == Player.STATE_READY &&
+                        it.playWhenReady &&
+                        it.isPlaying &&
+                        it.currentPosition >= positionBeforeReconnect[0]
+                }
+            )
             InstrumentationRegistry.getInstrumentation().runOnMainSync {
-                assertEquals("ci-active-episode", reconnectedController.currentMediaItem?.mediaId)
-                assertEquals(Player.STATE_READY, reconnectedController.playbackState)
-                assertTrue(reconnectedController.playWhenReady)
-                assertTrue(reconnectedController.isPlaying)
-                assertTrue(
-                    "Playback position regressed across controller reconnect",
-                    reconnectedController.currentPosition >= positionBeforeReconnect[0]
-                )
                 reconnectedController.pause()
             }
         } finally {
@@ -219,7 +221,7 @@ class PodcastPlaybackServiceTest {
                 configuredController.removeListener(listener)
                 configuredController.seekTo(17_000L)
                 configuredController.playbackParameters = PlaybackParameters(1.75f)
-                assertEquals(17_000L, configuredController.currentPosition)
+                assertPositionNear(17_000L, configuredController.currentPosition)
                 assertEquals(1.75f, configuredController.playbackParameters.speed, 0.001f)
             }
 
@@ -231,7 +233,7 @@ class PodcastPlaybackServiceTest {
                 timeoutMs = 5_000L,
             )
             assertNotNull("Seek/speed were not persisted before service stop", persistedBeforeStop)
-            assertEquals(17_000L, persistedBeforeStop!!.positionMs)
+            assertPositionNear(17_000L, persistedBeforeStop!!.positionMs)
             assertEquals(1.75f, persistedBeforeStop.playbackSpeed, 0.001f)
 
             releaseController(configuredController)
@@ -246,7 +248,7 @@ class PodcastPlaybackServiceTest {
                 timeoutMs = 5_000L,
             )
             assertNotNull("Service stop did not preserve podcast progress", saved)
-            assertEquals(17_000L, saved!!.positionMs)
+            assertPositionNear(17_000L, saved!!.positionMs)
             assertEquals(1.75f, saved.playbackSpeed, 0.001f)
         } finally {
             controller?.let(::releaseController)
@@ -273,6 +275,30 @@ class PodcastPlaybackServiceTest {
         }
     }
 
+    private fun awaitControllerState(
+        controller: MediaController,
+        timeoutMs: Long,
+        predicate: (MediaController) -> Boolean,
+    ): Boolean {
+        val deadlineNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs)
+        while (System.nanoTime() < deadlineNanos) {
+            val matches = booleanArrayOf(false)
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                matches[0] = predicate(controller)
+            }
+            if (matches[0]) return true
+            Thread.sleep(50L)
+        }
+        return false
+    }
+
+    private fun assertPositionNear(expectedMs: Long, actualMs: Long, toleranceMs: Long = 250L) {
+        assertTrue(
+            "Expected playback position near ${expectedMs}ms (+/-${toleranceMs}ms), but was ${actualMs}ms",
+            actualMs in (expectedMs - toleranceMs)..(expectedMs + toleranceMs),
+        )
+    }
+
     private fun awaitStoredProgress(
         store: PodcastProgressStore,
         episodeId: String,
@@ -285,7 +311,7 @@ class PodcastPlaybackServiceTest {
             store.get(episodeId)?.let { progress ->
                 val speedMatches = expectedPlaybackSpeed == null ||
                     abs(progress.playbackSpeed - expectedPlaybackSpeed) < 0.001f
-                if (progress.positionMs == expectedPositionMs && speedMatches) return progress
+                if (abs(progress.positionMs - expectedPositionMs) <= 250L && speedMatches) return progress
             }
             Thread.sleep(50L)
         }

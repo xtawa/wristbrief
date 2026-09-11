@@ -85,6 +85,13 @@ class GoogleAccountAuthClient(
         return true
     }
 
+    suspend fun prepareLegacyMigration(legacyAuthorization: String): LegacyMigrationHandoffResult =
+        LegacyMigrationHandoffClient(
+            httpClient = httpClient,
+            grantPreferences = migrationGrantPreferences,
+            gatewayBaseUrl = gatewayBaseUrl,
+        ).prepare(legacyAuthorization)
+
     suspend fun signIn(): AccountAuthResult {
         val config = accountAuthConfig(webClientId, gatewayBaseUrl)
             ?: return AccountAuthResult.Failure("auth_not_configured")
@@ -109,7 +116,7 @@ class GoogleAccountAuthClient(
             return AccountAuthResult.Failure("google_sign_in_failed")
         }
 
-        // The Google ID token and optional one-time migration grant stay in memory only for the exchange.
+        // The Google ID token stays in memory; a one-time migration grant is app-private and cleared after success.
         return exchangeIdToken(config.gatewayBaseUrl, idToken)
     }
 
@@ -184,11 +191,8 @@ data class AccountAuthConfig(val webClientId: String, val gatewayBaseUrl: String
 
 fun accountAuthConfig(webClientId: String, gatewayBaseUrl: String): AccountAuthConfig? {
     val clientId = webClientId.trim()
-    val baseUrl = gatewayBaseUrl.trim().trimEnd('/')
+    val baseUrl = validGatewayOrigin(gatewayBaseUrl) ?: return null
     if (clientId.isEmpty() || clientId.length > 512 || !clientId.endsWith(".apps.googleusercontent.com")) return null
-    val parsed = runCatching { java.net.URI(baseUrl) }.getOrNull() ?: return null
-    if (parsed.scheme != "https" || parsed.host.isNullOrBlank() || parsed.userInfo != null || parsed.query != null || parsed.fragment != null) return null
-    if (parsed.path != null && parsed.path.isNotEmpty() && parsed.path != "/") return null
     return AccountAuthConfig(clientId, baseUrl)
 }
 

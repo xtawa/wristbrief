@@ -5,6 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
@@ -43,6 +44,28 @@ class PodcastPlaybackService : MediaSessionService() {
                     if (playbackState == Player.STATE_ENDED) {
                         saveCurrentProgress(force = true, completed = true)
                     }
+                }
+
+                override fun onPositionDiscontinuity(
+                    oldPosition: Player.PositionInfo,
+                    newPosition: Player.PositionInfo,
+                    reason: Int,
+                ) {
+                    if (
+                        reason == Player.DISCONTINUITY_REASON_SEEK ||
+                        reason == Player.DISCONTINUITY_REASON_SEEK_ADJUSTMENT
+                    ) {
+                        // A prepared episode can be seeked before playback ever starts. Persist the
+                        // explicit user position immediately instead of relying on a later
+                        // checkpoint/service teardown, both of which may never happen cleanly.
+                        saveCurrentProgress(force = true)
+                    }
+                }
+
+                override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
+                    // Speed changes are user state too. Persist immediately so a controller can
+                    // disconnect or the service can stop without losing the new preference.
+                    saveCurrentProgress(force = true)
                 }
             })
         }

@@ -37,6 +37,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(buildState())
     val uiState: StateFlow<InboxUiState> = _uiState.asStateFlow()
+    private var lastGlanceSurfaceFingerprint = _uiState.value.glanceSurfaceUpdateFingerprint()
 
     init {
         if (_uiState.value.hasSubscriptions) refresh()
@@ -46,7 +47,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         if (_uiState.value.isLoading) return
         if (!repository.subscriptions().any { it.enabled }) {
             _uiState.value = buildState()
-            requestGlanceUpdates()
+            requestGlanceUpdatesIfChanged()
             return
         }
 
@@ -63,7 +64,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
                             null
                         }
                     )
-                    requestGlanceUpdates()
+                    requestGlanceUpdatesIfChanged()
                 }
                 .onFailure {
                     _uiState.value = buildState(
@@ -79,7 +80,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         if (repository.setRead(id, isRead)) {
             itemStateSync.recordRead(id, isRead)
             rebuildPreservingTransientState()
-            requestGlanceUpdates()
+            requestGlanceUpdatesIfChanged()
         } else {
             _uiState.value = _uiState.value.copy(errorMessage = "Brief is no longer available")
         }
@@ -98,7 +99,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         when (repository.setSubscriptionEnabled(id, enabled)) {
             SubscriptionMutationResult.Success -> {
                 _uiState.value = buildState()
-                requestGlanceUpdates()
+                requestGlanceUpdatesIfChanged()
                 if (enabled) refresh()
             }
             else -> _uiState.value = _uiState.value.copy(errorMessage = "Could not update feed")
@@ -109,13 +110,16 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
         when (repository.removeSubscription(id)) {
             SubscriptionMutationResult.Success -> {
                 _uiState.value = buildState()
-                requestGlanceUpdates()
+                requestGlanceUpdatesIfChanged()
             }
             else -> _uiState.value = _uiState.value.copy(errorMessage = "Could not remove feed")
         }
     }
 
-    private fun requestGlanceUpdates() {
+    private fun requestGlanceUpdatesIfChanged() {
+        val fingerprint = _uiState.value.glanceSurfaceUpdateFingerprint()
+        if (fingerprint == lastGlanceSurfaceFingerprint) return
+        lastGlanceSurfaceFingerprint = fingerprint
         requestLatestUnreadTileUpdate(getApplication())
         requestUnreadComplicationUpdate(getApplication())
     }

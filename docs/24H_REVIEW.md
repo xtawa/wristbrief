@@ -22,6 +22,7 @@ Subsequent repository work has also completed the following foundations:
 - MainActivity recreation/resume smoke coverage for both Wear and Mobile, plus a Wear playback-service lifecycle smoke test across activity recreation/background-resume, executed by CI instrumentation jobs;
 - Wear navigation/state-restoration interaction coverage on the small-round profile at configured system font scale `1.30`, while retaining the large-round default-font profile;
 - instrumented Media3 `MediaController` coverage that verifies the non-exported `PodcastPlaybackService` accepts controller connections and, with a locally generated WAV fixture, preserves prepared episode identity/seek/speed state across controller disconnect/reconnect and separately keeps an actively playing episode service-owned while no controller is connected. The active-playback test verifies `STATE_READY`, `playWhenReady`, `isPlaying`, media identity, and non-regressing playback position after reconnect. The fixture is local to CI and does not depend on external media networking;
+- device-level Wear surface provider contract coverage now verifies the installed APK exposes both Tile providers and the unread complication provider with the expected bind permissions/actions, complication supported-type/update-period metadata, installed component resolution, and valid SHORT_TEXT/LONG_TEXT preview payloads while rejecting an unsupported preview type;
 - Wear subscription Data Layer decoding now applies the same HTTPS/canonical-identity invariants as the repository and rejects duplicate IDs or duplicate logical feed URLs;
 - read/saved item-state Data Layer payloads now reject duplicate records and enforce channel ownership (`PHONE` fields only on the phone-owned path and `WEAR` fields only on the Wear-owned path), preventing forged origin values from changing merge tie-breaking;
 - the phone→Wear scoped account-session bridge now publishes a single latest-state DataItem rather than a best-effort transient message, so a set/clear performed while devices are disconnected can be delivered after reconnect; invalid, malformed, or already-expired latest session state fails closed and clears any older Wear session instead of leaving stale credentials active.
@@ -45,7 +46,7 @@ Repository-controlled checks now include:
 - Wear JVM tests;
 - Wear debug assembly;
 - Wear debug instrumentation-test APK assembly;
-- Wear OS small-round emulator execution at system font scale `1.30`, including navigation/state-restoration and MediaSession controller reconnect/state-continuity coverage for both prepared and actively playing local media;
+- Wear OS small-round emulator execution at system font scale `1.30`, including navigation/state-restoration, MediaSession controller reconnect/state-continuity coverage for both prepared and actively playing local media, and installed Tile/Complication provider contract/preview checks;
 - Wear OS large-round emulator execution at the default font scale, including the same instrumentation suite;
 - Mobile JVM tests;
 - Mobile debug assembly;
@@ -56,9 +57,9 @@ Repository-controlled checks now include:
 - release manifest guard;
 - unsigned Wear/Mobile release APK + AAB assembly and artifact upload on `main` pushes.
 
-CI #325 verified commit `2afee12f8f94522528ca533b0b1432ff687b176c`: release guard, Gateway typecheck/Vitest, Wear and Mobile JVM/debug/instrumentation APK builds, unsigned release APK/AAB builds, Mobile managed-device instrumentation, and both Wear small-round (`1.30` font scale) and large-round instrumentation completed successfully. The Wear suite now has two deterministic local-media checks: one preserves a prepared episode at 12 seconds and 1.5× speed across controller reconnect, and the other starts actual playback of a 60-second local WAV, disconnects the only controller while playback remains service-owned, reconnects, and verifies the same episode is still `STATE_READY`, `playWhenReady`, `isPlaying`, and at a non-regressed playback position.
+CI #327 verified commit `7ca0c702f5b4451a24cfe5df454e698f2487ee7d`: release guard, Gateway typecheck/Vitest, Wear and Mobile JVM/debug/instrumentation APK builds, unsigned release APK/AAB builds, Mobile managed-device instrumentation, and both Wear small-round (`1.30` font scale) and large-round instrumentation completed successfully. In addition to the deterministic local-media continuity checks, the Wear suite now queries the installed package for both Tile providers and the unread complication provider, verifies their platform bind permissions/actions and complication metadata, resolves the installed service components, and builds SHORT_TEXT/LONG_TEXT complication preview data while confirming an unsupported preview type returns no data.
 
-These smoke suites prove launch/recreation/navigation, configured large-font layout interaction, MediaSession-service connection/lifecycle behavior, prepared and actively-playing local-media controller reconnect continuity, and the JVM-level Data Layer validation/state semantics now checked into the repository. They do **not** substitute for rotary-input testing, Bluetooth/noisy-route/audio-focus behavior, persisted resume after process/service death, a real paired-device disconnect/reconnect transport exercise, Tile/Complication interaction, Play validation, or the broader physical-device matrix below.
+These smoke suites prove launch/recreation/navigation, configured large-font layout interaction, MediaSession-service connection/lifecycle behavior, prepared and actively-playing local-media controller reconnect continuity, installed Wear surface provider registration/preview contracts, and the JVM-level Data Layer validation/state semantics now checked into the repository. They do **not** substitute for rotary-input testing, Bluetooth/noisy-route/audio-focus behavior, persisted resume after process/service death, a real paired-device disconnect/reconnect transport exercise, actual Tile/Complication host rendering/tap/update propagation, Play validation, or the broader physical-device matrix below.
 
 ## Remaining external or execution-dependent release blockers
 
@@ -69,11 +70,11 @@ The following work remains intentionally unclaimed:
 - configure the actual Google Cloud Pub/Sub RTDN topic and authenticated push subscription, then exercise live push delivery against the configured production-like audience/service account;
 - execute the full Play lifecycle matrix: active, cancellation-with-time-remaining, grace period, account hold, expiration and revoke;
 - configure the established Play App Signing/upload-key path and upload a traceable AAB to the Play internal-testing track;
-- expand Android/Wear instrumentation beyond the current launch/recreation/navigation/media checks into additional deterministic interaction flows where practical;
+- expand Android/Wear instrumentation beyond the current launch/recreation/navigation/media/provider-contract checks into additional deterministic interaction flows where practical;
 - execute rotary-input checks on representative Wear profiles; CI now covers the small-round profile at system font scale `1.30` and the large-round size dimension, but it does not synthesize representative crown/rotary interaction;
 - exercise Bluetooth controls, noisy-route/audio-focus, persisted resume after service/process recreation, and representative hardware-specific media behavior; CI now covers continuously playing local media across controller disconnect/reconnect but not these device/audio-route boundaries;
 - exercise paired phone↔Wear Data Layer flows across connected, disconnected and reconnected states; the account-session transport now stores latest state durably, but CI still does not run a paired phone/watch topology that proves the platform transport path end-to-end;
-- verify Tile and complication launch/readability/update behavior on Wear OS.
+- verify actual Tile and complication host rendering/readability, tap launch behavior, and update propagation on Wear OS. Provider registration, permissions, metadata and complication preview construction are now covered on both CI Wear profiles, but those host-level behaviors are not.
 
 No production credential, signing key or console-only result should be committed merely to clear one of these blockers.
 

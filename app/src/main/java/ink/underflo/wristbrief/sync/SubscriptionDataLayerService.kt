@@ -7,6 +7,8 @@ import com.google.android.gms.wearable.WearableListenerService
 import ink.underflo.wristbrief.complication.requestUnreadComplicationUpdate
 import ink.underflo.wristbrief.data.FeedSubscription
 import ink.underflo.wristbrief.data.SharedPreferencesFeedStore
+import ink.underflo.wristbrief.data.isValidSubscriptionUrl
+import ink.underflo.wristbrief.data.normalizeIdentityUrl
 import ink.underflo.wristbrief.data.normalizeWatchKeywords
 import ink.underflo.wristbrief.tile.requestLatestUnreadTileUpdate
 import kotlinx.serialization.json.Json
@@ -37,12 +39,17 @@ class SubscriptionDataLayerService : WearableListenerService() {
             val root = json.parseToJsonElement(raw).jsonObject
             require(root["version"]?.jsonPrimitive?.intOrNull == 1)
             val subscriptions = root["subscriptions"]?.jsonArray ?: error("Missing subscriptions")
+            val seenIds = hashSetOf<String>()
+            val seenUrls = hashSetOf<String>()
             subscriptions.map { element ->
                 val item = element.jsonObject
-                val id = item["id"]!!.jsonPrimitive.content
-                val title = item["title"]!!.jsonPrimitive.content
-                val url = item["url"]!!.jsonPrimitive.content
-                require(id.isNotBlank() && title.isNotBlank() && url.startsWith("https://"))
+                val id = item["id"]!!.jsonPrimitive.content.trim()
+                val title = item["title"]!!.jsonPrimitive.content.trim()
+                val rawUrl = item["url"]!!.jsonPrimitive.content
+                require(id.isNotBlank() && title.isNotBlank() && isValidSubscriptionUrl(rawUrl))
+                val url = normalizeIdentityUrl(rawUrl) ?: error("Invalid subscription URL")
+                require(seenIds.add(id))
+                require(seenUrls.add(url))
                 val keywords = item["watchKeywords"]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty()
                 FeedSubscription(
                     id = id,

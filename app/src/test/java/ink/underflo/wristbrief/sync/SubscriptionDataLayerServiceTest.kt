@@ -31,4 +31,23 @@ class SubscriptionDataLayerServiceTest {
         assertNull(SubscriptionDataLayerService.decodeSubscriptions("""{"version":2,"subscriptions":[]}"""))
         assertNull(SubscriptionDataLayerService.decodeSubscriptions("""{"version":1,"subscriptions":[{"id":"a","title":"Feed","url":"http://example.com/feed"}]}"""))
     }
+
+    @Test fun decoder_rejectsMalformedHttpsUrl() {
+        assertNull(SubscriptionDataLayerService.decodeSubscriptions("""{"version":1,"subscriptions":[{"id":"a","title":"Feed","url":"https://"}]}"""))
+    }
+
+    @Test fun decoder_normalizesUrlAndTrimsIdentityFields() {
+        val decoded = SubscriptionDataLayerService.decodeSubscriptions("""{"version":1,"subscriptions":[{"id":" a ","title":" Feed ","url":" HTTPS://Example.COM:443/feed/ "}]}""")!!
+        assertEquals("a", decoded.single().id)
+        assertEquals("Feed", decoded.single().title)
+        assertEquals("https://example.com/feed", decoded.single().url)
+    }
+
+    @Test fun decoder_rejectsDuplicateTrimmedIds() {
+        assertNull(SubscriptionDataLayerService.decodeSubscriptions("""{"version":1,"subscriptions":[{"id":"a","title":"One","url":"https://example.com/one"},{"id":" a ","title":"Two","url":"https://example.com/two"}]}"""))
+    }
+
+    @Test fun decoder_rejectsDuplicateLogicalUrls() {
+        assertNull(SubscriptionDataLayerService.decodeSubscriptions("""{"version":1,"subscriptions":[{"id":"a","title":"One","url":"https://EXAMPLE.com:443/feed/"},{"id":"b","title":"Two","url":"https://example.com/feed"}]}"""))
+    }
 }

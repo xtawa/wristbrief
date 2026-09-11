@@ -491,6 +491,6 @@ Before calling the phone redesign complete:
 
 Selected direction:
 
-![WristBrief phone liquid glass concept](./assets/phone-liquid-glass-concept.jpg)
+![WristBrief phone liquid glass concept](./assets/phone-liquid-glass-concept.svg)
 
 Treat the concept image as **layout and atmosphere guidance**, not pixel-perfect production truth. The written constraints in this document take precedence, especially the **no-gradient** rule and the **Wear unchanged** boundary.

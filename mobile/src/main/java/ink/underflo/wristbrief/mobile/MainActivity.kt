@@ -1,10 +1,16 @@
 package ink.underflo.wristbrief.mobile
 
 import android.app.Activity
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -14,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -30,8 +37,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -45,6 +51,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.android.billingclient.api.BillingClient.BillingResponseCode
 import kotlinx.coroutines.launch
@@ -54,10 +61,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable fun WristBriefMobileApp() {
-    val context = LocalContext.current
-    val dark = androidx.compose.foundation.isSystemInDarkTheme()
-    val colors = when { Build.VERSION.SDK_INT >= 31 && dark -> dynamicDarkColorScheme(context); Build.VERSION.SDK_INT >= 31 -> dynamicLightColorScheme(context); dark -> androidx.compose.material3.darkColorScheme(); else -> androidx.compose.material3.lightColorScheme() }
-    MaterialTheme(colorScheme = colors) {
+    WristBriefMobileTheme {
         var name by rememberSaveable { mutableStateOf(initialMobileDestination().name) }
         MobileShell(MobileDestination.valueOf(name), { name = it.name })
     }
@@ -65,11 +69,74 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable private fun MobileShell(destination: MobileDestination, select: (MobileDestination) -> Unit) {
-    Scaffold(topBar = { LargeTopAppBar(title = { Column { Text("WristBrief", fontWeight = FontWeight.SemiBold); Text(destination.label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant) } }) }, bottomBar = { NavigationBar { MobileDestination.entries.forEach { item -> NavigationBarItem(selected = item == destination, onClick = { select(item) }, icon = { Surface(shape = MaterialTheme.shapes.large, color = if (item == destination) MaterialTheme.colorScheme.primaryContainer else Color.Transparent) { Text(item.shortLabel, Modifier.padding(horizontal = 10.dp, vertical = 6.dp), style = MaterialTheme.typography.labelMedium) } }, label = { Text(item.label) }) } } }) { padding ->
-        when (destination) {
-            MobileDestination.Feeds -> CategorizedFeedManagementDestination(padding)
-            MobileDestination.AiProvider -> PhoneLongSummaryDestination(padding)
-            MobileDestination.Membership -> MembershipDestination(padding)
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        topBar = {
+            LargeTopAppBar(
+                colors = TopAppBarDefaults.largeTopAppBarColors(
+                    containerColor = Color.Transparent,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                ),
+                title = {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            "WristBrief",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            destination.label,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                },
+            )
+        },
+        bottomBar = {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                tonalElevation = 0.dp,
+            ) {
+                MobileDestination.entries.forEach { item ->
+                    val selected = item == destination
+                    NavigationBarItem(
+                        selected = selected,
+                        onClick = { select(item) },
+                        icon = {
+                            Surface(
+                                shape = CircleShape,
+                                color = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                                contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                            ) {
+                                Text(
+                                    item.shortLabel,
+                                    Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                            }
+                        },
+                        label = { Text(item.label) },
+                    )
+                }
+            }
+        },
+    ) { padding ->
+        AnimatedContent(
+            targetState = destination,
+            transitionSpec = {
+                val motion = spring<Float>(stiffness = Spring.StiffnessMediumLow)
+                val slide = spring<IntOffset>(stiffness = Spring.StiffnessMediumLow)
+                (fadeIn(motion) + slideInHorizontally(slide) { it / 8 }) togetherWith fadeOut(motion)
+            },
+            label = "mobile-destination",
+        ) { currentDestination ->
+            when (currentDestination) {
+                MobileDestination.Feeds -> CategorizedFeedManagementDestination(padding)
+                MobileDestination.AiProvider -> PhoneLongSummaryDestination(padding)
+                MobileDestination.Membership -> MembershipDestination(padding)
+            }
         }
     }
 }

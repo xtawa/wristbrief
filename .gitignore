@@ -1,0 +1,57 @@
+# Android Studio / IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# Gradle / Kotlin build state
+.gradle/
+.kotlin/
+**/build/
+
+# Android local machine configuration
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Android build artifacts
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+**/release/baselineProfiles/
+**/release/output-metadata.json
+
+# Signing material and local secrets
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+secrets.properties
+
+# Node.js / TypeScript gateway
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.wrangler/
+.dev.vars
+.dev.vars.*
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Logs and crash dumps
+*.log
+hs_err_pid*
+replay_pid*
+
+# Editor and operating-system files
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini

@@ -5,6 +5,7 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertNotNull
 import org.junit.Test
@@ -23,13 +24,15 @@ class PodcastPlaybackServiceTest {
         val controller = future.get(10, TimeUnit.SECONDS)
 
         try {
-            // buildAsync() completing successfully is the Media3 contract that the controller
-            // connected to the target MediaSessionService. Keep this smoke test on APIs that are
-            // available in the project's pinned Media3 version instead of asserting newer token
-            // inspection helpers.
+            // buildAsync() completing successfully proves the controller connected to the target
+            // MediaSessionService without needing to prepare media.
             assertNotNull(controller)
         } finally {
-            controller.release()
+            // MediaController methods, including release(), must run on the controller's
+            // application thread. The controller is built with the app main looper here.
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                controller.release()
+            }
         }
     }
 }

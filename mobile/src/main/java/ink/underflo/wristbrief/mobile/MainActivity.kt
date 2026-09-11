@@ -72,21 +72,61 @@ class MainActivity : ComponentActivity() {
         val onboarding = remember(context) { OnboardingPreferences(context) }
         var onboardingComplete by rememberSaveable { mutableStateOf(onboarding.isComplete()) }
         var onboardingAction by rememberSaveable { mutableStateOf<String?>(null) }
+        var showSettings by rememberSaveable { mutableStateOf(false) }
+
         if (!onboardingComplete) {
             WristBriefOnboarding { action ->
                 onboarding.complete()
                 onboardingAction = action.name
+                if (action == OnboardingAction.AddFeed || action == OnboardingAction.ImportOpml) {
+                    showSettings = true
+                }
                 onboardingComplete = true
             }
             return@WristBriefMobileTheme
         }
+
+        val feedManager = remember(context) {
+            MobileFeedManager(
+                SharedPreferencesMobileFeedStore(context),
+                HttpFeedProbe(),
+                GoogleWearFeedSyncPublisher(context),
+            )
+        }
+        val syncManager = remember(context) { PhoneItemStateSyncManager(context) }
+        val inboxRepository = remember(context) {
+            MobileInboxRepository(
+                feedManager = feedManager,
+                store = SharedPreferencesMobileInboxStore(context),
+                stateAdapter = SyncManagerItemStateAdapter(syncManager),
+                fetcher = HttpFeedItemFetcher(),
+            )
+        }
+
         var name by rememberSaveable { mutableStateOf(initialMobileDestination().name) }
-        MobileShell(
-            destination = MobileDestination.valueOf(name),
-            select = { name = it.name },
-            onboardingAction = onboardingAction?.let(OnboardingAction::valueOf),
-            onOnboardingActionConsumed = { onboardingAction = null },
-        )
+
+        if (showSettings) {
+            SettingsDestination(
+                onBack = { showSettings = false },
+                onReplayOnboarding = {
+                    onboarding.reset()
+                    showSettings = false
+                    onboardingComplete = false
+                },
+                onboardingAction = onboardingAction?.let(OnboardingAction::valueOf),
+                onOnboardingActionConsumed = { onboardingAction = null },
+            )
+        } else {
+            MobileShell(
+                destination = MobileDestination.valueOf(name),
+                select = { name = it.name },
+                inboxRepository = inboxRepository,
+                feedManager = feedManager,
+                onOpenSettings = { showSettings = true },
+                onAddFeed = { showSettings = true },
+                onImportOpml = { showSettings = true },
+            )
+        }
     }
 }
 
@@ -94,103 +134,122 @@ class MainActivity : ComponentActivity() {
 @Composable private fun MobileShell(
     destination: MobileDestination,
     select: (MobileDestination) -> Unit,
-    onboardingAction: OnboardingAction?,
-    onOnboardingActionConsumed: () -> Unit,
+    inboxRepository: MobileInboxRepository,
+    feedManager: MobileFeedManager,
+    onOpenSettings: () -> Unit,
+    onAddFeed: () -> Unit,
+    onImportOpml: () -> Unit,
 ) {
     BoxWithConstraints {
-    val useRail = maxWidth >= 600.dp
-    Row(Modifier.fillMaxSize()) {
-    if (useRail) NavigationRail(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
-        MobileDestination.entries.forEach { item ->
-            NavigationRailItem(
-                selected = item == destination,
-                onClick = { select(item) },
-                icon = { DestinationIcon(item) },
-                label = { Text(item.localizedLabel()) },
-            )
-        }
-    }
-    Scaffold(
-        modifier = Modifier.weight(1f),
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        topBar = {
-            LargeTopAppBar(
-                colors = TopAppBarDefaults.largeTopAppBarColors(
-                    containerColor = Color.Transparent,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface,
-                ),
-                title = {
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(
-                            "WristBrief",
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Text(
-                            destination.localizedLabel(),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                    }
-                },
-            )
-        },
-        bottomBar = { if (!useRail) {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                tonalElevation = 0.dp,
-            ) {
+        val useRail = maxWidth >= 600.dp
+        Row(Modifier.fillMaxSize()) {
+            if (useRail) NavigationRail(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
                 MobileDestination.entries.forEach { item ->
-                    val selected = item == destination
-                    NavigationBarItem(
-                        selected = selected,
+                    NavigationRailItem(
+                        selected = item == destination,
                         onClick = { select(item) },
-                        icon = {
-                            Surface(
-                                shape = CircleShape,
-                                color = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                                contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                            ) {
-                                DestinationIcon(item, Modifier.padding(8.dp))
-                            }
-                        },
+                        icon = { DestinationIcon(item) },
                         label = { Text(item.localizedLabel()) },
                     )
                 }
             }
-        }
-        },
-    ) { padding ->
-        AnimatedContent(
-            targetState = destination,
-            transitionSpec = {
-                val motion = spring<Float>(stiffness = Spring.StiffnessMediumLow)
-                val slide = spring<IntOffset>(stiffness = Spring.StiffnessMediumLow)
-                (fadeIn(motion) + slideInHorizontally(slide) { it / 8 }) togetherWith fadeOut(motion)
-            },
-            label = "mobile-destination",
-        ) { currentDestination ->
-            when (currentDestination) {
-                MobileDestination.Feeds -> CategorizedFeedManagementDestination(
-                    padding = padding,
-                    onboardingAction = onboardingAction,
-                    onOnboardingActionConsumed = onOnboardingActionConsumed,
-                )
-                MobileDestination.AiProvider -> PhoneLongSummaryDestination(padding)
-                MobileDestination.Membership -> MembershipDestination(padding)
+            Scaffold(
+                modifier = Modifier.weight(1f),
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                topBar = {
+                    LargeTopAppBar(
+                        colors = TopAppBarDefaults.largeTopAppBarColors(
+                            containerColor = Color.Transparent,
+                            titleContentColor = MaterialTheme.colorScheme.onSurface,
+                        ),
+                        title = {
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(
+                                    "WristBrief",
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                                Text(
+                                    destination.localizedLabel(),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                        },
+                        actions = {
+                            androidx.compose.material3.IconButton(onClick = onOpenSettings) {
+                                SettingsIcon()
+                            }
+                        },
+                    )
+                },
+                bottomBar = {
+                    if (!useRail) {
+                        NavigationBar(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                            tonalElevation = 0.dp,
+                        ) {
+                            MobileDestination.entries.forEach { item ->
+                                val selected = item == destination
+                                NavigationBarItem(
+                                    selected = selected,
+                                    onClick = { select(item) },
+                                    icon = {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                                            contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        ) {
+                                            DestinationIcon(item, Modifier.padding(8.dp))
+                                        }
+                                    },
+                                    label = { Text(item.localizedLabel()) },
+                                )
+                            }
+                        }
+                    }
+                },
+            ) { padding ->
+                AnimatedContent(
+                    targetState = destination,
+                    transitionSpec = {
+                        val motion = spring<Float>(stiffness = Spring.StiffnessMediumLow)
+                        val slide = spring<IntOffset>(stiffness = Spring.StiffnessMediumLow)
+                        (fadeIn(motion) + slideInHorizontally(slide) { it / 8 }) togetherWith fadeOut(motion)
+                    },
+                    label = "mobile-destination",
+                ) { currentDestination ->
+                    when (currentDestination) {
+                        MobileDestination.Today -> TodayDestination(
+                            padding = padding,
+                            inboxRepository = inboxRepository,
+                            feedManager = feedManager,
+                            onAddFeed = onAddFeed,
+                            onImportOpml = onImportOpml,
+                            onOpenAskAi = { select(MobileDestination.AiProvider) },
+                            onOpenLibrary = { select(MobileDestination.Library) },
+                            onOpenSettings = onOpenSettings,
+                        )
+                        MobileDestination.Library -> LibraryDestination(
+                            padding = padding,
+                            inboxRepository = inboxRepository,
+                            feedManager = feedManager,
+                            onManageSources = onOpenSettings,
+                        )
+                        MobileDestination.AiProvider -> PhoneLongSummaryDestination(padding)
+                    }
+                }
             }
         }
-    }
-    }
     }
 }
 
 @Composable
 private fun MobileDestination.localizedLabel(): String = stringResource(
     when (this) {
-        MobileDestination.Feeds -> R.string.nav_feeds
+        MobileDestination.Today -> R.string.nav_today
+        MobileDestination.Library -> R.string.nav_library
         MobileDestination.AiProvider -> R.string.nav_ai
-        MobileDestination.Membership -> R.string.nav_membership
     },
 )
 
@@ -201,7 +260,21 @@ private fun DestinationIcon(destination: MobileDestination, modifier: Modifier =
     Canvas(modifier.size(24.dp)) {
         val stroke = 2.2.dp.toPx()
         when (destination) {
-            MobileDestination.Feeds -> {
+            MobileDestination.Today -> {
+                drawCircle(color, 5.dp.toPx())
+                repeat(8) { i ->
+                    val angle = Math.toRadians((i * 45).toDouble())
+                    val inner = 7.5.dp.toPx()
+                    val outer = 10.dp.toPx()
+                    drawLine(
+                        color,
+                        androidx.compose.ui.geometry.Offset(center.x + kotlin.math.cos(angle).toFloat() * inner, center.y + kotlin.math.sin(angle).toFloat() * inner),
+                        androidx.compose.ui.geometry.Offset(center.x + kotlin.math.cos(angle).toFloat() * outer, center.y + kotlin.math.sin(angle).toFloat() * outer),
+                        stroke,
+                    )
+                }
+            }
+            MobileDestination.Library -> {
                 drawCircle(color, 2.5.dp.toPx(), androidx.compose.ui.geometry.Offset(5.dp.toPx(), 19.dp.toPx()))
                 drawArc(color, 270f, 90f, false, androidx.compose.ui.geometry.Offset(4.dp.toPx(), 9.dp.toPx()), androidx.compose.ui.geometry.Size(11.dp.toPx(), 11.dp.toPx()), style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
                 drawArc(color, 270f, 90f, false, androidx.compose.ui.geometry.Offset(4.dp.toPx(), 4.dp.toPx()), androidx.compose.ui.geometry.Size(16.dp.toPx(), 16.dp.toPx()), style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
@@ -211,84 +284,31 @@ private fun DestinationIcon(destination: MobileDestination, modifier: Modifier =
                 drawLine(cutout, androidx.compose.ui.geometry.Offset(9.dp.toPx(), 12.dp.toPx()), androidx.compose.ui.geometry.Offset(15.dp.toPx(), 12.dp.toPx()), stroke)
                 drawLine(cutout, androidx.compose.ui.geometry.Offset(12.dp.toPx(), 9.dp.toPx()), androidx.compose.ui.geometry.Offset(12.dp.toPx(), 15.dp.toPx()), stroke)
             }
-            MobileDestination.Membership -> {
-                drawCircle(color, 4.dp.toPx(), androidx.compose.ui.geometry.Offset(12.dp.toPx(), 8.dp.toPx()))
-                drawArc(color, 200f, 140f, false, androidx.compose.ui.geometry.Offset(5.dp.toPx(), 12.dp.toPx()), androidx.compose.ui.geometry.Size(14.dp.toPx(), 10.dp.toPx()), style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
-            }
         }
     }
 }
 
-@Composable private fun FeedManagementDestination(padding: PaddingValues) {
-    val context = LocalContext.current
-    val manager = remember { MobileFeedManager(SharedPreferencesMobileFeedStore(context), HttpFeedProbe(), GoogleWearFeedSyncPublisher(context)) }
-    val scope = rememberCoroutineScope()
-    var feeds by remember { mutableStateOf(manager.feeds()) }
-    var editing by remember { mutableStateOf<MobileFeedSubscription?>(null) }
-    var showEditor by remember { mutableStateOf(false) }
-    var status by remember { mutableStateOf("Add feeds here; choose separately which subscriptions are active and sent to Wear.") }
-    var busy by remember { mutableStateOf(false) }
-
-    LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        item { Text("Feed management", style = MaterialTheme.typography.headlineMedium) }
-        item { Text(status, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        item { Button(onClick = { editing = null; showEditor = true }, enabled = !busy) { Text("Add feed") } }
-        item {
-            OpmlManagementActions(
-                manager = manager,
-                busy = busy,
-                onBusyChange = { busy = it },
-                onFeedsChanged = { feeds = it },
-                onStatus = { status = it },
+@Composable
+private fun SettingsIcon(modifier: Modifier = Modifier) {
+    val color = androidx.compose.material3.LocalContentColor.current
+    Canvas(modifier.size(24.dp)) {
+        val stroke = 2.dp.toPx()
+        drawCircle(color, 4.dp.toPx(), style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+        repeat(6) { i ->
+            val angle = Math.toRadians((i * 60).toDouble())
+            val inner = 6.dp.toPx()
+            val outer = 9.dp.toPx()
+            drawLine(
+                color,
+                androidx.compose.ui.geometry.Offset(center.x + kotlin.math.cos(angle).toFloat() * inner, center.y + kotlin.math.sin(angle).toFloat() * inner),
+                androidx.compose.ui.geometry.Offset(center.x + kotlin.math.cos(angle).toFloat() * outer, center.y + kotlin.math.sin(angle).toFloat() * outer),
+                stroke,
             )
         }
-        if (feeds.isEmpty()) item { Text("No phone-managed feeds yet.", style = MaterialTheme.typography.bodyLarge) }
-        items(feeds, key = { it.id }) { feed ->
-            Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(feed.title, style = MaterialTheme.typography.titleLarge)
-                    Text(feed.url, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("Subscription active")
-                            Text(if (feed.enabled) "Included in refreshes" else "Paused on synced devices", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Switch(checked = feed.enabled, onCheckedChange = { enabled ->
-                            val r = manager.setEnabled(feed.id, enabled)
-                            if (r is FeedMutationResult.Success) feeds = r.feeds
-                        })
-                    }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("Send to watch")
-                            Text(if (feed.sendToWatch) "Available on paired Wear devices" else "Keep on phone only", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Switch(checked = feed.sendToWatch, onCheckedChange = { sendToWatch ->
-                            val r = manager.setSendToWatch(feed.id, sendToWatch)
-                            if (r is FeedMutationResult.Success) {
-                                feeds = r.feeds
-                                status = if (sendToWatch) "Feed queued for Wear sync." else "Feed kept on phone only."
-                            }
-                        })
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { editing = feed; showEditor = true }) { Text("Edit") }
-                        TextButton(onClick = { val r = manager.remove(feed.id); if (r is FeedMutationResult.Success) feeds = r.feeds }) { Text("Remove") }
-                    }
-                }
-            }
-        }
     }
-
-    if (showEditor) FeedEditorDialog(editing, busy, onDismiss = { if (!busy) showEditor = false }, onSave = { url, title -> scope.launch { busy = true; status = "Validating feed…"; val r = if (editing == null) manager.add(url, title) else manager.update(editing!!.id, url, title); busy = false; when (r) { is FeedMutationResult.Success -> { feeds = r.feeds; status = "Saved and queued for Wear sync."; showEditor = false }; is FeedMutationResult.Error -> status = r.message } } })
 }
 
-@Composable private fun FeedEditorDialog(feed: MobileFeedSubscription?, busy: Boolean, onDismiss: () -> Unit, onSave: (String, String) -> Unit) {
-    var url by remember(feed?.id) { mutableStateOf(feed?.url.orEmpty()) }; var title by remember(feed?.id) { mutableStateOf(feed?.title.orEmpty()) }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text(if (feed == null) "Add feed" else "Edit feed") }, text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { OutlinedTextField(url, { url = it }, Modifier.fillMaxWidth(), label = { Text("HTTPS feed URL") }, singleLine = true); OutlinedTextField(title, { title = it }, Modifier.fillMaxWidth(), label = { Text("Name (optional)") }, singleLine = true) } }, confirmButton = { Button(onClick = { onSave(url, title) }, enabled = !busy) { Text(if (busy) "Validating…" else "Save") } }, dismissButton = { TextButton(onClick = onDismiss, enabled = !busy) { Text("Cancel") } })
-}
-
-@Composable private fun MembershipDestination(padding: PaddingValues) {
+@Composable internal fun MembershipDestination(padding: PaddingValues) {
     val context = LocalContext.current
     val activity = context as? Activity
     val scope = rememberCoroutineScope()

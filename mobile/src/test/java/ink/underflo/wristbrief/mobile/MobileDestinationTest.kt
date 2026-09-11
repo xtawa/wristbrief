@@ -6,8 +6,8 @@ import org.junit.Test
 
 class MobileDestinationTest {
     @Test
-    fun `phone shell starts on feed management`() {
-        assertEquals(MobileDestination.Feeds, initialMobileDestination())
+    fun `phone shell starts on Today`() {
+        assertEquals(MobileDestination.Today, initialMobileDestination())
     }
 
     @Test
@@ -17,7 +17,7 @@ class MobileDestinationTest {
         assertEquals(routes.size, routes.toSet().size)
         assertTrue(routes.all { it.isNotBlank() })
         assertEquals(
-            setOf("feeds", "ai-provider", "membership"),
+            setOf("today", "library", "ai-provider"),
             routes.toSet(),
         )
     }

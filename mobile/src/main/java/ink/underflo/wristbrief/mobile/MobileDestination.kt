@@ -5,9 +5,9 @@ enum class MobileDestination(
     val label: String,
     val shortLabel: String,
 ) {
-    Feeds(route = "feeds", label = "Feeds", shortLabel = "F"),
+    Today(route = "today", label = "Today", shortLabel = "T"),
+    Library(route = "library", label = "Library", shortLabel = "L"),
     AiProvider(route = "ai-provider", label = "AI", shortLabel = "AI"),
-    Membership(route = "membership", label = "Membership", shortLabel = "M"),
 }
 
-fun initialMobileDestination(): MobileDestination = MobileDestination.Feeds
+fun initialMobileDestination(): MobileDestination = MobileDestination.Today

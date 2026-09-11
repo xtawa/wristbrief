@@ -54,6 +54,9 @@ internal class OnboardingPreferences(context: Context) {
         .putBoolean("complete", true)
         .remove("interests")
         .apply()
+    fun reset() = preferences.edit()
+        .clear()
+        .apply()
 }
 
 internal enum class OnboardingAction { AddFeed, ImportOpml, Explore }

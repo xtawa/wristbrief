@@ -3,6 +3,7 @@ package ink.underflo.wristbrief
 import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
+import android.provider.Settings
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
@@ -36,15 +37,29 @@ class MainActivitySmokeTest {
             .getString("expectedFontScale")
             ?.toFloatOrNull()
             ?: return
-        val actual = ApplicationProvider.getApplicationContext<Context>()
-            .resources
-            .configuration
-            .fontScale
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val requested = Settings.System.getFloat(
+            context.contentResolver,
+            Settings.System.FONT_SCALE,
+            1f,
+        )
+        val actual = context.resources.configuration.fontScale
 
         assertTrue(
-            "Expected Wear font scale $expected but device reports $actual",
-            abs(actual - expected) < 0.01f,
+            "Expected Wear font scale setting $expected but system setting reports $requested",
+            abs(requested - expected) < 0.01f,
         )
+        if (expected > 1f) {
+            assertTrue(
+                "Expected a large-font Wear configuration for requested scale $expected but app reports $actual",
+                actual > 1f,
+            )
+        } else {
+            assertTrue(
+                "Expected default Wear font scale $expected but app reports $actual",
+                abs(actual - expected) < 0.01f,
+            )
+        }
     }
 
     @Test

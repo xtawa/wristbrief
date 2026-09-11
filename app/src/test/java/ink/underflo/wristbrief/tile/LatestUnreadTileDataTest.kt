@@ -73,7 +73,7 @@ class LatestUnreadTileDataTest {
         val compact = data.titles.single()
         assertEquals(44, compact.length)
         assertTrue(compact.endsWith("…"))
-        assertEquals("A deliberately long podcast and RSS headli…", compact)
+        assertEquals("A deliberately long podcast and RSS headlin…", compact)
     }
 
     private fun item(

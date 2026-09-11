@@ -100,11 +100,20 @@ object ItemStateWireContract {
         require(root["version"]?.jsonPrimitive?.longOrNull == VERSION.toLong()) { "Unsupported item-state version" }
         val items = root["items"]?.jsonArray ?: error("Missing items")
         require(items.size <= MAX_ITEMS) { "Too many item-state records" }
-        return items.map { element ->
+        val decoded = items.map { element ->
             val item = element.jsonObject
             val itemId = item["itemId"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() } ?: error("Missing itemId")
             ItemStateClock(itemId, item["read"]?.jsonObject?.decodeFlag(), item["saved"]?.jsonObject?.decodeFlag())
         }
+        require(decoded.map { it.itemId }.toSet().size == decoded.size) { "Duplicate item-state record" }
+        return decoded
+    }
+
+    fun decodeOwned(raw: String, expectedOrigin: SyncOrigin): List<ItemStateClock> = decode(raw).also { states ->
+        require(states.all { state ->
+            (state.read == null || state.read.origin == expectedOrigin) &&
+                (state.saved == null || state.saved.origin == expectedOrigin)
+        }) { "Item-state payload contains fields owned by another origin" }
     }
 
     private fun encodeFlag(flag: VersionedFlag): JsonObject = buildJsonObject {

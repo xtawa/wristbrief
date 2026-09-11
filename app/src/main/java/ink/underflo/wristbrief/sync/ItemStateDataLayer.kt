@@ -48,7 +48,7 @@ class WearItemStateSyncManager(context: Context) {
 
     @Synchronized
     fun applyPhonePayload(raw: String): Boolean {
-        val remote = runCatching { ItemStateWireContract.decode(raw) }.getOrNull() ?: return false
+        val remote = runCatching { ItemStateWireContract.decodeOwned(raw, SyncOrigin.PHONE) }.getOrNull() ?: return false
         val merged = clockStore.load().associateBy { it.itemId }.toMutableMap()
         remote.forEach { state -> merged[state.itemId] = mergeItemState(merged[state.itemId], state) }
         clockStore.save(merged.values)

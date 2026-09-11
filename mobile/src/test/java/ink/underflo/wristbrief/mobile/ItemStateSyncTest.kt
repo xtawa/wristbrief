@@ -48,6 +48,22 @@ class ItemStateSyncTest {
         assertEquals(ItemStateWireContract.WEAR_PATH, ItemStateWireContract.remotePathFor(SyncOrigin.PHONE))
     }
 
+    @Test fun wearChannelAcceptsOnlyWearOwnedFields() {
+        val wear = ItemStateClock("item-1", saved = VersionedFlag(true, 50, SyncOrigin.WEAR))
+        assertEquals(wear, ItemStateWireContract.decodeOwned(ItemStateWireContract.encode(listOf(wear)), SyncOrigin.WEAR).single())
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun wearChannelRejectsPhoneOwnedField() {
+        val forged = ItemStateClock("item-1", saved = VersionedFlag(true, 50, SyncOrigin.PHONE))
+        ItemStateWireContract.decodeOwned(ItemStateWireContract.encode(listOf(forged)), SyncOrigin.WEAR)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun duplicateItemRecordsAreRejected() {
+        ItemStateWireContract.decode("""{"version":1,"items":[{"itemId":"item-1"},{"itemId":"item-1"}]}""")
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun futureWireVersionIsRejected() { ItemStateWireContract.decode("""{"version":2,"items":[]}""") }
 

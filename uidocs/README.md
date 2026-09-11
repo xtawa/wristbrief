@@ -20,7 +20,7 @@ Flat semantic color accents are allowed in small areas (for example RSS orange, 
 ## Files
 
 - [`PHONE_LIQUID_GLASS_SPEC.md`](./PHONE_LIQUID_GLASS_SPEC.md) — design philosophy, visual system, flows, motion, accessibility, and implementation rules.
-- [`assets/phone-liquid-glass-concept.jpg`](./assets/phone-liquid-glass-concept.jpg) — selected concept direction.
+- [`assets/phone-liquid-glass-concept.svg`](./assets/phone-liquid-glass-concept.svg) — selected concept direction.
 - [`examples/LiquidGlassPhoneExample.kt`](./examples/LiquidGlassPhoneExample.kt) — Jetpack Compose example matching the current `mobile` module stack.
 
 ## Design intent in one sentence

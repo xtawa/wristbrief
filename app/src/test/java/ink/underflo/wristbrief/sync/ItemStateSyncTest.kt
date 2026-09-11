@@ -1,6 +1,7 @@
 package ink.underflo.wristbrief.sync
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -35,6 +36,29 @@ class ItemStateSyncTest {
         val old = ItemStateClock("item", read = VersionedFlag(true, 100, SyncOrigin.WEAR))
         val next = localMutation(old, "item", read = false, saved = null, nowEpochMs = 90, origin = SyncOrigin.WEAR)
         assertEquals(101, next.read!!.changedAtEpochMs)
+    }
+
+    @Test fun applyingRemoteFlagsReportsOnlyReadValueChangesForUnreadSurfaces() {
+        val currentRead = setOf("already-read")
+        val currentSaved = setOf("already-saved")
+        val timestampOnlyAndSavedChange = applyItemStateFlags(
+            currentRead,
+            currentSaved,
+            listOf(
+                ItemStateClock("already-read", read = VersionedFlag(true, 500, SyncOrigin.PHONE)),
+                ItemStateClock("new-save", saved = VersionedFlag(true, 500, SyncOrigin.PHONE)),
+            ),
+        )
+        assertFalse(timestampOnlyAndSavedChange.unreadSurfacesChangedFrom(currentRead))
+        assertEquals(setOf("already-saved", "new-save"), timestampOnlyAndSavedChange.savedItemIds)
+
+        val unreadChange = applyItemStateFlags(
+            currentRead,
+            currentSaved,
+            listOf(ItemStateClock("already-read", read = VersionedFlag(false, 501, SyncOrigin.PHONE))),
+        )
+        assertTrue(unreadChange.unreadSurfacesChangedFrom(currentRead))
+        assertTrue(unreadChange.readItemIds.isEmpty())
     }
 
     @Test fun phoneChannelAcceptsOnlyPhoneOwnedFields() {

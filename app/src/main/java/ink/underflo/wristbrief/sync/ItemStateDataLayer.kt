@@ -30,6 +30,27 @@ internal class WearItemStateClockStore(context: Context) {
     }
 }
 
+internal data class AppliedItemFlags(
+    val readItemIds: Set<String>,
+    val savedItemIds: Set<String>,
+) {
+    fun unreadSurfacesChangedFrom(previousReadItemIds: Set<String>): Boolean = readItemIds != previousReadItemIds
+}
+
+internal fun applyItemStateFlags(
+    currentReadItemIds: Set<String>,
+    currentSavedItemIds: Set<String>,
+    states: Collection<ItemStateClock>,
+): AppliedItemFlags {
+    val readIds = currentReadItemIds.toMutableSet()
+    val savedIds = currentSavedItemIds.toMutableSet()
+    states.forEach { state ->
+        state.read?.let { if (it.value) readIds += state.itemId else readIds -= state.itemId }
+        state.saved?.let { if (it.value) savedIds += state.itemId else savedIds -= state.itemId }
+    }
+    return AppliedItemFlags(readIds, savedIds)
+}
+
 class WearItemStateSyncManager(context: Context) {
     private val appContext = context.applicationContext
     private val clockStore = WearItemStateClockStore(appContext)
@@ -52,9 +73,11 @@ class WearItemStateSyncManager(context: Context) {
         val merged = clockStore.load().associateBy { it.itemId }.toMutableMap()
         remote.forEach { state -> merged[state.itemId] = mergeItemState(merged[state.itemId], state) }
         clockStore.save(merged.values)
-        applyMergedState(remote.mapNotNull { merged[it.itemId] })
-        requestLatestUnreadTileUpdate(appContext)
-        requestUnreadComplicationUpdate(appContext)
+        val unreadSurfacesChanged = applyMergedState(remote.mapNotNull { merged[it.itemId] })
+        if (unreadSurfacesChanged) {
+            requestLatestUnreadTileUpdate(appContext)
+            requestUnreadComplicationUpdate(appContext)
+        }
         return true
     }
 
@@ -66,15 +89,13 @@ class WearItemStateSyncManager(context: Context) {
         publishOwned(states.values)
     }
 
-    private fun applyMergedState(states: Collection<ItemStateClock>) {
-        val readIds = feedStore.readItemIds().toMutableSet()
-        val savedIds = feedStore.savedItemIds().toMutableSet()
-        states.forEach { state ->
-            state.read?.let { if (it.value) readIds += state.itemId else readIds -= state.itemId }
-            state.saved?.let { if (it.value) savedIds += state.itemId else savedIds -= state.itemId }
-        }
-        feedStore.saveReadItemIds(readIds)
-        feedStore.saveSavedItemIds(savedIds)
+    private fun applyMergedState(states: Collection<ItemStateClock>): Boolean {
+        val currentReadIds = feedStore.readItemIds()
+        val currentSavedIds = feedStore.savedItemIds()
+        val applied = applyItemStateFlags(currentReadIds, currentSavedIds, states)
+        if (applied.readItemIds != currentReadIds) feedStore.saveReadItemIds(applied.readItemIds)
+        if (applied.savedItemIds != currentSavedIds) feedStore.saveSavedItemIds(applied.savedItemIds)
+        return applied.unreadSurfacesChangedFrom(currentReadIds)
     }
 
     private fun publishOwned(states: Collection<ItemStateClock>) {

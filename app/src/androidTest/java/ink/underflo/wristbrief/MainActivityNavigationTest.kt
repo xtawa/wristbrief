@@ -1,12 +1,15 @@
 package ink.underflo.wristbrief
 
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performRotaryScrollInput
 import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -38,6 +41,31 @@ class MainActivityNavigationTest {
 
         composeRule.onNode(hasScrollAction()).performScrollToNode(inboxTitleMatcher)
         composeRule.onNode(inboxTitleMatcher).assertIsDisplayed()
+    }
+
+    @Test
+    fun inboxRespondsToRotaryInputAcrossWearReleaseProfiles() {
+        val scrollable = composeRule.onNode(hasScrollAction())
+        scrollable.performScrollToNode(hasText("WristBrief"))
+        composeRule.waitForIdle()
+
+        val before = scrollable.fetchSemanticsNode().config[
+            SemanticsProperties.VerticalScrollAxisRange,
+        ].value()
+
+        scrollable.performRotaryScrollInput {
+            rotateToScrollVertically(600f)
+        }
+        composeRule.waitForIdle()
+
+        val after = scrollable.fetchSemanticsNode().config[
+            SemanticsProperties.VerticalScrollAxisRange,
+        ].value()
+
+        assertTrue(
+            "Expected rotary input to move the Inbox scroll position (before=$before, after=$after)",
+            after > before,
+        )
     }
 
     @Test

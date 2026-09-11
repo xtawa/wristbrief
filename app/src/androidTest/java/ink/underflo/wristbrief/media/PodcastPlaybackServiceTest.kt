@@ -98,6 +98,87 @@ class PodcastPlaybackServiceTest {
         }
     }
 
+    @Test
+    fun activePlaybackRemainsServiceOwnedAcrossControllerReconnect() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val serviceIntent = Intent(context, PodcastPlaybackService::class.java)
+        val mediaFile = createSilentWav(context, durationSeconds = 60)
+        context.startService(serviceIntent)
+
+        var firstController: MediaController? = null
+        var secondController: MediaController? = null
+        try {
+            val playingController = connectController(context)
+            firstController = playingController
+            val ready = CountDownLatch(1)
+            val playing = CountDownLatch(1)
+            val listener = object : Player.Listener {
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    if (playbackState == Player.STATE_READY) {
+                        ready.countDown()
+                    }
+                }
+
+                override fun onIsPlayingChanged(isPlaying: Boolean) {
+                    if (isPlaying) {
+                        playing.countDown()
+                    }
+                }
+            }
+
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                playingController.addListener(listener)
+                playingController.setMediaItem(
+                    MediaItem.Builder()
+                        .setMediaId("ci-active-episode")
+                        .setUri(Uri.fromFile(mediaFile))
+                        .build()
+                )
+                playingController.prepare()
+            }
+            assertTrue("Local CI media did not reach STATE_READY", ready.await(10, TimeUnit.SECONDS))
+
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                playingController.seekTo(5_000L)
+                playingController.play()
+            }
+            assertTrue("Local CI media did not enter active playback", playing.await(10, TimeUnit.SECONDS))
+
+            val positionBeforeReconnect = longArrayOf(0L)
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                playingController.removeListener(listener)
+                assertTrue(playingController.playWhenReady)
+                assertTrue(playingController.isPlaying)
+                positionBeforeReconnect[0] = playingController.currentPosition
+            }
+            releaseController(playingController)
+            firstController = null
+
+            // No controller owns playback during this interval. The MediaSessionService should
+            // remain the owner and keep the player active until a new controller connects.
+            Thread.sleep(500L)
+
+            val reconnectedController = connectController(context)
+            secondController = reconnectedController
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                assertEquals("ci-active-episode", reconnectedController.currentMediaItem?.mediaId)
+                assertEquals(Player.STATE_READY, reconnectedController.playbackState)
+                assertTrue(reconnectedController.playWhenReady)
+                assertTrue(reconnectedController.isPlaying)
+                assertTrue(
+                    "Playback position regressed across controller reconnect",
+                    reconnectedController.currentPosition >= positionBeforeReconnect[0]
+                )
+                reconnectedController.pause()
+            }
+        } finally {
+            firstController?.let(::releaseController)
+            secondController?.let(::releaseController)
+            context.stopService(serviceIntent)
+            mediaFile.delete()
+        }
+    }
+
     private fun connectController(context: Context): MediaController {
         val token = SessionToken(
             context,
@@ -116,9 +197,8 @@ class PodcastPlaybackServiceTest {
         }
     }
 
-    private fun createSilentWav(context: Context): File {
+    private fun createSilentWav(context: Context, durationSeconds: Int = 15): File {
         val sampleRate = 8_000
-        val durationSeconds = 15
         val channels = 1
         val bitsPerSample = 8
         val dataSize = sampleRate * durationSeconds * channels * bitsPerSample / 8

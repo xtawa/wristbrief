@@ -16,16 +16,6 @@ describe("membership foundation", () => {
       .toEqual({ id: "server-user" });
   });
 
-  it("does not consume managed quota for BYOK usage", async () => {
-    const store = new InMemoryMembershipStore([
-      { userId: "u1", plan: "FREE", managedAiLimit: 2, managedAiUsed: 1 }
-    ]);
-    const service = new MembershipService(store);
-    expect((await service.canUseAi("u1", "byok")).allowed).toBe(true);
-    await service.recordAiUsage("u1", "byok");
-    expect((await service.snapshot({ id: "u1" })).managedAiQuota).toEqual({ limit: 2, used: 1, remaining: 1 });
-  });
-
   it("reserves managed quota during admission and blocks the next request at the limit", async () => {
     const store = new InMemoryMembershipStore([
       { userId: "u1", plan: "FREE", managedAiLimit: 1, managedAiUsed: 0 }

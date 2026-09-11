@@ -1,7 +1,7 @@
 import { createConfiguredD1MembershipStore, type DurableMembershipEnv } from "./d1MembershipStore";
 
 export type Plan = "FREE" | "PRO";
-export type AiUsageKind = "managed" | "byok";
+export type AiUsageKind = "managed";
 
 export type AuthenticatedUser = {
   id: string;
@@ -73,10 +73,6 @@ export class MembershipService {
   }
 
   async canUseAi(userId: string, kind: AiUsageKind): Promise<{ allowed: boolean; quota: ManagedAiQuota }> {
-    if (kind === "byok") {
-      return { allowed: true, quota: normalizeQuota(await this.store.getManagedAiQuota(userId)) };
-    }
-
     // Managed-AI admission reserves quota atomically before any upstream provider work.
     // Durable stores must enforce the limit inside incrementManagedAiUsage rather than via a prior read.
     try {
@@ -90,7 +86,6 @@ export class MembershipService {
 
   async recordAiUsage(_userId: string, _kind: AiUsageKind): Promise<void> {
     // Managed usage is reserved during canUseAi so concurrent requests cannot all pass a stale quota read.
-    // BYOK never consumes managed quota.
   }
 }
 

@@ -33,7 +33,7 @@ class PodcastPlaybackServiceTest {
     }
 
     @Test
-    fun serviceRetainsEpisodeSeekAndSpeedAcrossControllerReconnect() {
+    fun serviceRetainsEpisodePositionAndSpeedAcrossControllerReconnect() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val serviceIntent = Intent(context, PodcastPlaybackService::class.java)
         context.startService(serviceIntent)
@@ -48,10 +48,13 @@ class PodcastPlaybackServiceTest {
                     MediaItem.Builder()
                         .setMediaId("ci-episode")
                         .setUri("https://example.com/ci-episode.mp3")
-                        .build()
+                        .build(),
+                    12_000L,
                 )
-                configuredController.seekTo(12_000L)
                 configuredController.playbackParameters = PlaybackParameters(1.5f)
+                assertEquals("ci-episode", configuredController.currentMediaItem?.mediaId)
+                assertEquals(12_000L, configuredController.currentPosition)
+                assertEquals(1.5f, configuredController.playbackParameters.speed, 0.001f)
             }
             releaseController(configuredController)
             firstController = null

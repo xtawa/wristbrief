@@ -58,6 +58,12 @@ internal fun normalizedResumePosition(savedPositionMs: Long, durationMs: Long): 
 internal fun shouldCheckpoint(lastSavedPositionMs: Long, currentPositionMs: Long): Boolean =
     abs(currentPositionMs - lastSavedPositionMs) >= PROGRESS_CHECKPOINT_MS
 
+internal fun shouldRequestContinueListeningTileUpdate(
+    previous: PodcastEpisodeProgress?,
+    current: PodcastEpisodeProgress,
+    force: Boolean,
+): Boolean = force && previous != current
+
 internal fun nextPlaybackSpeed(current: Float): Float {
     val index = SUPPORTED_PLAYBACK_SPEEDS.indexOfFirst { abs(it - current) < 0.01f }
     return SUPPORTED_PLAYBACK_SPEEDS[(if (index == -1) 0 else index + 1) % SUPPORTED_PLAYBACK_SPEEDS.size]

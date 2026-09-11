@@ -55,16 +55,11 @@ class PodcastPlaybackService : MediaSessionService() {
                         reason == Player.DISCONTINUITY_REASON_SEEK ||
                         reason == Player.DISCONTINUITY_REASON_SEEK_ADJUSTMENT
                     ) {
-                        // A prepared episode can be seeked before playback ever starts. Persist the
-                        // explicit user position immediately instead of relying on a later
-                        // checkpoint/service teardown, both of which may never happen cleanly.
                         saveCurrentProgress(force = true)
                     }
                 }
 
                 override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
-                    // Speed changes are user state too. Persist immediately so a controller can
-                    // disconnect or the service can stop without losing the new preference.
                     saveCurrentProgress(force = true)
                 }
             })
@@ -89,16 +84,17 @@ class PodcastPlaybackService : MediaSessionService() {
         val previous = progressStore.get(episodeId)
         if (!force && previous != null && !shouldCheckpoint(previous.positionMs, currentPosition)) return
 
-        progressStore.save(
-            PodcastEpisodeProgress(
-                episodeId = episodeId,
-                positionMs = currentPosition,
-                playbackSpeed = player.playbackParameters.speed
-                    .takeIf { speed -> speed in SUPPORTED_PLAYBACK_SPEEDS }
-                    ?: 1f
-            )
+        val current = PodcastEpisodeProgress(
+            episodeId = episodeId,
+            positionMs = currentPosition,
+            playbackSpeed = player.playbackParameters.speed
+                .takeIf { speed -> speed in SUPPORTED_PLAYBACK_SPEEDS }
+                ?: 1f,
         )
-        if (force) requestContinueListeningTileUpdate(this)
+        progressStore.save(current)
+        if (shouldRequestContinueListeningTileUpdate(previous, current, force)) {
+            requestContinueListeningTileUpdate(this)
+        }
     }
 
     override fun onDestroy() {

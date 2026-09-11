@@ -42,6 +42,20 @@ class PodcastProgressTest {
     }
 
     @Test
+    fun continueListeningTileRefreshOnlyFollowsChangedForcedProgress() {
+        val previous = PodcastEpisodeProgress("episode", 30_000L, 1.25f)
+        val same = previous.copy()
+        val moved = previous.copy(positionMs = 45_000L)
+        val speedChanged = previous.copy(playbackSpeed = 1.5f)
+
+        assertFalse(shouldRequestContinueListeningTileUpdate(previous, same, force = true))
+        assertFalse(shouldRequestContinueListeningTileUpdate(previous, moved, force = false))
+        assertTrue(shouldRequestContinueListeningTileUpdate(previous, moved, force = true))
+        assertTrue(shouldRequestContinueListeningTileUpdate(previous, speedChanged, force = true))
+        assertTrue(shouldRequestContinueListeningTileUpdate(null, previous, force = true))
+    }
+
+    @Test
     fun playbackSpeedCyclesThroughSupportedValues() {
         assertEquals(1.25f, nextPlaybackSpeed(1f))
         assertEquals(1.5f, nextPlaybackSpeed(1.25f))

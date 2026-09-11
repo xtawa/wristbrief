@@ -1,6 +1,8 @@
 package ink.underflo.wristbrief.mobile
 
 import android.app.Activity
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -45,6 +47,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,6 +63,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.android.billingclient.api.BillingClient.BillingResponseCode
+import ink.underflo.wristbrief.mobile.media.MobilePodcastPlayerController
+import ink.underflo.wristbrief.mobile.media.PodcastExpandedSheet
+import ink.underflo.wristbrief.mobile.media.PodcastMiniPlayer
+import ink.underflo.wristbrief.mobile.media.PodcastPlaybackRequest
+import ink.underflo.wristbrief.mobile.media.PodcastPlayerState
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -104,8 +112,49 @@ class MainActivity : ComponentActivity() {
         }
 
         var name by rememberSaveable { mutableStateOf(initialMobileDestination().name) }
+        var selectedArticle by remember { mutableStateOf<MobileFeedItem?>(null) }
+        var aiPrefilledTitle by rememberSaveable { mutableStateOf("") }
+        var aiPrefilledContent by rememberSaveable { mutableStateOf("") }
+        var showExpandedPlayer by rememberSaveable { mutableStateOf(false) }
 
-        if (showSettings) {
+        val playerController = remember(context) { MobilePodcastPlayerController(context) }
+        DisposableEffect(playerController) {
+            onDispose { playerController.release() }
+        }
+        val playerState by playerController.state.collectAsState()
+
+        fun playPodcast(item: MobileFeedItem) {
+            val audioUrl = item.audioUrl ?: item.link ?: return
+            if (!audioUrl.startsWith("https://", ignoreCase = true)) {
+                runCatching {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(audioUrl))
+                    context.startActivity(intent)
+                }
+                return
+            }
+            playerController.play(
+                PodcastPlaybackRequest(
+                    id = item.id,
+                    title = item.title,
+                    audioUrl = audioUrl,
+                    feedTitle = item.feedTitle,
+                )
+            )
+        }
+
+        if (selectedArticle != null) {
+            ArticleDetailDestination(
+                item = selectedArticle!!,
+                inboxRepository = inboxRepository,
+                onBack = { selectedArticle = null },
+                onAskAi = { title, content ->
+                    selectedArticle = null
+                    aiPrefilledTitle = title
+                    aiPrefilledContent = content
+                    name = MobileDestination.AiProvider.name
+                },
+            )
+        } else if (showSettings) {
             SettingsDestination(
                 onBack = { showSettings = false },
                 onReplayOnboarding = {
@@ -125,6 +174,27 @@ class MainActivity : ComponentActivity() {
                 onOpenSettings = { showSettings = true },
                 onAddFeed = { showSettings = true },
                 onImportOpml = { showSettings = true },
+                onOpenArticle = { selectedArticle = it },
+                onPlayPodcast = ::playPodcast,
+                playerState = playerState,
+                playerController = playerController,
+                onExpandPlayer = { showExpandedPlayer = true },
+                aiPrefilledTitle = aiPrefilledTitle,
+                aiPrefilledContent = aiPrefilledContent,
+            )
+        }
+
+        if (showExpandedPlayer) {
+            PodcastExpandedSheet(
+                state = playerState,
+                onDismissRequest = { showExpandedPlayer = false },
+                onPlayPause = {
+                    if (playerState.isPlaying) playerController.pause()
+                    else playerController.resume()
+                },
+                onSeekTo = { playerController.seekTo(it) },
+                onSeekBy = { playerController.seekBy(it) },
+                onCycleSpeed = { playerController.cycleSpeed() },
             )
         }
     }
@@ -139,6 +209,13 @@ class MainActivity : ComponentActivity() {
     onOpenSettings: () -> Unit,
     onAddFeed: () -> Unit,
     onImportOpml: () -> Unit,
+    onOpenArticle: (MobileFeedItem) -> Unit,
+    onPlayPodcast: (MobileFeedItem) -> Unit,
+    playerState: PodcastPlayerState,
+    playerController: MobilePodcastPlayerController,
+    onExpandPlayer: () -> Unit,
+    aiPrefilledTitle: String,
+    aiPrefilledContent: String,
 ) {
     BoxWithConstraints {
         val useRail = maxWidth >= 600.dp
@@ -184,27 +261,40 @@ class MainActivity : ComponentActivity() {
                     )
                 },
                 bottomBar = {
-                    if (!useRail) {
-                        NavigationBar(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                            tonalElevation = 0.dp,
-                        ) {
-                            MobileDestination.entries.forEach { item ->
-                                val selected = item == destination
-                                NavigationBarItem(
-                                    selected = selected,
-                                    onClick = { select(item) },
-                                    icon = {
-                                        Surface(
-                                            shape = CircleShape,
-                                            color = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                                            contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        ) {
-                                            DestinationIcon(item, Modifier.padding(8.dp))
-                                        }
-                                    },
-                                    label = { Text(item.localizedLabel()) },
-                                )
+                    Column {
+                        if (playerState.isVisible) {
+                            PodcastMiniPlayer(
+                                state = playerState,
+                                onExpand = onExpandPlayer,
+                                onPlayPause = {
+                                    if (playerState.isPlaying) playerController.pause()
+                                    else playerController.resume()
+                                },
+                                onDismiss = { playerController.dismiss() },
+                            )
+                        }
+                        if (!useRail) {
+                            NavigationBar(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                                tonalElevation = 0.dp,
+                            ) {
+                                MobileDestination.entries.forEach { item ->
+                                    val selected = item == destination
+                                    NavigationBarItem(
+                                        selected = selected,
+                                        onClick = { select(item) },
+                                        icon = {
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                                                contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            ) {
+                                                DestinationIcon(item, Modifier.padding(8.dp))
+                                            }
+                                        },
+                                        label = { Text(item.localizedLabel()) },
+                                    )
+                                }
                             }
                         }
                     }
@@ -229,14 +319,22 @@ class MainActivity : ComponentActivity() {
                             onOpenAskAi = { select(MobileDestination.AiProvider) },
                             onOpenLibrary = { select(MobileDestination.Library) },
                             onOpenSettings = onOpenSettings,
+                            onOpenArticle = onOpenArticle,
+                            onPlayPodcast = onPlayPodcast,
                         )
                         MobileDestination.Library -> LibraryDestination(
                             padding = padding,
                             inboxRepository = inboxRepository,
                             feedManager = feedManager,
                             onManageSources = onOpenSettings,
+                            onOpenArticle = onOpenArticle,
+                            onPlayPodcast = onPlayPodcast,
                         )
-                        MobileDestination.AiProvider -> PhoneLongSummaryDestination(padding)
+                        MobileDestination.AiProvider -> PhoneLongSummaryDestination(
+                            padding = padding,
+                            initialTitle = aiPrefilledTitle,
+                            initialContent = aiPrefilledContent,
+                        )
                     }
                 }
             }

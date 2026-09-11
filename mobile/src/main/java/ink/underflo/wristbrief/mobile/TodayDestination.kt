@@ -2,6 +2,7 @@ package ink.underflo.wristbrief.mobile
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -49,6 +50,8 @@ internal fun TodayDestination(
     onOpenAskAi: () -> Unit,
     onOpenLibrary: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenArticle: (MobileFeedItem) -> Unit = {},
+    onPlayPodcast: (MobileFeedItem) -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -262,7 +265,7 @@ internal fun TodayDestination(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
-                                Button(onClick = { openUrl(reading.link) }) {
+                                Button(onClick = { onOpenArticle(reading) }) {
                                     Text(stringResource(R.string.action_read))
                                 }
                                 TextButton(
@@ -309,7 +312,7 @@ internal fun TodayDestination(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                            Button(onClick = { openUrl(podcast.audioUrl ?: podcast.link) }) {
+                            Button(onClick = { onPlayPodcast(podcast) }) {
                                 Text(stringResource(R.string.action_listen))
                             }
                         }
@@ -365,7 +368,9 @@ internal fun TodayDestination(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Button(onClick = { openUrl(item.link ?: item.audioUrl) }) {
+                                    Button(onClick = {
+                                        if (item.audioUrl != null) onPlayPodcast(item) else onOpenArticle(item)
+                                    }) {
                                         Text(stringResource(if (item.audioUrl != null) R.string.action_listen else R.string.action_read))
                                     }
                                     OutlinedButton(
@@ -411,7 +416,11 @@ internal fun TodayDestination(
                 }
                 items(saved.take(3), key = { "saved:${it.id}" }) { item ->
                     Card(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                if (item.audioUrl != null) onPlayPodcast(item) else onOpenArticle(item)
+                            },
                         shape = MaterialTheme.shapes.extraLarge,
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
                     ) {

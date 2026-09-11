@@ -78,4 +78,18 @@
     <string name="settings_replay_onboarding">重新查看入门引导</string>
     <string name="settings_about_title">关于 WristBrief</string>
     <string name="settings_about_body">独立 RSS 与播客客户端，提供托管 AI 摘要与 Wear OS 手表双向同步。</string>
+    <string name="action_share">分享</string>
+    <string name="action_ask_ai">问 AI</string>
+    <string name="article_original_link_title">原文网页链接</string>
+    <string name="article_original_link_body">在浏览器中打开此文章，以查看原网页版式、多媒体内容或评论。</string>
+    <string name="article_open_browser">在浏览器中打开</string>
+    <string name="podcast_player_title">正在播放</string>
+    <string name="podcast_speed">倍速 %1$sx</string>
+    <string name="podcast_play">播放</string>
+    <string name="podcast_pause">暂停</string>
+    <string name="podcast_rewind">快退 15 秒</string>
+    <string name="podcast_forward">快进 30 秒</string>
+    <string name="podcast_buffering">缓冲中…</string>
+    <string name="podcast_error_playback">无法播放音频内容</string>
+    <string name="podcast_close">关闭播放器</string>
 </resources>

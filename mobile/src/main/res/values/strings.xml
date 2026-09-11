@@ -78,4 +78,18 @@
     <string name="settings_replay_onboarding">Replay onboarding guide</string>
     <string name="settings_about_title">About WristBrief</string>
     <string name="settings_about_body">Independent RSS and podcast client with calm AI briefs and Wear OS companion sync.</string>
+    <string name="action_share">Share</string>
+    <string name="action_ask_ai">Ask AI</string>
+    <string name="article_original_link_title">Original web source</string>
+    <string name="article_original_link_body">Open this article in your browser to view the original formatting, media, or comments.</string>
+    <string name="article_open_browser">Open in browser</string>
+    <string name="podcast_player_title">Now Playing</string>
+    <string name="podcast_speed">Speed %1$sx</string>
+    <string name="podcast_play">Play</string>
+    <string name="podcast_pause">Pause</string>
+    <string name="podcast_rewind">Rewind 15s</string>
+    <string name="podcast_forward">Forward 30s</string>
+    <string name="podcast_buffering">Buffering…</string>
+    <string name="podcast_error_playback">Unable to play audio stream</string>
+    <string name="podcast_close">Close player</string>
 </resources>

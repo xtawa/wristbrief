@@ -28,14 +28,18 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
-fun PhoneLongSummaryDestination(padding: PaddingValues) {
+fun PhoneLongSummaryDestination(
+    padding: PaddingValues,
+    initialTitle: String = "",
+    initialContent: String = "",
+) {
     val context = LocalContext.current
     val session = remember(context) { AccountSessionPreferences(context) }.read()
     val gatewayConfigured = BuildConfig.GATEWAY_BASE_URL.startsWith("https://")
     val client = remember { PhoneLongSummaryClient() }
     val scope = rememberCoroutineScope()
-    var title by rememberSaveable { mutableStateOf("") }
-    var content by rememberSaveable { mutableStateOf("") }
+    var title by rememberSaveable(initialTitle) { mutableStateOf(initialTitle) }
+    var content by rememberSaveable(initialContent) { mutableStateOf(initialContent) }
     var state by remember { mutableStateOf<PhoneLongSummaryUiState>(PhoneLongSummaryUiState.AwaitingAuthenticatedGateway) }
     val loading = state == PhoneLongSummaryUiState.Loading
 

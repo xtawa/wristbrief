@@ -42,6 +42,8 @@ internal fun LibraryDestination(
     inboxRepository: MobileInboxRepository,
     feedManager: MobileFeedManager,
     onManageSources: () -> Unit,
+    onOpenArticle: (MobileFeedItem) -> Unit = {},
+    onPlayPodcast: (MobileFeedItem) -> Unit = {},
 ) {
     val context = LocalContext.current
     var searchQuery by remember { mutableStateOf("") }
@@ -196,7 +198,9 @@ internal fun LibraryDestination(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Button(onClick = { openUrl(item.link ?: item.audioUrl) }) {
+                                Button(onClick = {
+                                    if (item.audioUrl != null) onPlayPodcast(item) else onOpenArticle(item)
+                                }) {
                                     Text(stringResource(if (item.audioUrl != null) R.string.action_listen else R.string.action_read))
                                 }
                                 OutlinedButton(

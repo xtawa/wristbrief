@@ -65,11 +65,14 @@ internal class WearAccountSessionStore(context: Context) {
     private fun invalid(): WearAccountSession? { clear(); return null }
 
     private fun valid(session: WearAccountSession, now: Instant): Boolean =
-        Regex("^wbs_[A-Za-z0-9_-]{43}$").matches(session.token) &&
-            session.expiresAt.isAfter(now) &&
-            session.userId.isNotBlank() && session.userId.length <= 128 &&
-            session.userId == session.userId.trim() && session.userId.none { it.code < 0x20 || it.code == 0x7f }
+        isValidWearAccountSession(session, now)
 }
+
+internal fun isValidWearAccountSession(session: WearAccountSession, now: Instant): Boolean =
+    Regex("^wbs_[A-Za-z0-9_-]{43}$").matches(session.token) &&
+        session.expiresAt.isAfter(now) &&
+        session.userId.isNotBlank() && session.userId.length <= 128 &&
+        session.userId == session.userId.trim() && session.userId.none { it.code < 0x20 || it.code == 0x7f }
 
 internal object WearAccountSessionMessageCodec {
     private val json = Json { ignoreUnknownKeys = true }
@@ -95,17 +98,29 @@ internal object WearAccountSessionMessageCodec {
     }.getOrNull()
 }
 
+internal fun applyWearAccountSessionMessage(
+    message: WearAccountSessionMessageCodec.Message?,
+    now: Instant = Instant.now(),
+    write: (WearAccountSession, Instant) -> Boolean,
+    clear: () -> Unit,
+) {
+    when (message) {
+        is WearAccountSessionMessageCodec.Message.Set -> if (!write(message.session, now)) clear()
+        WearAccountSessionMessageCodec.Message.Clear, null -> clear()
+    }
+}
+
 class AccountSessionDataLayerService : WearableListenerService() {
     override fun onDataChanged(events: DataEventBuffer) {
         events.forEach { event ->
             if (event.type != DataEvent.TYPE_CHANGED || event.dataItem.uri.path != PATH) return@forEach
             val payload = DataMapItem.fromDataItem(event.dataItem).dataMap.getByteArray(PAYLOAD_KEY) ?: return@forEach
             val store = WearAccountSessionStore(this)
-            when (val message = WearAccountSessionMessageCodec.decode(payload)) {
-                is WearAccountSessionMessageCodec.Message.Set -> store.write(message.session)
-                WearAccountSessionMessageCodec.Message.Clear -> store.clear()
-                null -> Unit
-            }
+            applyWearAccountSessionMessage(
+                message = WearAccountSessionMessageCodec.decode(payload),
+                write = store::write,
+                clear = store::clear,
+            )
         }
     }
 

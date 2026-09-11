@@ -1,0 +1,61 @@
+<resources>
+    <string name="app_name">WristBrief</string>
+    <string name="tile_latest_briefs">最新简报</string>
+    <string name="tile_continue_listening">继续收听</string>
+    <string name="complication_unread_briefs">未读简报</string>
+
+    <string name="wear_status_refreshing">正在刷新…</string>
+    <string name="wear_status_all_caught_up">全部已读</string>
+    <string name="wear_status_no_briefs">暂无简报</string>
+    <string name="wear_status_no_feeds">暂无订阅</string>
+    <string name="wear_action_refresh">刷新</string>
+
+    <string name="wear_saved_title">已收藏</string>
+    <string name="wear_saved_count">已收藏 · %1$d</string>
+    <string name="wear_saved_subtitle">离线可用书签</string>
+    <string name="wear_nothing_saved">暂无收藏</string>
+    <string name="wear_save_hint">在文章详情中点击收藏</string>
+    <string name="wear_back_to_inbox">返回收件箱</string>
+
+    <string name="wear_feeds_title">订阅源</string>
+    <string name="wear_feeds_subtitle">管理订阅源</string>
+    <string name="wear_no_subscriptions">暂无订阅</string>
+    <string name="wear_add_on_phone_subtitle">在手机端添加订阅源</string>
+    <string name="wear_add_on_phone_title">在手机端添加与管理</string>
+    <string name="wear_phone_sync_notice">手机同步将在后台自动进行</string>
+
+    <string name="wear_brief_unavailable">简报不可用</string>
+    <string name="wear_brief_unavailable_sub">缓存条目可能已被移除</string>
+    <string name="wear_brief_unavailable_body">请返回选择其他可用条目。</string>
+    <string name="wear_continue_phone">在手机上继续</string>
+    <string name="wear_continue_phone_sub">打开原文网页</string>
+    <string name="wear_ai_brief">AI 简报</string>
+    <string name="wear_play_podcast">播放播客</string>
+    <string name="wear_podcast_resume_sub">从上次进度继续播放</string>
+    <string name="wear_playing_speed">正在以 %1$s× 播放</string>
+    <string name="wear_pause">暂停</string>
+    <string name="wear_play">播放</string>
+    <string name="wear_background_playback_sub">后台播放保持运行</string>
+    <string name="wear_back_15s">快退 15 秒</string>
+    <string name="wear_forward_30s">快进 30 秒</string>
+    <string name="wear_speed_label">倍速 %1$s×</string>
+    <string name="wear_speed_sub">轻点切换 1×–2×</string>
+    <string name="wear_remove_saved">取消收藏</string>
+    <string name="wear_save">收藏</string>
+    <string name="wear_save_sub">离线更易查找此条简报</string>
+    <string name="wear_mark_unread">标为未读</string>
+    <string name="wear_mark_read">标为已读</string>
+    <string name="wear_read_sub">仅打开不会改变已读状态</string>
+    <string name="wear_back">返回</string>
+    <string name="wear_offline_cached">离线 · 缓存预览</string>
+    <string name="wear_podcast_prefix">播客 · %1$s</string>
+    <string name="wear_unread_prefix">未读 · </string>
+    <string name="wear_saved_prefix">已收藏 · </string>
+    <string name="wear_remove_feed">删除 %1$s</string>
+    <string name="wear_status_enabled">已启用</string>
+    <string name="wear_status_paused">已暂停</string>
+    <string name="wear_action_enable">启用</string>
+    <string name="wear_action_pause">暂停</string>
+    <string name="wear_empty_detail_refresh">刷新以获取最新简报</string>
+    <string name="wear_empty_detail_add">请在手机端添加订阅源</string>
+</resources>

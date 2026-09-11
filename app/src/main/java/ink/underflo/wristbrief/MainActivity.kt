@@ -15,6 +15,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
@@ -201,7 +202,7 @@ internal fun InboxScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxSize()
         ) {
-            item { ListHeader { CompactText("WristBrief", maxLines = 1) } }
+            item { ListHeader { CompactText(stringResource(R.string.app_name), maxLines = 1) } }
             if (statusLine.isNotBlank()) {
                 item { ListHeader { CompactText(statusLine, maxLines = 1) } }
             }
@@ -209,15 +210,20 @@ internal fun InboxScreen(
             if (state.items.isEmpty()) {
                 item {
                     val label = when {
-                        state.isLoading -> "Refreshing…"
-                        state.hasSubscriptions -> "No briefs yet"
-                        else -> "No feeds yet"
+                        state.isLoading -> stringResource(R.string.wear_status_refreshing)
+                        state.hasSubscriptions -> stringResource(R.string.wear_status_no_briefs)
+                        else -> stringResource(R.string.wear_status_no_feeds)
+                    }
+                    val emptyDetail = when {
+                        state.errorMessage != null -> state.errorMessage
+                        state.hasSubscriptions -> stringResource(R.string.wear_empty_detail_refresh)
+                        else -> stringResource(R.string.wear_empty_detail_add)
                     }
                     Button(
                         onClick = onRefresh,
                         enabled = state.hasSubscriptions && !state.isLoading,
                         label = { CompactText(label, maxLines = 1) },
-                        secondaryLabel = { CompactText(state.wearEmptyDetail()) },
+                        secondaryLabel = { CompactText(emptyDetail) },
                         transformation = SurfaceTransformation(transformationSpec),
                         modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                     )
@@ -232,7 +238,7 @@ internal fun InboxScreen(
                         Button(
                             onClick = onRefresh,
                             enabled = !state.isLoading,
-                            label = { CompactText(if (state.isLoading) "Refreshing…" else "Refresh", maxLines = 1) },
+                            label = { CompactText(if (state.isLoading) stringResource(R.string.wear_status_refreshing) else stringResource(R.string.wear_action_refresh), maxLines = 1) },
                             secondaryLabel = if (state.errorMessage != null) {
                                 { CompactText(state.errorMessage) }
                             } else null,
@@ -246,8 +252,8 @@ internal fun InboxScreen(
             item {
                 Button(
                     onClick = onOpenSaved,
-                    label = { CompactText("Saved · ${state.savedItems.size}", maxLines = 1) },
-                    secondaryLabel = { CompactText("Offline-ready bookmarks") },
+                    label = { CompactText(stringResource(R.string.wear_saved_count, state.savedItems.size), maxLines = 1) },
+                    secondaryLabel = { CompactText(stringResource(R.string.wear_saved_subtitle)) },
                     transformation = SurfaceTransformation(transformationSpec),
                     modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                 )
@@ -255,8 +261,8 @@ internal fun InboxScreen(
             item {
                 Button(
                     onClick = onOpenFeeds,
-                    label = { CompactText("Feeds", maxLines = 1) },
-                    secondaryLabel = { CompactText("Manage subscriptions") },
+                    label = { CompactText(stringResource(R.string.wear_feeds_title), maxLines = 1) },
+                    secondaryLabel = { CompactText(stringResource(R.string.wear_feeds_subtitle)) },
                     transformation = SurfaceTransformation(transformationSpec),
                     modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                 )
@@ -275,9 +281,9 @@ private fun androidx.wear.compose.foundation.lazy.TransformingLazyColumnItemScop
         onClick = onClick,
         title = { CompactText(item.title) },
         subtitle = {
-            val kindAndSource = if (item.isPodcast) "Podcast · ${item.source}" else item.source
-            val readPrefix = if (item.isRead) "" else "Unread · "
-            val savedPrefix = if (item.isSaved) "Saved · " else ""
+            val kindAndSource = if (item.isPodcast) stringResource(R.string.wear_podcast_prefix, item.source) else item.source
+            val readPrefix = if (item.isRead) "" else stringResource(R.string.wear_unread_prefix)
+            val savedPrefix = if (item.isSaved) stringResource(R.string.wear_saved_prefix) else ""
             CompactText("$savedPrefix$readPrefix$kindAndSource", maxLines = 1)
         },
         time = if (item.timeLabel.isBlank()) null else {
@@ -303,14 +309,14 @@ internal fun SavedScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxSize()
         ) {
-            item { ListHeader { CompactText("Saved", maxLines = 1) } }
+            item { ListHeader { CompactText(stringResource(R.string.wear_saved_title), maxLines = 1) } }
             if (items.isEmpty()) {
                 item {
                     Button(
                         onClick = {},
                         enabled = false,
-                        label = { CompactText("Nothing saved", maxLines = 1) },
-                        secondaryLabel = { CompactText("Save a brief from its detail screen") },
+                        label = { CompactText(stringResource(R.string.wear_nothing_saved), maxLines = 1) },
+                        secondaryLabel = { CompactText(stringResource(R.string.wear_save_hint)) },
                         transformation = SurfaceTransformation(transformationSpec),
                         modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                     )
@@ -324,7 +330,7 @@ internal fun SavedScreen(
             item {
                 Button(
                     onClick = onBack,
-                    label = { CompactText("Back to Inbox", maxLines = 1) },
+                    label = { CompactText(stringResource(R.string.wear_back_to_inbox), maxLines = 1) },
                     transformation = SurfaceTransformation(transformationSpec),
                     modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                 )
@@ -390,20 +396,20 @@ internal fun ArticleDetailScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxSize()
         ) {
-            item { ListHeader { CompactText(article?.source ?: "WristBrief") } }
+            item { ListHeader { CompactText(article?.source ?: stringResource(R.string.app_name)) } }
             if (article?.isOffline == true || isOfflineFallback) {
-                item { ListHeader { CompactText("Offline · cached preview", maxLines = 1) } }
+                item { ListHeader { CompactText(stringResource(R.string.wear_offline_cached), maxLines = 1) } }
             }
 
             if (article == null) {
                 item {
                     TitleCard(
                         onClick = {},
-                        title = { CompactText("Brief unavailable", maxLines = 1) },
-                        subtitle = { CompactText("The cached item may have been removed") },
+                        title = { CompactText(stringResource(R.string.wear_brief_unavailable), maxLines = 1) },
+                        subtitle = { CompactText(stringResource(R.string.wear_brief_unavailable_sub)) },
                         transformation = SurfaceTransformation(transformationSpec),
                         modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
-                    ) { CompactText("Return to choose an available item.") }
+                    ) { CompactText(stringResource(R.string.wear_brief_unavailable_body)) }
                 }
             } else {
                 item {
@@ -411,7 +417,7 @@ internal fun ArticleDetailScreen(
                         onClick = {},
                         title = { CompactText(article.title, maxLines = 4) },
                         subtitle = {
-                            CompactText(if (article.isPodcast) "Podcast · ${article.source}" else article.source)
+                            CompactText(if (article.isPodcast) stringResource(R.string.wear_podcast_prefix, article.source) else article.source)
                         },
                         time = if (article.timeLabel.isBlank()) null else {
                             { CompactText(article.timeLabel) }
@@ -424,8 +430,8 @@ internal fun ArticleDetailScreen(
                     item {
                         Button(
                             onClick = { onContinueOnPhone(article.articleUrl) },
-                            label = { CompactText("Continue on phone", maxLines = 1) },
-                            secondaryLabel = { CompactText("Open the original article", maxLines = 1) },
+                            label = { CompactText(stringResource(R.string.wear_continue_phone), maxLines = 1) },
+                            secondaryLabel = { CompactText(stringResource(R.string.wear_continue_phone_sub), maxLines = 1) },
                             transformation = SurfaceTransformation(transformationSpec),
                             modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                         )
@@ -436,7 +442,7 @@ internal fun ArticleDetailScreen(
                         TitleCard(
                             onClick = {},
                             title = { CompactText(aiPresentation.label, maxLines = 3) },
-                            subtitle = { CompactText("AI brief", maxLines = 1) },
+                            subtitle = { CompactText(stringResource(R.string.wear_ai_brief), maxLines = 1) },
                             transformation = SurfaceTransformation(transformationSpec),
                             modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                         ) { Text(aiPresentation.detail) }
@@ -458,8 +464,8 @@ internal fun ArticleDetailScreen(
                         item {
                             Button(
                                 onClick = { onPlayPodcast(article) },
-                                label = { CompactText("Play podcast", maxLines = 1) },
-                                secondaryLabel = { CompactText("Resumes from your saved position") },
+                                label = { CompactText(stringResource(R.string.wear_play_podcast), maxLines = 1) },
+                                secondaryLabel = { CompactText(stringResource(R.string.wear_podcast_resume_sub)) },
                                 transformation = SurfaceTransformation(transformationSpec),
                                 modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                             )
@@ -471,7 +477,7 @@ internal fun ArticleDetailScreen(
                                 enabled = false,
                                 label = { CompactText(playbackState.progressLabel, maxLines = 1) },
                                 secondaryLabel = {
-                                    CompactText("Playing at ${playbackState.playbackSpeed}×", maxLines = 1)
+                                    CompactText(stringResource(R.string.wear_playing_speed, playbackState.playbackSpeed.toString()), maxLines = 1)
                                 },
                                 transformation = SurfaceTransformation(transformationSpec),
                                 modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
@@ -480,8 +486,8 @@ internal fun ArticleDetailScreen(
                         item {
                             Button(
                                 onClick = playbackConnection::togglePlayPause,
-                                label = { CompactText(if (playbackState.isPlaying) "Pause" else "Play", maxLines = 1) },
-                                secondaryLabel = { CompactText("Background playback stays active") },
+                                label = { CompactText(if (playbackState.isPlaying) stringResource(R.string.wear_pause) else stringResource(R.string.wear_play), maxLines = 1) },
+                                secondaryLabel = { CompactText(stringResource(R.string.wear_background_playback_sub)) },
                                 transformation = SurfaceTransformation(transformationSpec),
                                 modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                             )
@@ -489,7 +495,7 @@ internal fun ArticleDetailScreen(
                         item {
                             Button(
                                 onClick = { playbackConnection.seekBy(-15_000L) },
-                                label = { CompactText("Back 15s", maxLines = 1) },
+                                label = { CompactText(stringResource(R.string.wear_back_15s), maxLines = 1) },
                                 transformation = SurfaceTransformation(transformationSpec),
                                 modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                             )
@@ -497,7 +503,7 @@ internal fun ArticleDetailScreen(
                         item {
                             Button(
                                 onClick = { playbackConnection.seekBy(30_000L) },
-                                label = { CompactText("Forward 30s", maxLines = 1) },
+                                label = { CompactText(stringResource(R.string.wear_forward_30s), maxLines = 1) },
                                 transformation = SurfaceTransformation(transformationSpec),
                                 modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                             )
@@ -505,8 +511,8 @@ internal fun ArticleDetailScreen(
                         item {
                             Button(
                                 onClick = playbackConnection::cyclePlaybackSpeed,
-                                label = { CompactText("Speed ${playbackState.playbackSpeed}×", maxLines = 1) },
-                                secondaryLabel = { CompactText("Tap to cycle 1×–2×") },
+                                label = { CompactText(stringResource(R.string.wear_speed_label, playbackState.playbackSpeed.toString()), maxLines = 1) },
+                                secondaryLabel = { CompactText(stringResource(R.string.wear_speed_sub)) },
                                 transformation = SurfaceTransformation(transformationSpec),
                                 modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                             )
@@ -516,8 +522,8 @@ internal fun ArticleDetailScreen(
                 item {
                     Button(
                         onClick = onToggleSaved,
-                        label = { CompactText(if (isSaved) "Remove from Saved" else "Save", maxLines = 1) },
-                        secondaryLabel = { CompactText("Keeps this cached brief easy to find offline") },
+                        label = { CompactText(if (isSaved) stringResource(R.string.wear_remove_saved) else stringResource(R.string.wear_save), maxLines = 1) },
+                        secondaryLabel = { CompactText(stringResource(R.string.wear_save_sub)) },
                         transformation = SurfaceTransformation(transformationSpec),
                         modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                     )
@@ -525,8 +531,8 @@ internal fun ArticleDetailScreen(
                 item {
                     Button(
                         onClick = onToggleRead,
-                        label = { CompactText(if (isRead) "Mark unread" else "Mark read", maxLines = 1) },
-                        secondaryLabel = { CompactText("Opening alone does not change read state") },
+                        label = { CompactText(if (isRead) stringResource(R.string.wear_mark_unread) else stringResource(R.string.wear_mark_read), maxLines = 1) },
+                        secondaryLabel = { CompactText(stringResource(R.string.wear_read_sub)) },
                         transformation = SurfaceTransformation(transformationSpec),
                         modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                     )
@@ -536,7 +542,7 @@ internal fun ArticleDetailScreen(
             item {
                 Button(
                     onClick = onBack,
-                    label = { CompactText("Back", maxLines = 1) },
+                    label = { CompactText(stringResource(R.string.wear_back), maxLines = 1) },
                     transformation = SurfaceTransformation(transformationSpec),
                     modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                 )
@@ -562,11 +568,11 @@ internal fun FeedManagementScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxSize()
         ) {
-            item { ListHeader { CompactText("Feeds", maxLines = 1) } }
+            item { ListHeader { CompactText(stringResource(R.string.wear_feeds_title), maxLines = 1) } }
             item {
                 Button(
                     onClick = onBack,
-                    label = { CompactText("Back to Inbox", maxLines = 1) },
+                    label = { CompactText(stringResource(R.string.wear_back_to_inbox), maxLines = 1) },
                     transformation = SurfaceTransformation(transformationSpec),
                     modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                 )
@@ -577,8 +583,8 @@ internal fun FeedManagementScreen(
                     Button(
                         onClick = {},
                         enabled = false,
-                        label = { CompactText("No subscriptions", maxLines = 1) },
-                        secondaryLabel = { CompactText("Add feeds on the phone companion") },
+                        label = { CompactText(stringResource(R.string.wear_no_subscriptions), maxLines = 1) },
+                        secondaryLabel = { CompactText(stringResource(R.string.wear_add_on_phone_subtitle)) },
                         transformation = SurfaceTransformation(transformationSpec),
                         modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                     )
@@ -586,16 +592,18 @@ internal fun FeedManagementScreen(
             } else {
                 items(count = feeds.size) { index ->
                     val feed = feeds[index]
+                    val statusText = if (feed.enabled) stringResource(R.string.wear_status_enabled) else stringResource(R.string.wear_status_paused)
+                    val toggleText = if (feed.enabled) stringResource(R.string.wear_action_pause) else stringResource(R.string.wear_action_enable)
                     Button(
                         onClick = { onToggleFeed(feed) },
                         label = { CompactText(feed.title) },
-                        secondaryLabel = { CompactText("${feed.statusLabel} · ${feed.toggleLabel}", maxLines = 1) },
+                        secondaryLabel = { CompactText("$statusText · $toggleText", maxLines = 1) },
                         transformation = SurfaceTransformation(transformationSpec),
                         modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                     )
                     Button(
                         onClick = { onRemoveFeed(feed) },
-                        label = { CompactText("Remove ${feed.title}") },
+                        label = { CompactText(stringResource(R.string.wear_remove_feed, feed.title)) },
                         secondaryLabel = { CompactText(feed.url, maxLines = 1) },
                         transformation = SurfaceTransformation(transformationSpec),
                         modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
@@ -607,8 +615,8 @@ internal fun FeedManagementScreen(
                 Button(
                     onClick = {},
                     enabled = false,
-                    label = { CompactText("Add/manage on phone", maxLines = 1) },
-                    secondaryLabel = { CompactText("Phone sync arrives in a later slot") },
+                    label = { CompactText(stringResource(R.string.wear_add_on_phone_title), maxLines = 1) },
+                    secondaryLabel = { CompactText(stringResource(R.string.wear_phone_sync_notice)) },
                     transformation = SurfaceTransformation(transformationSpec),
                     modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                 )

@@ -1,0 +1,61 @@
+<resources>
+    <string name="app_name">WristBrief</string>
+    <string name="tile_latest_briefs">Latest briefs</string>
+    <string name="tile_continue_listening">Continue listening</string>
+    <string name="complication_unread_briefs">Unread briefs</string>
+
+    <string name="wear_status_refreshing">Refreshing…</string>
+    <string name="wear_status_all_caught_up">All caught up</string>
+    <string name="wear_status_no_briefs">No briefs yet</string>
+    <string name="wear_status_no_feeds">No feeds yet</string>
+    <string name="wear_action_refresh">Refresh</string>
+
+    <string name="wear_saved_title">Saved</string>
+    <string name="wear_saved_count">Saved · %1$d</string>
+    <string name="wear_saved_subtitle">Offline-ready bookmarks</string>
+    <string name="wear_nothing_saved">Nothing saved</string>
+    <string name="wear_save_hint">Save a brief from its detail screen</string>
+    <string name="wear_back_to_inbox">Back to Inbox</string>
+
+    <string name="wear_feeds_title">Feeds</string>
+    <string name="wear_feeds_subtitle">Manage subscriptions</string>
+    <string name="wear_no_subscriptions">No subscriptions</string>
+    <string name="wear_add_on_phone_subtitle">Add feeds on the phone companion</string>
+    <string name="wear_add_on_phone_title">Add/manage on phone</string>
+    <string name="wear_phone_sync_notice">Phone sync arrives in a later slot</string>
+
+    <string name="wear_brief_unavailable">Brief unavailable</string>
+    <string name="wear_brief_unavailable_sub">The cached item may have been removed</string>
+    <string name="wear_brief_unavailable_body">Return to choose an available item.</string>
+    <string name="wear_continue_phone">Continue on phone</string>
+    <string name="wear_continue_phone_sub">Open the original article</string>
+    <string name="wear_ai_brief">AI brief</string>
+    <string name="wear_play_podcast">Play podcast</string>
+    <string name="wear_podcast_resume_sub">Resumes from your saved position</string>
+    <string name="wear_playing_speed">Playing at %1$s×</string>
+    <string name="wear_pause">Pause</string>
+    <string name="wear_play">Play</string>
+    <string name="wear_background_playback_sub">Background playback stays active</string>
+    <string name="wear_back_15s">Back 15s</string>
+    <string name="wear_forward_30s">Forward 30s</string>
+    <string name="wear_speed_label">Speed %1$s×</string>
+    <string name="wear_speed_sub">Tap to cycle 1×–2×</string>
+    <string name="wear_remove_saved">Remove from Saved</string>
+    <string name="wear_save">Save</string>
+    <string name="wear_save_sub">Keeps this cached brief easy to find offline</string>
+    <string name="wear_mark_unread">Mark unread</string>
+    <string name="wear_mark_read">Mark read</string>
+    <string name="wear_read_sub">Opening alone does not change read state</string>
+    <string name="wear_back">Back</string>
+    <string name="wear_offline_cached">Offline · cached preview</string>
+    <string name="wear_podcast_prefix">Podcast · %1$s</string>
+    <string name="wear_unread_prefix">Unread · </string>
+    <string name="wear_saved_prefix">Saved · </string>
+    <string name="wear_remove_feed">Remove %1$s</string>
+    <string name="wear_status_enabled">Enabled</string>
+    <string name="wear_status_paused">Paused</string>
+    <string name="wear_action_enable">Enable</string>
+    <string name="wear_action_pause">Pause</string>
+    <string name="wear_empty_detail_refresh">Refresh to fetch your latest briefs</string>
+    <string name="wear_empty_detail_add">Add feeds from the phone companion</string>
+</resources>

@@ -30,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
@@ -53,7 +54,7 @@ internal fun CategorizedFeedManagementDestination(
     var editing by remember { mutableStateOf<MobileFeedSubscription?>(null) }
     var showEditor by rememberSaveable { mutableStateOf(false) }
     var launchOpmlImport by rememberSaveable { mutableStateOf(false) }
-    var status by remember { mutableStateOf("Add feeds here; organize them into folders and choose separately what is active or sent to Wear.") }
+    var status by remember { mutableStateOf(context.getString(R.string.feed_management_status)) }
     var busy by remember { mutableStateOf(false) }
 
     LaunchedEffect(onboardingAction) {
@@ -70,7 +71,7 @@ internal fun CategorizedFeedManagementDestination(
         contentPadding = PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        item { Text("Feed management", style = MaterialTheme.typography.headlineMedium) }
+        item { Text(stringResource(R.string.feed_management_title), style = MaterialTheme.typography.headlineMedium) }
         item { Text(status, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         item {
             Button(
@@ -79,7 +80,7 @@ internal fun CategorizedFeedManagementDestination(
                     showEditor = true
                 },
                 enabled = !busy,
-            ) { Text("Add feed") }
+            ) { Text(stringResource(R.string.feed_management_add)) }
         }
         item {
             OpmlManagementActions(
@@ -93,7 +94,7 @@ internal fun CategorizedFeedManagementDestination(
             )
         }
         if (feeds.isEmpty()) {
-            item { Text("No phone-managed feeds yet.", style = MaterialTheme.typography.bodyLarge) }
+            item { Text(stringResource(R.string.feed_management_empty), style = MaterialTheme.typography.bodyLarge) }
         }
 
         groupMobileFeedsByCategory(feeds).forEach { group ->
@@ -105,7 +106,8 @@ internal fun CategorizedFeedManagementDestination(
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
-                        "${group.feeds.size} ${if (group.feeds.size == 1) "feed" else "feeds"}",
+                        if (group.feeds.size == 1) stringResource(R.string.feed_count_single)
+                        else stringResource(R.string.feed_count_multiple, group.feeds.size),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -122,10 +124,10 @@ internal fun CategorizedFeedManagementDestination(
                         Text(feed.title, style = MaterialTheme.typography.titleLarge)
                         Text(feed.url, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         feed.category?.let { category ->
-                            Text("Folder · $category", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                            Text(stringResource(R.string.feed_folder_prefix, category), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                         }
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text("Watch filter · ${keywordState.summary}", style = MaterialTheme.typography.labelLarge)
+                            Text(stringResource(R.string.feed_watch_filter_prefix, keywordState.summary), style = MaterialTheme.typography.labelLarge)
                             Text(
                                 keywordState.supportingText,
                                 style = MaterialTheme.typography.bodySmall,
@@ -138,9 +140,9 @@ internal fun CategorizedFeedManagementDestination(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Column(Modifier.weight(1f)) {
-                                Text("Subscription active")
+                                Text(stringResource(R.string.feed_subscription_active))
                                 Text(
-                                    if (feed.enabled) "Included in refreshes" else "Paused on synced devices",
+                                    if (feed.enabled) stringResource(R.string.feed_included_refreshes) else stringResource(R.string.feed_paused_synced),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -159,9 +161,9 @@ internal fun CategorizedFeedManagementDestination(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Column(Modifier.weight(1f)) {
-                                Text("Send to watch")
+                                Text(stringResource(R.string.feed_send_to_watch))
                                 Text(
-                                    if (feed.sendToWatch) "Available on paired Wear devices" else "Keep on phone only",
+                                    if (feed.sendToWatch) stringResource(R.string.feed_available_wear) else stringResource(R.string.feed_phone_only),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -172,7 +174,7 @@ internal fun CategorizedFeedManagementDestination(
                                     val result = manager.setSendToWatch(feed.id, sendToWatch)
                                     if (result is FeedMutationResult.Success) {
                                         feeds = result.feeds
-                                        status = if (sendToWatch) "Feed queued for Wear sync." else "Feed kept on phone only."
+                                        status = if (sendToWatch) context.getString(R.string.feed_status_queued_wear) else context.getString(R.string.feed_status_phone_only)
                                     }
                                 },
                             )
@@ -181,11 +183,11 @@ internal fun CategorizedFeedManagementDestination(
                             OutlinedButton(onClick = {
                                 editing = feed
                                 showEditor = true
-                            }) { Text("Edit") }
+                            }) { Text(stringResource(R.string.feed_edit)) }
                             TextButton(onClick = {
                                 val result = manager.remove(feed.id)
                                 if (result is FeedMutationResult.Success) feeds = result.feeds
-                            }) { Text("Remove") }
+                            }) { Text(stringResource(R.string.feed_remove)) }
                         }
                     }
                 }
@@ -201,7 +203,7 @@ internal fun CategorizedFeedManagementDestination(
             onSave = { url, title, category, keywordText ->
                 scope.launch {
                     busy = true
-                    status = "Validating feed…"
+                    status = context.getString(R.string.feed_validating)
                     val watchKeywords = normalizeWatchKeywords(keywordText)
                     val result = if (editing == null) {
                         manager.add(url, title, category, watchKeywords)
@@ -212,9 +214,14 @@ internal fun CategorizedFeedManagementDestination(
                     when (result) {
                         is FeedMutationResult.Success -> {
                             feeds = result.feeds
-                            val folderStatus = normalizeFeedCategory(category)?.let { " in $it" }.orEmpty()
-                            val filterStatus = if (watchKeywords.isEmpty()) "all items sent to Wear" else "${watchKeywords.size} watch keyword${if (watchKeywords.size == 1) "" else "s"} active"
-                            status = "Saved$folderStatus; $filterStatus."
+                            val filterStatus = if (watchKeywords.isEmpty()) {
+                                context.getString(R.string.feed_all_items_sent)
+                            } else {
+                                context.getString(R.string.feed_watch_keywords_active, watchKeywords.size)
+                            }
+                            status = normalizeFeedCategory(category)?.let {
+                                context.getString(R.string.feed_saved_in_folder, it, filterStatus)
+                            } ?: context.getString(R.string.feed_saved, filterStatus)
                             showEditor = false
                         }
                         is FeedMutationResult.Error -> status = result.message
@@ -239,38 +246,38 @@ private fun CategoryFeedEditorDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (feed == null) "Add feed" else "Edit feed") },
+        title = { Text(if (feed == null) stringResource(R.string.feed_dialog_add) else stringResource(R.string.feed_dialog_edit)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = url,
                     onValueChange = { url = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("HTTPS feed URL") },
+                    label = { Text(stringResource(R.string.feed_url_label)) },
                     singleLine = true,
                 )
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Name (optional)") },
+                    label = { Text(stringResource(R.string.feed_name_optional)) },
                     singleLine = true,
                 )
                 OutlinedTextField(
                     value = category,
                     onValueChange = { category = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Folder (optional)") },
-                    supportingText = { Text("Feeds with the same folder name are grouped together.") },
+                    label = { Text(stringResource(R.string.feed_folder_optional)) },
+                    supportingText = { Text(stringResource(R.string.feed_folder_hint)) },
                     singleLine = true,
                 )
                 OutlinedTextField(
                     value = watchKeywords,
                     onValueChange = { watchKeywords = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Watch keywords (optional)") },
+                    label = { Text(stringResource(R.string.feed_keywords_optional)) },
                     supportingText = {
-                        Text("Comma or line separated. Wear shows items when title or description matches any keyword; leave empty for all items.")
+                        Text(stringResource(R.string.feed_keywords_hint))
                     },
                     minLines = 2,
                     maxLines = 4,
@@ -279,11 +286,11 @@ private fun CategoryFeedEditorDialog(
         },
         confirmButton = {
             Button(onClick = { onSave(url, title, category, watchKeywords) }, enabled = !busy) {
-                Text(if (busy) "Validating…" else "Save")
+                Text(if (busy) stringResource(R.string.feed_validating) else stringResource(R.string.feed_save))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !busy) { Text("Cancel") }
+            TextButton(onClick = onDismiss, enabled = !busy) { Text(stringResource(R.string.action_cancel)) }
         },
     )
 }

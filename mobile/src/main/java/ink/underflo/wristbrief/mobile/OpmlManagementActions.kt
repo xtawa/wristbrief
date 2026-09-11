@@ -15,6 +15,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -37,7 +38,7 @@ internal fun OpmlManagementActions(
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
             onBusyChange(true)
-            onStatus("Importing OPML and validating feeds…")
+            onStatus(context.getString(R.string.opml_importing))
             try {
                 val result = withContext(Dispatchers.IO) {
                     manager.importOpml(readOpmlDocument(context.contentResolver, uri))
@@ -50,9 +51,9 @@ internal fun OpmlManagementActions(
                     is OpmlImportResult.Error -> onStatus(result.message)
                 }
             } catch (_: OpmlFormatException) {
-                onStatus("Could not import OPML. Check the file format and size.")
+                onStatus(context.getString(R.string.opml_import_format_error))
             } catch (_: Exception) {
-                onStatus("Could not read the selected OPML file.")
+                onStatus(context.getString(R.string.opml_import_read_error))
             } finally {
                 onBusyChange(false)
             }
@@ -72,7 +73,7 @@ internal fun OpmlManagementActions(
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
             onBusyChange(true)
-            onStatus("Exporting subscriptions…")
+            onStatus(context.getString(R.string.opml_exporting))
             try {
                 val feedCount = manager.feeds().size
                 val content = withContext(Dispatchers.Default) { manager.exportOpml() }
@@ -81,7 +82,7 @@ internal fun OpmlManagementActions(
                 }
                 onStatus(opmlExportStatus(feedCount))
             } catch (_: Exception) {
-                onStatus("Could not write the OPML export.")
+                onStatus(context.getString(R.string.opml_export_write_error))
             } finally {
                 onBusyChange(false)
             }
@@ -96,9 +97,9 @@ internal fun OpmlManagementActions(
             modifier = Modifier.padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text("Import or export OPML", style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.opml_management_title), style = MaterialTheme.typography.titleLarge)
             Text(
-                "Move feed subscriptions between WristBrief and other RSS apps. Imported feeds are validated before they are saved or synced to Wear.",
+                stringResource(R.string.opml_management_body),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             OutlinedButton(
@@ -106,14 +107,14 @@ internal fun OpmlManagementActions(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !busy,
             ) {
-                Text("Import OPML file")
+                Text(stringResource(R.string.opml_import_button))
             }
             OutlinedButton(
                 onClick = { exportLauncher.launch(OPML_EXPORT_FILE_NAME) },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !busy,
             ) {
-                Text("Export OPML file")
+                Text(stringResource(R.string.opml_export_button))
             }
         }
     }

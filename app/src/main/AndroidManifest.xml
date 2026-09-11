@@ -5,7 +5,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-feature android:name="android.hardware.type.watch" android:required="true" />
 
-    <application android:name=".WristBriefApplication" android:allowBackup="false" android:label="WristBrief" android:usesCleartextTraffic="false">
+    <application android:name=".WristBriefApplication" android:allowBackup="false" android:label="@string/app_name" android:usesCleartextTraffic="false">
         <meta-data android:name="com.google.android.wearable.standalone" android:value="false" />
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
@@ -31,13 +31,13 @@
                 <data android:scheme="wear" android:host="*" android:path="/wristbrief/account-session/v1" />
             </intent-filter>
         </service>
-        <service android:name=".tile.LatestUnreadTileService" android:exported="true" android:label="Latest briefs" android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+        <service android:name=".tile.LatestUnreadTileService" android:exported="true" android:label="@string/tile_latest_briefs" android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
             <intent-filter><action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" /></intent-filter>
         </service>
-        <service android:name=".tile.ContinueListeningTileService" android:exported="true" android:label="Continue listening" android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+        <service android:name=".tile.ContinueListeningTileService" android:exported="true" android:label="@string/tile_continue_listening" android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
             <intent-filter><action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" /></intent-filter>
         </service>
-        <service android:name=".complication.UnreadComplicationDataSourceService" android:exported="true" android:label="Unread briefs" android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
+        <service android:name=".complication.UnreadComplicationDataSourceService" android:exported="true" android:label="@string/complication_unread_briefs" android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
             <intent-filter><action android:name="android.support.wearable.complications.ACTION_COMPLICATION_UPDATE_REQUEST" /></intent-filter>
             <meta-data android:name="android.support.wearable.complications.SUPPORTED_TYPES" android:value="SHORT_TEXT,LONG_TEXT" />
             <meta-data android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS" android:value="0" />

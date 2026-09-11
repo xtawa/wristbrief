@@ -39,4 +39,25 @@ class MainActivityNavigationTest {
         composeRule.onNode(hasScrollAction()).performScrollToNode(inboxTitleMatcher)
         composeRule.onNode(inboxTitleMatcher).assertIsDisplayed()
     }
+
+    @Test
+    fun feedsDestinationSurvivesActivityRecreationAcrossWearReleaseProfiles() {
+        val feedsMatcher = hasText("Feeds")
+        composeRule.onNode(hasScrollAction()).performScrollToNode(feedsMatcher)
+        composeRule.onNode(feedsMatcher).performClick()
+
+        val backMatcher = hasText("Back to Inbox")
+        composeRule.onNode(hasScrollAction()).performScrollToNode(backMatcher)
+        composeRule.onNode(backMatcher).assertIsDisplayed()
+
+        composeRule.activityRule.scenario.recreate()
+        composeRule.waitForIdle()
+
+        composeRule.onNode(hasScrollAction()).performScrollToNode(backMatcher)
+        composeRule.onNode(backMatcher).assertIsDisplayed().performClick()
+
+        val inboxTitleMatcher = hasText("WristBrief")
+        composeRule.onNode(hasScrollAction()).performScrollToNode(inboxTitleMatcher)
+        composeRule.onNode(inboxTitleMatcher).assertIsDisplayed()
+    }
 }

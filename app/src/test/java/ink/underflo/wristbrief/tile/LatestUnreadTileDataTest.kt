@@ -2,6 +2,7 @@ package ink.underflo.wristbrief.tile
 
 import ink.underflo.wristbrief.data.CachedFeedItem
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -71,9 +72,21 @@ class LatestUnreadTileDataTest {
         )
 
         val compact = data.titles.single()
-        assertEquals(44, compact.length)
+        assertEquals(44, compact.codePointCount(0, compact.length))
         assertTrue(compact.endsWith("…"))
         assertEquals("A deliberately long podcast and RSS headlin…", compact)
+    }
+
+    @Test
+    fun compactsWithoutSplittingSupplementaryUnicodeCharacters() {
+        val title = "a".repeat(42) + "😀" + "tail"
+
+        val compact = normalizeTileTitle(title)
+
+        assertEquals("a".repeat(42) + "😀…", compact)
+        assertEquals(44, compact.codePointCount(0, compact.length))
+        assertFalse(compact.any { Character.isSurrogate(it) } && compact.codePoints().count() == compact.length.toLong())
+        assertTrue(Character.isSurrogatePair(compact[42], compact[43]))
     }
 
     private fun item(

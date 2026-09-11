@@ -2,7 +2,7 @@ package ink.underflo.wristbrief.tile
 
 import ink.underflo.wristbrief.data.CachedFeedItem
 
-private const val MAX_TILE_TITLE_CHARS = 44
+private const val MAX_TILE_TITLE_CODE_POINTS = 44
 
 data class LatestUnreadTileData(
     val unreadCount: Int,
@@ -36,6 +36,8 @@ fun mapLatestUnreadTileData(
 
 internal fun normalizeTileTitle(value: String): String {
     val normalized = value.trim().replace(Regex("\\s+"), " ")
-    if (normalized.length <= MAX_TILE_TITLE_CHARS) return normalized
-    return normalized.take(MAX_TILE_TITLE_CHARS - 1).trimEnd() + "…"
+    val codePointCount = normalized.codePointCount(0, normalized.length)
+    if (codePointCount <= MAX_TILE_TITLE_CODE_POINTS) return normalized
+    val endIndex = normalized.offsetByCodePoints(0, MAX_TILE_TITLE_CODE_POINTS - 1)
+    return normalized.substring(0, endIndex).trimEnd() + "…"
 }

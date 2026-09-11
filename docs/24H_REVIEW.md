@@ -21,6 +21,7 @@ Subsequent repository work has also completed the following foundations:
 - CI execution of Mobile instrumentation on a managed Android device and Wear instrumentation on both small-round and large-round Wear OS emulator profiles;
 - MainActivity recreation/resume smoke coverage for both Wear and Mobile, plus a Wear playback-service lifecycle smoke test across activity recreation/background-resume, executed by CI instrumentation jobs;
 - Wear navigation/state-restoration interaction coverage on the small-round profile at configured system font scale `1.30`, while retaining the large-round default-font profile;
+- deterministic Compose rotary-input coverage on both Wear CI profiles: instrumentation injects a rotary scroll event into the Inbox `TransformingLazyColumn` and verifies that the exposed vertical scroll-axis position advances;
 - instrumented Media3 `MediaController` coverage that verifies the non-exported `PodcastPlaybackService` accepts controller connections, preserves prepared episode identity/seek/speed across controller disconnect/reconnect, and keeps active playback progressing while no controller is attached;
 - end-to-end `PodcastPlaybackConnection` service-recreation resume coverage using deterministic local media: CI stops the playback service, seeds persisted episode position/speed, reconstructs the service through the normal UI-facing connection, and verifies playback resumes from the persisted position at the persisted speed. The test-only MediaItem seam does not relax the production HTTPS podcast URL policy;
 - device-level Wear surface provider contract coverage now verifies the installed APK exposes both Tile providers and the unread complication provider with the expected bind permissions/actions, complication supported-type/update-period metadata, installed component resolution, and valid SHORT_TEXT/LONG_TEXT preview payloads while rejecting an unsupported preview type;
@@ -47,8 +48,8 @@ Repository-controlled checks now include:
 - Wear JVM tests;
 - Wear debug assembly;
 - Wear debug instrumentation-test APK assembly;
-- Wear OS small-round emulator execution at system font scale `1.30`, including navigation/state-restoration, MediaSession controller reconnect/state-continuity, service-recreation persisted-resume coverage, and installed Tile/Complication provider contract/preview checks;
-- Wear OS large-round emulator execution at the default font scale, including the same instrumentation suite;
+- Wear OS small-round emulator execution at system font scale `1.30`, including navigation/state-restoration, injected rotary scrolling, MediaSession controller reconnect/state-continuity, service-recreation persisted-resume coverage, and installed Tile/Complication provider contract/preview checks;
+- Wear OS large-round emulator execution at the default font scale, including the same instrumentation suite and rotary-scroll assertion;
 - Mobile JVM tests;
 - Mobile debug assembly;
 - Mobile debug instrumentation-test APK assembly;
@@ -58,9 +59,9 @@ Repository-controlled checks now include:
 - release manifest guard;
 - unsigned Wear/Mobile release APK + AAB assembly and artifact upload on `main` pushes.
 
-CI #336 verified commit `f102bb7c83fdc22b8c0110099a1d5882f117a85c`: release guard, Gateway typecheck/Vitest, Wear and Mobile JVM/debug builds, unsigned release APK/AAB builds, Mobile managed-device instrumentation, and both Wear small-round (`1.30` font scale) and large-round instrumentation completed successfully. The Wear suite now proves that the UI-facing podcast connection restores a persisted `17s / 1.75x` state after the playback service is stopped and reconstructed, and that continuously playing local media keeps making progress across a controller-free interval before reconnect.
+CI #339 verified commit `a925d6d308efea53e6ab3d6cd631ecc6ac26fdaf`: release guard, Gateway typecheck/Vitest, Wear and Mobile JVM/debug builds, unsigned release APK/AAB builds, Mobile managed-device instrumentation, and both Wear small-round (`1.30` font scale) and large-round instrumentation completed successfully. The Wear suite now also proves that injected Compose rotary input reaches the Inbox scrolling path on both emulator profiles, in addition to the existing service-recreation resume and controller-free active-playback coverage.
 
-These smoke suites prove launch/recreation/navigation, configured large-font layout interaction, MediaSession-service connection/lifecycle behavior, persisted resume after service reconstruction, prepared and actively-playing local-media controller reconnect continuity, installed Wear surface provider registration/preview contracts, and the JVM-level Data Layer validation/state semantics now checked into the repository. They do **not** substitute for rotary-input testing, Bluetooth/noisy-route/audio-focus behavior, a real paired-device disconnect/reconnect transport exercise, actual Tile/Complication host rendering/tap/update propagation, Play validation, or the broader physical-device matrix below.
+These smoke suites prove launch/recreation/navigation, configured large-font layout interaction, deterministic Compose rotary-scroll handling, MediaSession-service connection/lifecycle behavior, persisted resume after service reconstruction, prepared and actively-playing local-media controller reconnect continuity, installed Wear surface provider registration/preview contracts, and the JVM-level Data Layer validation/state semantics now checked into the repository. They do **not** substitute for physical-crown hardware tuning, Bluetooth/noisy-route/audio-focus behavior, a real paired-device disconnect/reconnect transport exercise, actual Tile/Complication host rendering/tap/update propagation, Play validation, or the broader physical-device matrix below.
 
 ## Remaining external or execution-dependent release blockers
 
@@ -71,8 +72,8 @@ The following work remains intentionally unclaimed:
 - configure the actual Google Cloud Pub/Sub RTDN topic and authenticated push subscription, then exercise live push delivery against the configured production-like audience/service account;
 - execute the full Play lifecycle matrix: active, cancellation-with-time-remaining, grace period, account hold, expiration and revoke;
 - configure the established Play App Signing/upload-key path and upload a traceable AAB to the Play internal-testing track;
-- expand Android/Wear instrumentation beyond the current launch/recreation/navigation/media/provider-contract checks into additional deterministic interaction flows where practical;
-- execute rotary-input checks on representative Wear profiles; CI now covers the small-round profile at system font scale `1.30` and the large-round size dimension, but it does not synthesize representative crown/rotary interaction;
+- expand Android/Wear instrumentation beyond the current launch/recreation/navigation/rotary/media/provider-contract checks into additional deterministic interaction flows where practical;
+- perform representative physical-crown feel/tuning checks on target Wear hardware; CI now injects rotary events and verifies actual Inbox scroll movement on both small-round `1.30` and large-round profiles, but emulator injection cannot characterize crown detents, acceleration or hardware-specific feel;
 - exercise Bluetooth controls, noisy-route/audio-focus and representative hardware-specific media behavior; CI now covers continuously playing local media across controller disconnect/reconnect plus persisted resume across playback-service reconstruction, but not physical audio-route boundaries;
 - exercise paired phone↔Wear Data Layer flows across connected, disconnected and reconnected states; the account-session transport now stores latest state durably, but CI still does not run a paired phone/watch topology that proves the platform transport path end-to-end;
 - verify actual Tile and complication host rendering/readability, tap launch behavior, and update propagation on Wear OS. Provider registration, permissions, metadata and complication preview construction are now covered on both CI Wear profiles, but those host-level behaviors are not.
@@ -81,7 +82,7 @@ No production credential, signing key or console-only result should be committed
 
 ## Recommended next release-readiness order
 
-1. Expand the now-running instrumentation suites around deterministic app interaction/state restoration, rotary behavior, Tile/Complication behavior and media lifecycle where CI can test them reliably.
+1. Expand the now-running instrumentation suites around deterministic Tile/Complication host behavior, additional app interaction/state restoration and media lifecycle where CI can test them reliably; retain physical crown feel as a device-matrix check rather than duplicating the now-covered rotary event path.
 2. Add a paired phone/Wear execution topology when CI infrastructure can support it, then exercise Data Layer set/clear/state convergence across disconnect/reconnect rather than relying only on contract/JVM checks.
 3. Deploy a non-production Gateway with the real D1 bindings/migrations and secret-store configuration, then run security/auth/membership smoke checks against that deployment.
 4. Wire Play internal testing plus authenticated RTDN in Google Cloud and execute the complete purchase/restore/lifecycle matrix.

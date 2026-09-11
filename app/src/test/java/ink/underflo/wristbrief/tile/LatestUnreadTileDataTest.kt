@@ -2,6 +2,7 @@ package ink.underflo.wristbrief.tile
 
 import ink.underflo.wristbrief.data.CachedFeedItem
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LatestUnreadTileDataTest {
@@ -57,6 +58,22 @@ class LatestUnreadTileDataTest {
 
         assertEquals(5, data.unreadCount)
         assertEquals(listOf("Brief 5", "Brief 4"), data.titles)
+    }
+
+    @Test
+    fun compactsLongTitlesForRoundTileReadability() {
+        val title = "A deliberately long podcast and RSS headline that would otherwise dominate a small round tile"
+
+        val data = mapLatestUnreadTileData(
+            cachedItems = listOf(item(id = "long", title = title, cachedAt = 1)),
+            enabledFeedIds = setOf("feed"),
+            readItemIds = emptySet()
+        )
+
+        val compact = data.titles.single()
+        assertEquals(44, compact.length)
+        assertTrue(compact.endsWith("…"))
+        assertEquals("A deliberately long podcast and RSS headli…", compact)
     }
 
     private fun item(

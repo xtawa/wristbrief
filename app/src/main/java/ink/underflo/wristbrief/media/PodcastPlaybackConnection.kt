@@ -93,10 +93,10 @@ class PodcastPlaybackConnection internal constructor(
         }
 
         val saved = progressStore.get(request.id)
-        mediaController.setMediaItem(mediaItemFactory(request))
-        mediaController.prepare()
-        mediaController.seekTo(normalizedResumePosition(saved?.positionMs ?: 0L, mediaController.duration))
+        val resumePositionMs = normalizedResumePosition(saved?.positionMs ?: 0L, mediaController.duration)
+        mediaController.setMediaItem(mediaItemFactory(request), resumePositionMs)
         mediaController.setPlaybackSpeed(saved?.playbackSpeed ?: 1f)
+        mediaController.prepare()
         mediaController.play()
         publishState(mediaController)
     }

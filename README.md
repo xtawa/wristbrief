@@ -1,61 +1,51 @@
 # WristBrief
 
-WristBrief is a Wear OS-first RSS + Podcast reader with optional AI-generated briefs.
+WristBrief is a Wear OS-first RSS + Podcast reader inbox with calm AI summaries and a companion Android phone application.
 
 ## Repository layout
 
-- `app/` — Wear OS Android client.
-- `gateway/` — Cloudflare Worker-style serverless AI gateway.
-- `.github/workflows/ci.yml` — Android and gateway validation.
+- `app/` — Wear OS Android client (Material 3 Expressive, Tiles, Complications, rotary input, offline playback).
+- `mobile/` — Android phone companion client (feed management, OPML, reader, Media3 podcast player, account, Play Billing).
+- `gateway/` — Cloudflare Worker AI gateway, D1 membership & Play Billing verification backend.
+- `.github/workflows/ci.yml` — Android unit/instrumentation, gateway Vitest, and release-guard CI checks.
+- `docs/` — Architecture, billing, security, roadmap, and execution status tracking.
 
-## Current baseline
+## Execution Status & Single Source of Truth
 
-The bootstrap implementation provides:
+The authoritative, verified progress of WristBrief across all product batches (Batch 0 through Batch 8) is tracked in:
 
-- HTTPS RSS/Atom retrieval and parsing.
-- Podcast enclosure discovery and Media3 playback primitive.
-- Wear OS Compose entry point.
-- HTTPS-only client-to-gateway AI summary client.
-- Authenticated serverless summary endpoint.
-- OpenAI-compatible upstream provider support through `AI_BASE_URL`, `AI_MODEL` and `AI_API_KEY`.
-- Separate `GATEWAY_TOKEN` so provider API keys are never shipped in the APK.
-- CI for Android assembly and gateway TypeScript checking.
+👉 [`docs/EXECUTION_STATUS.md`](docs/EXECUTION_STATUS.md)
 
-This is a recovery/bootstrap PR for a repository that previously contained only the initial README. It establishes the minimum architecture required for continued product implementation; it is not yet a finished end-user release.
+This tracks code existence, local unit tests, CI test evidence, device verification status, and production configuration boundaries.
 
-## Gateway secrets
+## Architecture Highlights
 
-Configure secrets in the deployment environment rather than committing them:
+1. **Wear OS First**: Designed for fast glanceable decisions on wrist, rotary crown scrolling, round screen padding, and low-power operations.
+2. **Companion Phone Workspace**: Provides comprehensive feed subscription management, OPML import/export, sanitized article reading, Media3 audio background playback, Google sign-in, and Google Play subscription flows.
+3. **Canonical Data Layer Sync**: Bidirectional sync between phone and watch for feed subscriptions, read/saved states, playback progress, and scoped revocable session tokens.
+4. **Serverless Gateway & Play Verification**: Google Play subscription server verification via Google Android Publisher APIs, RTDN push processing with OIDC validation, D1-backed entitlement tracking, and structured AI highlights.
 
+## Local Validation
+
+Android Phone Companion:
 ```bash
-cd gateway
-npx wrangler secret put AI_API_KEY
-npx wrangler secret put GATEWAY_TOKEN
+./gradlew :mobile:testDebugUnitTest :mobile:assembleDebug
 ```
 
-Provider configuration lives in `gateway/wrangler.toml` and can be changed to another OpenAI-compatible HTTPS endpoint:
-
-- `AI_BASE_URL`
-- `AI_MODEL`
-
-Never commit provider keys or gateway bearer tokens.
-
-## Local validation
-
-Android:
-
+Wear OS Client:
 ```bash
-gradle :app:assembleDebug
+./gradlew :app:testDebugUnitTest :app:assembleDebug
 ```
 
 Gateway:
-
 ```bash
 cd gateway
 npm install
 npm run typecheck
+npm test
 ```
 
-## Remaining product work
-
-The bootstrap still needs persistent feed/subscription storage, a complete round-screen feed UI, article detail/read-state handling, podcast queue/background controls, settings UI for the deployed gateway, robust feed sanitization, offline caching, tests, and production release configuration.
+Release Security Guard:
+```bash
+python scripts/release_guard.py
+```

@@ -16,6 +16,10 @@ data class PodcastEpisodeProgress(
     val episodeId: String,
     val positionMs: Long,
     val playbackSpeed: Float = 1f,
+    val durationMs: Long = 0L,
+    val isPlaying: Boolean = false,
+    val lastPlayedAtEpochMs: Long = System.currentTimeMillis(),
+    val completed: Boolean = false,
 ) {
     init {
         require(episodeId.isNotBlank()) { "Episode id is required" }
@@ -28,6 +32,8 @@ interface PodcastProgressStore {
     fun get(episodeId: String): PodcastEpisodeProgress?
     fun all(): List<PodcastEpisodeProgress>
     fun save(progress: PodcastEpisodeProgress)
+    fun getLatestActive(): PodcastEpisodeProgress? = all().firstOrNull { !it.completed && it.positionMs > 0L }
+    fun delete(episodeId: String) {}
 }
 
 class SharedPreferencesPodcastProgressStore(context: Context) : PodcastProgressStore {
@@ -43,6 +49,13 @@ class SharedPreferencesPodcastProgressStore(context: Context) : PodcastProgressS
         val all = decodePodcastProgress(preferences.getString(PREFS_KEY, null).orEmpty()).toMutableMap()
         all[progress.episodeId] = progress
         preferences.edit().putString(PREFS_KEY, encodePodcastProgress(all.values)).apply()
+    }
+
+    override fun delete(episodeId: String) {
+        val all = decodePodcastProgress(preferences.getString(PREFS_KEY, null).orEmpty()).toMutableMap()
+        if (all.remove(episodeId) != null) {
+            preferences.edit().putString(PREFS_KEY, encodePodcastProgress(all.values)).apply()
+        }
     }
 }
 

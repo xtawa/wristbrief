@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -25,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,22 +50,39 @@ internal fun LibraryDestination(
     val context = LocalContext.current
     var searchQuery by remember { mutableStateOf("") }
     var currentFilter by remember { mutableStateOf(LibraryFilter.All) }
+    var sortNewestFirst by rememberSaveable { mutableStateOf(true) }
+    var selectedCategory by rememberSaveable { mutableStateOf<String?>(null) }
     var items by remember { mutableStateOf(inboxRepository.items()) }
+    val feeds = remember(feedManager) { feedManager.feeds() }
+    val categories = remember(feeds) {
+        feeds.mapNotNull { it.category }.distinct().sorted()
+    }
 
-    val filteredItems = items.filter { item ->
-        val matchesSearch = if (searchQuery.isBlank()) true else {
-            item.title.contains(searchQuery, ignoreCase = true) ||
-                item.feedTitle.contains(searchQuery, ignoreCase = true) ||
-                (item.description?.contains(searchQuery, ignoreCase = true) == true)
+    val filteredItems = remember(items, searchQuery, currentFilter, selectedCategory, sortNewestFirst, feeds) {
+        val categoryFeedIds = if (selectedCategory == null) null else {
+            feeds.filter { it.category.equals(selectedCategory, ignoreCase = true) }.map { it.id }.toSet()
         }
-        val matchesCategory = when (currentFilter) {
-            LibraryFilter.All -> true
-            LibraryFilter.Unread -> !inboxRepository.isRead(item.id)
-            LibraryFilter.Saved -> inboxRepository.isSaved(item.id)
-            LibraryFilter.Articles -> item.audioUrl == null
-            LibraryFilter.Podcasts -> item.audioUrl != null
+        val list = items.filter { item ->
+            val matchesCategory = categoryFeedIds == null || item.feedId in categoryFeedIds
+            val matchesSearch = if (searchQuery.isBlank()) true else {
+                item.title.contains(searchQuery, ignoreCase = true) ||
+                    item.feedTitle.contains(searchQuery, ignoreCase = true) ||
+                    (item.description?.contains(searchQuery, ignoreCase = true) == true)
+            }
+            val matchesFilter = when (currentFilter) {
+                LibraryFilter.All -> true
+                LibraryFilter.Unread -> !inboxRepository.isRead(item.id)
+                LibraryFilter.Saved -> inboxRepository.isSaved(item.id)
+                LibraryFilter.Articles -> item.audioUrl == null
+                LibraryFilter.Podcasts -> item.audioUrl != null
+            }
+            matchesCategory && matchesSearch && matchesFilter
         }
-        matchesSearch && matchesCategory
+        if (sortNewestFirst) {
+            list
+        } else {
+            list.reversed()
+        }
     }
 
     fun openUrl(url: String?) {
@@ -112,7 +131,19 @@ internal fun LibraryDestination(
         item {
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
+                item {
+                    AssistChip(
+                        onClick = { sortNewestFirst = !sortNewestFirst },
+                        label = {
+                            Text(
+                                if (sortNewestFirst) stringResource(R.string.library_sort_newest)
+                                else stringResource(R.string.library_sort_oldest)
+                            )
+                        },
+                    )
+                }
                 items(LibraryFilter.entries) { filter ->
                     val label = when (filter) {
                         LibraryFilter.All -> stringResource(R.string.library_filter_all)
@@ -130,6 +161,32 @@ internal fun LibraryDestination(
             }
         }
 
+        if (categories.isNotEmpty()) {
+            item {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    item {
+                        FilterChip(
+                            selected = selectedCategory == null,
+                            onClick = { selectedCategory = null },
+                            label = { Text(stringResource(R.string.today_filter_all)) },
+                        )
+                    }
+                    items(categories) { cat ->
+                        FilterChip(
+                            selected = selectedCategory.equals(cat, ignoreCase = true),
+                            onClick = {
+                                selectedCategory = if (selectedCategory.equals(cat, ignoreCase = true)) null else cat
+                            },
+                            label = { Text(cat) },
+                        )
+                    }
+                }
+            }
+        }
+
         if (filteredItems.isEmpty()) {
             item {
                 Card(
@@ -141,14 +198,25 @@ internal fun LibraryDestination(
                         modifier = Modifier.padding(24.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Text(
-                            text = stringResource(R.string.library_empty),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        if (feedManager.feeds().isEmpty()) {
-                            Button(onClick = onManageSources) {
-                                Text(stringResource(R.string.today_add_feed))
+                        if (searchQuery.isNotBlank()) {
+                            Text(
+                                text = stringResource(R.string.library_no_search_results, searchQuery),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Button(onClick = { searchQuery = "" }) {
+                                Text(stringResource(R.string.library_clear_search))
+                            }
+                        } else {
+                            Text(
+                                text = stringResource(R.string.library_empty),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            if (feedManager.feeds().isEmpty()) {
+                                Button(onClick = onManageSources) {
+                                    Text(stringResource(R.string.today_add_feed))
+                                }
                             }
                         }
                     }
@@ -181,7 +249,7 @@ internal fun LibraryDestination(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         item.description?.let { desc ->
-                            val clean = desc.replace(Regex("<[^>]+>"), "").trim()
+                            val clean = ArticleContentSanitizer.sanitize(desc).plainText
                             if (clean.isNotBlank()) {
                                 Text(
                                     text = clean,

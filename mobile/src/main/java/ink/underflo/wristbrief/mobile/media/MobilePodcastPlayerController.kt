@@ -2,6 +2,8 @@ package ink.underflo.wristbrief.mobile.media
 
 import android.content.ComponentName
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -14,6 +16,8 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
+import ink.underflo.wristbrief.mobile.AppPreferences
+import ink.underflo.wristbrief.mobile.R
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,9 +34,10 @@ data class PodcastPlayerState(
     val isVisible: Boolean = false,
 )
 
-class MobilePodcastPlayerController(
+internal class MobilePodcastPlayerController(
     private val context: Context,
     private val progressStore: PodcastProgressStore = SharedPreferencesPodcastProgressStore(context),
+    private val appPreferences: AppPreferences? = null,
 ) {
     private val _state = MutableStateFlow(PodcastPlayerState())
     val state: StateFlow<PodcastPlayerState> = _state.asStateFlow()
@@ -82,14 +87,40 @@ class MobilePodcastPlayerController(
         }
 
         override fun onPlayerError(error: PlaybackException) {
+            val msg = when (error.errorCode) {
+                PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+                PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,
+                PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ->
+                    context.getString(R.string.podcast_error_network)
+                PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED,
+                PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED,
+                PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED ->
+                    context.getString(R.string.podcast_error_unsupported_format)
+                else -> context.getString(R.string.podcast_error_playback)
+            }
             _state.update {
                 it.copy(
                     isPlaying = false,
                     isBuffering = false,
-                    errorMessage = error.localizedMessage ?: "Playback error",
+                    errorMessage = msg,
                 )
             }
         }
+    }
+
+    private fun isWifiConnected(): Boolean {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return true
+        val network = cm.activeNetwork ?: return false
+        val caps = cm.getNetworkCapabilities(network) ?: return false
+        return caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
+    }
+
+    private fun isNetworkAvailable(): Boolean {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return true
+        val network = cm.activeNetwork ?: return false
+        val caps = cm.getNetworkCapabilities(network) ?: return false
+        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
     }
 
     init {
@@ -124,6 +155,32 @@ class MobilePodcastPlayerController(
     }
 
     fun play(request: PodcastPlaybackRequest) {
+        if (!isNetworkAvailable()) {
+            _state.update {
+                it.copy(
+                    currentEpisode = request,
+                    isPlaying = false,
+                    isBuffering = false,
+                    isVisible = true,
+                    errorMessage = context.getString(R.string.podcast_error_network),
+                )
+            }
+            return
+        }
+
+        if (appPreferences?.isWifiOnly() == true && !isWifiConnected()) {
+            _state.update {
+                it.copy(
+                    currentEpisode = request,
+                    isPlaying = false,
+                    isBuffering = false,
+                    isVisible = true,
+                    errorMessage = context.getString(R.string.podcast_error_wifi_only),
+                )
+            }
+            return
+        }
+
         val controller = mediaController
         if (controller == null) {
             pendingRequest = request
@@ -178,8 +235,16 @@ class MobilePodcastPlayerController(
     }
 
     fun resume() {
+        if (!isNetworkAvailable()) {
+            _state.update { it.copy(errorMessage = context.getString(R.string.podcast_error_network)) }
+            return
+        }
+        if (appPreferences?.isWifiOnly() == true && !isWifiConnected()) {
+            _state.update { it.copy(errorMessage = context.getString(R.string.podcast_error_wifi_only)) }
+            return
+        }
         mediaController?.play()
-        _state.update { it.copy(isPlaying = true) }
+        _state.update { it.copy(isPlaying = true, errorMessage = null) }
     }
 
     fun seekTo(positionMs: Long) {

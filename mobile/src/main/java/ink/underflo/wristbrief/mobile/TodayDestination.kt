@@ -20,6 +20,7 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -30,7 +31,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import ink.underflo.wristbrief.mobile.media.PodcastProgressStore
+import ink.underflo.wristbrief.mobile.media.formatPlaybackTime
+import ink.underflo.wristbrief.mobile.ui.ErrorBanner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -57,6 +62,7 @@ internal fun TodayDestination(
     onOpenSettings: () -> Unit,
     onOpenArticle: (MobileFeedItem) -> Unit = {},
     onPlayPodcast: (MobileFeedItem) -> Unit = {},
+    progressStore: PodcastProgressStore? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -64,11 +70,32 @@ internal fun TodayDestination(
     var feeds by remember { mutableStateOf(feedManager.feeds()) }
     var isRefreshing by remember { mutableStateOf(false) }
     var refreshStatus by remember { mutableStateOf<String?>(null) }
+    var failedFeedTitles by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
+    var selectedCategory by rememberSaveable { mutableStateOf<String?>(null) }
 
-    val unread = items.filterNot { inboxRepository.isRead(it.id) }
-    val saved = items.filter { inboxRepository.isSaved(it.id) }
+    val categories = remember(feeds) {
+        feeds.mapNotNull { it.category }.distinct().sorted()
+    }
+
+    val displayedItems = remember(items, selectedCategory, feeds) {
+        if (selectedCategory == null) items
+        else {
+            val feedIds = feeds.filter { it.category.equals(selectedCategory, ignoreCase = true) }.map { it.id }.toSet()
+            items.filter { it.feedId in feedIds }
+        }
+    }
+
+    val unread = displayedItems.filterNot { inboxRepository.isRead(it.id) }
+    val saved = displayedItems.filter { inboxRepository.isSaved(it.id) }
     val continueReading = unread.firstOrNull { it.audioUrl == null }
-    val continueListening = items.firstOrNull { it.audioUrl != null }
+    val activeProgress = remember(items, progressStore) {
+        progressStore?.getLatestActive()
+    }
+    val continueListening = remember(displayedItems, activeProgress) {
+        activeProgress?.let { prog ->
+            displayedItems.firstOrNull { it.id == prog.episodeId }
+        }
+    }
 
     val dailyBriefStore = remember(context) { SharedPreferencesDailyBriefStore(context) }
     var dailyBriefRecord by remember { mutableStateOf(dailyBriefStore.getLatest()) }
@@ -133,6 +160,7 @@ internal fun TodayDestination(
             isRefreshing = true
             val res = inboxRepository.refresh()
             items = inboxRepository.items()
+            failedFeedTitles = res.failedFeedTitles
             isRefreshing = false
             refreshStatus = if (res.isOfflineFallback) {
                 context.getString(R.string.today_offline_fallback)
@@ -175,6 +203,50 @@ internal fun TodayDestination(
             }
         }
 
+        if (failedFeedTitles.isNotEmpty()) {
+            item {
+                ErrorBanner(
+                    message = stringResource(
+                        R.string.today_partial_refresh_failed,
+                        failedFeedTitles.size,
+                        failedFeedTitles.joinToString(", "),
+                    ),
+                    onRetry = {
+                        scope.launch {
+                            isRefreshing = true
+                            val res = inboxRepository.refresh()
+                            items = inboxRepository.items()
+                            failedFeedTitles = res.failedFeedTitles
+                            isRefreshing = false
+                        }
+                    },
+                )
+            }
+        }
+
+        if (feeds.isNotEmpty() && categories.isNotEmpty()) {
+            item {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    item {
+                        FilterChip(
+                            selected = selectedCategory == null,
+                            onClick = { selectedCategory = null },
+                            label = { Text(stringResource(R.string.today_filter_all)) },
+                        )
+                    }
+                    items(categories) { cat ->
+                        FilterChip(
+                            selected = selectedCategory == cat,
+                            onClick = { selectedCategory = if (selectedCategory == cat) null else cat },
+                            label = { Text(cat) },
+                        )
+                    }
+                }
+            }
+        }
+
         // Empty state: No feeds subscribed
         if (feeds.isEmpty()) {
             item {
@@ -209,6 +281,31 @@ internal fun TodayDestination(
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Text(stringResource(R.string.today_import_opml))
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = stringResource(R.string.sample_feeds_title),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Medium,
+                        )
+                        SampleFeeds.curatedFeeds.forEach { sample ->
+                            OutlinedButton(
+                                onClick = {
+                                    scope.launch {
+                                        val result = feedManager.add(sample.url, sample.title, sample.category)
+                                        if (result is FeedMutationResult.Success) {
+                                            feeds = result.feeds
+                                            isRefreshing = true
+                                            inboxRepository.refresh()
+                                            items = inboxRepository.items()
+                                            isRefreshing = false
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text("+ ${sample.title}")
+                            }
                         }
                     }
                 }
@@ -438,6 +535,14 @@ internal fun TodayDestination(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
+                            if (activeProgress != null && activeProgress.positionMs > 0L) {
+                                Text(
+                                    text = formatPlaybackTime(activeProgress.positionMs, activeProgress.durationMs),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.tertiary,
+                                    fontWeight = FontWeight.Medium,
+                                )
+                            }
                             Button(onClick = { onPlayPodcast(podcast) }) {
                                 Text(stringResource(R.string.action_listen))
                             }

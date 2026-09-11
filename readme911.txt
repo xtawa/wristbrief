@@ -1,4 +1,8 @@
-# WristBrief 当前状态交接文档（给下一 Agent）
+# [ARCHIVED / HISTORICAL HANDOFF] WristBrief 当前状态交接文档（给下一 Agent）
+
+> **注意**：本文档为历史交接快照（对应旧提交 `21cff488` 与 CI #350）。
+> 仓库最新真实状态、当前缺陷修复与全流程执行进度统一由权威状态文件维护：[`docs/EXECUTION_STATUS.md`](docs/EXECUTION_STATUS.md)。
+> 请勿将本文档的早期“全部完成”结论作为当前端到端产品闭环的依据。
 
 仓库：`xtawa/wristbrief`
 当前分支：`main`

@@ -75,9 +75,11 @@
     <string name="settings_sources_subtitle">Add feeds, organize folders, and export OPML</string>
     <string name="settings_account_title">Account &amp; Membership</string>
     <string name="settings_account_subtitle">Google sign-in and Google Play subscriptions</string>
+    <string name="settings_replay_onboarding_title">Onboarding guide</string>
     <string name="settings_replay_onboarding">Replay onboarding guide</string>
     <string name="settings_about_title">About WristBrief</string>
     <string name="settings_about_body">Independent RSS and podcast client with calm AI briefs and Wear OS companion sync.</string>
+    <string name="settings_version_format">Version %1$s</string>
     <string name="action_share">Share</string>
     <string name="action_ask_ai">Ask AI</string>
     <string name="article_original_link_title">Original web source</string>
@@ -207,6 +209,7 @@
     <string name="action_rewind_15">Rewind 15 seconds</string>
     <string name="action_fast_forward_30">Fast forward 30 seconds</string>
     <string name="action_playback_speed">Playback speed</string>
+    <string name="action_retry">Retry</string>
     <string name="dialog_ok">OK</string>
 
     <!-- Preferences -->
@@ -245,4 +248,38 @@
     <string name="settings_diagnostics_status_ready">Configured</string>
     <string name="settings_diagnostics_status_default">Default / Unset</string>
     <string name="settings_diagnostics_safe_notice">Diagnostics only appear in debug builds. No secret tokens or credentials are displayed.</string>
+
+    <!-- Batch 2 Activation & Sample Feeds -->
+    <string name="feed_url_error_https">URL must start with https://</string>
+    <string name="feed_url_error_invalid">Invalid feed URL format</string>
+    <string name="feed_url_error_duplicate">This feed URL is already added</string>
+    <string name="oobe_start_reading">Start reading</string>
+    <string name="oobe_waiting_network">Feeds saved. Connecting to refresh…</string>
+    <string name="oobe_refresh_now">Refresh now</string>
+    <string name="oobe_feeds_ready">Your feeds are loaded and ready.</string>
+    <string name="sample_feeds_title">Sample feeds</string>
+    <string name="sample_feeds_quick_add">Quick add</string>
+    <string name="sample_feed_android_title">Android Developers</string>
+    <string name="sample_feed_android_desc">Official news and announcements</string>
+    <string name="sample_feed_npr_title">NPR News Now</string>
+    <string name="sample_feed_npr_desc">5-minute hourly news podcast</string>
+    <string name="sample_feed_bbc_title">BBC World Service</string>
+    <string name="sample_feed_bbc_desc">Global news and current affairs</string>
+    <string name="sample_feed_added">Sample feed added: %1$s</string>
+
+    <!-- Batch 3 Local Content Library & Reader -->
+    <string name="today_filter_all">All</string>
+    <string name="today_partial_refresh_failed">Could not refresh %1$d feed(s): %2$s</string>
+    <string name="today_retry">Retry</string>
+    <string name="library_sort_newest">Newest</string>
+    <string name="library_sort_oldest">Oldest</string>
+    <string name="library_no_search_results">No articles match “%1$s”</string>
+    <string name="library_clear_search">Clear search</string>
+
+    <!-- Batch 4 Podcast Playback & Media3 Loop -->
+    <string name="podcast_error_wifi_only">Wi-Fi only playback is enabled. Connect to Wi-Fi or turn off Wi-Fi only in Settings.</string>
+    <string name="podcast_error_network">Unable to stream audio. Please check your internet connection.</string>
+    <string name="podcast_error_unsupported_format">This audio format is not supported on your device.</string>
+    <string name="podcast_listen_episode">Listen to episode</string>
+    <string name="podcast_playing_episode">Now playing episode</string>
 </resources>

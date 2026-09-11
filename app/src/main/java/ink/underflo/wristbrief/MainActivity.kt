@@ -46,6 +46,7 @@ import ink.underflo.wristbrief.ui.InboxItemUi
 import ink.underflo.wristbrief.ui.InboxUiState
 import ink.underflo.wristbrief.ui.InboxViewModel
 import ink.underflo.wristbrief.ui.toArticleDetailUi
+import ink.underflo.wristbrief.ui.WristBriefWearTheme
 import ink.underflo.wristbrief.ui.wearEmptyDetail
 import ink.underflo.wristbrief.ui.wearStatusLine
 import kotlinx.coroutines.Dispatchers
@@ -62,11 +63,13 @@ class MainActivity : ComponentActivity() {
         playbackConnection = PodcastPlaybackConnection(this)
         continueOnPhoneLauncher = ContinueOnPhoneLauncher(this)
         setContent {
-            WristBriefApp(
-                playbackConnection = playbackConnection,
-                aiSummaryClient = aiSummaryClient,
-                onContinueOnPhone = { url -> continueOnPhoneLauncher.open(url) }
-            )
+            WristBriefWearTheme {
+                WristBriefApp(
+                    playbackConnection = playbackConnection,
+                    aiSummaryClient = aiSummaryClient,
+                    onContinueOnPhone = { url -> continueOnPhoneLauncher.open(url) }
+                )
+            }
         }
     }
 

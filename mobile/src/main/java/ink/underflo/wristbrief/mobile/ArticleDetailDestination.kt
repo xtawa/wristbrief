@@ -2,6 +2,7 @@ package ink.underflo.wristbrief.mobile
 
 import android.content.Intent
 import android.net.Uri
+import ink.underflo.wristbrief.mobile.ui.BackIconButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,6 +43,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import ink.underflo.wristbrief.mobile.media.MobilePodcastPlayerController
+import ink.underflo.wristbrief.mobile.media.PodcastPlayerState
+import ink.underflo.wristbrief.mobile.media.formatPlaybackTime
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -51,6 +55,9 @@ internal fun ArticleDetailDestination(
     inboxRepository: MobileInboxRepository,
     onBack: () -> Unit,
     onAskAi: (title: String, content: String) -> Unit,
+    playerState: PodcastPlayerState? = null,
+    onPlayPodcast: ((MobileFeedItem) -> Unit)? = null,
+    playerController: MobilePodcastPlayerController? = null,
 ) {
     val context = LocalContext.current
     var isRead by remember(item.id) { mutableStateOf(inboxRepository.isRead(item.id)) }
@@ -105,13 +112,7 @@ internal fun ArticleDetailDestination(
                     )
                 },
                 navigationIcon = {
-                    val backDesc = stringResource(R.string.action_back)
-                    IconButton(
-                        onClick = onBack,
-                        modifier = Modifier.semantics { contentDescription = backDesc },
-                    ) {
-                        Text("←", style = MaterialTheme.typography.titleLarge)
-                    }
+                    BackIconButton(onClick = onBack)
                 },
                 actions = {
                     TextButton(onClick = {
@@ -205,6 +206,60 @@ internal fun ArticleDetailDestination(
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
+            }
+
+            // Audio Podcast Episode Card if audioUrl is present
+            if (item.audioUrl != null) {
+                item {
+                    val isCurrentEpisode = playerState?.currentEpisode?.id == item.id
+                    val isPlayingThis = isCurrentEpisode && playerState?.isPlaying == true
+                    val isBufferingThis = isCurrentEpisode && playerState?.isBuffering == true
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.large,
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(
+                                    text = if (isPlayingThis) stringResource(R.string.podcast_playing_episode)
+                                    else stringResource(R.string.podcast_listen_episode),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                                if (isCurrentEpisode) {
+                                    Text(
+                                        text = if (isBufferingThis) stringResource(R.string.podcast_buffering)
+                                        else formatPlaybackTime(playerState?.currentPositionMs ?: 0L, playerState?.durationMs ?: 0L),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                            Button(
+                                onClick = {
+                                    if (isPlayingThis) {
+                                        playerController?.pause()
+                                    } else if (isCurrentEpisode) {
+                                        playerController?.resume()
+                                    } else {
+                                        onPlayPodcast?.invoke(item)
+                                    }
+                                },
+                            ) {
+                                Text(stringResource(if (isPlayingThis) R.string.action_pause else R.string.action_listen))
+                            }
+                        }
+                    }
+                }
             }
 
             // Article Body Paragraphs

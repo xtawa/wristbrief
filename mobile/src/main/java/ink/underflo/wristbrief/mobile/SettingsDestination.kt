@@ -1,6 +1,7 @@
 package ink.underflo.wristbrief.mobile
 
 import androidx.compose.foundation.layout.Arrangement
+import ink.underflo.wristbrief.mobile.ui.BackIconButton
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -32,12 +33,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -59,15 +64,15 @@ internal fun SettingsDestination(
         appPreferences ?: AppPreferences(context)
     }
 
-    var selectedTab by remember { mutableStateOf(SettingsTab.Sources) }
-    var currentTheme by remember { mutableStateOf(preferences.getThemeMode()) }
-    var currentInterval by remember { mutableStateOf(preferences.getRefreshInterval()) }
-    var wifiOnly by remember { mutableStateOf(preferences.isWifiOnly()) }
-    var wearSync by remember { mutableStateOf(preferences.isWearSyncEnabled()) }
-    var notifications by remember { mutableStateOf(preferences.isNotificationsEnabled()) }
+    var selectedTab by rememberSaveable { mutableStateOf(SettingsTab.Sources) }
+    var currentTheme by rememberSaveable { mutableStateOf(preferences.getThemeMode()) }
+    var currentInterval by rememberSaveable { mutableStateOf(preferences.getRefreshInterval()) }
+    var wifiOnly by rememberSaveable { mutableStateOf(preferences.isWifiOnly()) }
+    var wearSync by rememberSaveable { mutableStateOf(preferences.isWearSyncEnabled()) }
+    var notifications by rememberSaveable { mutableStateOf(preferences.isNotificationsEnabled()) }
 
-    var showPrivacyDialog by remember { mutableStateOf(false) }
-    var showLicensesDialog by remember { mutableStateOf(false) }
+    var showPrivacyDialog by rememberSaveable { mutableStateOf(false) }
+    var showLicensesDialog by rememberSaveable { mutableStateOf(false) }
 
     if (showPrivacyDialog) {
         AlertDialog(
@@ -100,13 +105,7 @@ internal fun SettingsDestination(
             TopAppBar(
                 title = { Text(stringResource(R.string.settings_title)) },
                 navigationIcon = {
-                    val backDesc = stringResource(R.string.action_back)
-                    IconButton(
-                        onClick = onBack,
-                        modifier = Modifier.semantics { contentDescription = backDesc },
-                    ) {
-                        Text("←", style = MaterialTheme.typography.titleLarge)
-                    }
+                    BackIconButton(onClick = onBack)
                 },
             )
         },
@@ -403,7 +402,7 @@ internal fun SettingsDestination(
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
                                         Text(
-                                            text = "Version 0.1.0",
+                                            text = stringResource(R.string.settings_version_format, "0.1.0"),
                                             style = MaterialTheme.typography.labelMedium,
                                             color = MaterialTheme.colorScheme.primary,
                                         )
@@ -423,7 +422,7 @@ internal fun SettingsDestination(
                                         verticalArrangement = Arrangement.spacedBy(8.dp),
                                     ) {
                                         Text(
-                                            text = stringResource(R.string.settings_replay_onboarding),
+                                            text = stringResource(R.string.settings_replay_onboarding_title),
                                             style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.SemiBold,
                                         )
@@ -432,7 +431,12 @@ internal fun SettingsDestination(
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
-                                        OutlinedButton(onClick = onReplayOnboarding) {
+                                        OutlinedButton(
+                                            onClick = onReplayOnboarding,
+                                            modifier = Modifier
+                                                .semantics { role = Role.Button }
+                                                .testTag("settings_replay_onboarding_button"),
+                                        ) {
                                             Text(stringResource(R.string.settings_replay_onboarding))
                                         }
                                     }

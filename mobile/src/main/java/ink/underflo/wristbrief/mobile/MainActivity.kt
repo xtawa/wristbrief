@@ -4,6 +4,12 @@ import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import ink.underflo.wristbrief.mobile.db.LegacyDataMigration
+import ink.underflo.wristbrief.mobile.db.SqliteMobileFeedStore
+import ink.underflo.wristbrief.mobile.db.SqliteMobileInboxStore
+import ink.underflo.wristbrief.mobile.db.SqlitePodcastProgressStore
+import ink.underflo.wristbrief.mobile.db.WristBriefDatabaseHelper
+import ink.underflo.wristbrief.mobile.media.PodcastProgressStore
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedContent
@@ -49,6 +55,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -89,33 +96,54 @@ class MainActivity : ComponentActivity() {
         var onboardingAction by rememberSaveable { mutableStateOf<String?>(null) }
         var showSettings by rememberSaveable { mutableStateOf(false) }
 
-        if (!onboardingComplete) {
-            WristBriefOnboarding { action ->
-                onboarding.complete()
-                onboardingAction = action.name
-                if (action == OnboardingAction.AddFeed || action == OnboardingAction.ImportOpml) {
-                    showSettings = true
-                }
-                onboardingComplete = true
-            }
-            return@WristBriefMobileTheme
+        val dbHelper = remember(context) { WristBriefDatabaseHelper(context) }
+        val sqliteFeedStore = remember(dbHelper) { SqliteMobileFeedStore(dbHelper) }
+        val sqliteInboxStore = remember(dbHelper) { SqliteMobileInboxStore(dbHelper) }
+        val sqlitePodcastStore = remember(dbHelper) { SqlitePodcastProgressStore(dbHelper) }
+
+        LaunchedEffect(Unit) {
+            LegacyDataMigration.performIfNeeded(context, sqliteFeedStore, sqliteInboxStore, sqlitePodcastStore)
         }
 
-        val feedManager = remember(context) {
+        val feedManager = remember(context, sqliteFeedStore) {
             MobileFeedManager(
-                SharedPreferencesMobileFeedStore(context),
+                sqliteFeedStore,
                 HttpFeedProbe(),
                 GoogleWearFeedSyncPublisher(context),
             )
         }
         val syncManager = remember(context) { PhoneItemStateSyncManager(context) }
-        val inboxRepository = remember(context) {
+        val inboxRepository = remember(context, feedManager, sqliteInboxStore) {
             MobileInboxRepository(
                 feedManager = feedManager,
-                store = SharedPreferencesMobileInboxStore(context),
+                store = sqliteInboxStore,
                 stateAdapter = SyncManagerItemStateAdapter(syncManager),
                 fetcher = HttpFeedItemFetcher(),
             )
+        }
+
+        if (!onboardingComplete) {
+            var feedCount by remember { mutableStateOf(feedManager.feeds().size) }
+            var itemCount by remember { mutableStateOf(inboxRepository.items().size) }
+            WristBriefOnboarding(
+                feedCount = feedCount,
+                itemCount = itemCount,
+                onAddSampleFeed = { sample ->
+                    val result = feedManager.add(sample.url, sample.title, sample.category)
+                    if (result is FeedMutationResult.Success) {
+                        feedCount = result.feeds.size
+                    }
+                },
+                onComplete = { action ->
+                    onboarding.complete()
+                    onboardingAction = action.name
+                    if (action == OnboardingAction.AddFeed || action == OnboardingAction.ImportOpml) {
+                        showSettings = true
+                    }
+                    onboardingComplete = true
+                },
+            )
+            return@WristBriefMobileTheme
         }
 
         var name by rememberSaveable { mutableStateOf(initialMobileDestination().name) }
@@ -124,7 +152,9 @@ class MainActivity : ComponentActivity() {
         var aiPrefilledContent by rememberSaveable { mutableStateOf("") }
         var showExpandedPlayer by rememberSaveable { mutableStateOf(false) }
 
-        val playerController = remember(context) { MobilePodcastPlayerController(context) }
+        val playerController = remember(context, sqlitePodcastStore, appPreferences) {
+            MobilePodcastPlayerController(context, sqlitePodcastStore, appPreferences)
+        }
         DisposableEffect(playerController) {
             onDispose { playerController.release() }
         }
@@ -160,6 +190,9 @@ class MainActivity : ComponentActivity() {
                     aiPrefilledContent = content
                     name = MobileDestination.AiProvider.name
                 },
+                playerState = playerState,
+                onPlayPodcast = ::playPodcast,
+                playerController = playerController,
             )
         } else if (showSettings) {
             SettingsDestination(
@@ -190,6 +223,7 @@ class MainActivity : ComponentActivity() {
                 onExpandPlayer = { showExpandedPlayer = true },
                 aiPrefilledTitle = aiPrefilledTitle,
                 aiPrefilledContent = aiPrefilledContent,
+                progressStore = sqlitePodcastStore,
             )
         }
 
@@ -225,6 +259,7 @@ class MainActivity : ComponentActivity() {
     onExpandPlayer: () -> Unit,
     aiPrefilledTitle: String,
     aiPrefilledContent: String,
+    progressStore: PodcastProgressStore? = null,
 ) {
     BoxWithConstraints {
         val useRail = maxWidth >= 600.dp
@@ -345,6 +380,7 @@ class MainActivity : ComponentActivity() {
                                     onOpenSettings = onOpenSettings,
                                     onOpenArticle = onOpenArticle,
                                     onPlayPodcast = onPlayPodcast,
+                                    progressStore = progressStore,
                                 )
                                 MobileDestination.Library -> LibraryDestination(
                                     padding = PaddingValues(0.dp),

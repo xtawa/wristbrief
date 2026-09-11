@@ -34,8 +34,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -69,9 +71,16 @@ private enum class OnboardingPage(@StringRes val title: Int, @StringRes val body
 }
 
 @Composable
-internal fun WristBriefOnboarding(onComplete: (OnboardingAction) -> Unit) {
+internal fun WristBriefOnboarding(
+    feedCount: Int = 0,
+    itemCount: Int = 0,
+    onAddSampleFeed: (suspend (SampleFeed) -> Unit)? = null,
+    onComplete: (OnboardingAction) -> Unit,
+) {
     var pageIndex by rememberSaveable { mutableStateOf(0) }
     val page = OnboardingPage.entries[pageIndex]
+    val scope = rememberCoroutineScope()
+    var addedSampleIds by remember { mutableStateOf(setOf<String>()) }
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
         Column(
@@ -79,7 +88,7 @@ internal fun WristBriefOnboarding(onComplete: (OnboardingAction) -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("WristBrief", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 if (page != OnboardingPage.Done) TextButton(onClick = { onComplete(OnboardingAction.Explore) }) { Text(stringResource(R.string.oobe_skip)) }
             }
             AnimatedContent(
@@ -98,19 +107,73 @@ internal fun WristBriefOnboarding(onComplete: (OnboardingAction) -> Unit) {
                     Text(stringResource(current.title), style = MaterialTheme.typography.headlineLarge, textAlign = TextAlign.Center)
                     Spacer(Modifier.height(12.dp))
                     Text(stringResource(current.body), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+
+                    if (current == OnboardingPage.Sources && onAddSampleFeed != null) {
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            stringResource(R.string.sample_feeds_title),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        SampleFeeds.curatedFeeds.forEach { sample ->
+                            val isAdded = sample.id in addedSampleIds
+                            OutlinedButton(
+                                onClick = {
+                                    scope.launch {
+                                        onAddSampleFeed(sample)
+                                        addedSampleIds = addedSampleIds + sample.id
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                enabled = !isAdded,
+                            ) {
+                                Text(if (isAdded) "✓ ${sample.title}" else "+ ${sample.title}")
+                            }
+                        }
+                    }
+
                     if (current == OnboardingPage.Done) {
                         Spacer(Modifier.height(24.dp))
-                        Button(
-                            onClick = { onComplete(OnboardingAction.AddFeed) },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) { Text(stringResource(R.string.oobe_add_feed)) }
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedButton(
-                            onClick = { onComplete(OnboardingAction.ImportOpml) },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) { Text(stringResource(R.string.oobe_import_opml)) }
-                        TextButton(onClick = { onComplete(OnboardingAction.Explore) }) {
-                            Text(stringResource(R.string.oobe_explore))
+                        val hasAnyFeeds = feedCount > 0 || addedSampleIds.isNotEmpty()
+                        if (hasAnyFeeds) {
+                            if (itemCount > 0) {
+                                Text(
+                                    stringResource(R.string.oobe_feeds_ready),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Medium,
+                                )
+                                Spacer(Modifier.height(12.dp))
+                                Button(
+                                    onClick = { onComplete(OnboardingAction.Explore) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) { Text(stringResource(R.string.oobe_start_reading)) }
+                            } else {
+                                Text(
+                                    stringResource(R.string.oobe_waiting_network),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Spacer(Modifier.height(12.dp))
+                                Button(
+                                    onClick = { onComplete(OnboardingAction.Explore) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) { Text(stringResource(R.string.oobe_start_reading)) }
+                            }
+                        } else {
+                            Button(
+                                onClick = { onComplete(OnboardingAction.AddFeed) },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) { Text(stringResource(R.string.oobe_add_feed)) }
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedButton(
+                                onClick = { onComplete(OnboardingAction.ImportOpml) },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) { Text(stringResource(R.string.oobe_import_opml)) }
+                            TextButton(onClick = { onComplete(OnboardingAction.Explore) }) {
+                                Text(stringResource(R.string.oobe_explore))
+                            }
                         }
                     }
                 }

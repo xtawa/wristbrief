@@ -31,6 +31,14 @@ class FeedManagementTest {
         assertTrue(manager.add("https://example.com/feed.xml", "Duplicate") is FeedMutationResult.Error)
     }
 
+    @Test fun manager_supportsCustomSendToWatchOnAddAndUpdate() = runBlocking {
+        val store = MemoryStore(); val publisher = RecordingPublisher(); val manager = MobileFeedManager(store, object : FeedProbe { override suspend fun validate(url: String) = "Feed 2" }, publisher)
+        val added = manager.add("https://example.com/nowatch.xml", "No Watch", sendToWatch = false) as FeedMutationResult.Success
+        assertFalse(added.feeds.single().sendToWatch)
+        val updated = manager.update(added.feeds.single().id, "https://example.com/nowatch.xml", "Watch Now", sendToWatch = true) as FeedMutationResult.Success
+        assertTrue(updated.feeds.single().sendToWatch)
+    }
+
     @Test fun mobileFeedCodec_defaultsLegacyRowsToSendToWatch_andUncategorized_andRoundTripsCategory() {
         val legacy = """[{"id":"a","title":"A","url":"https://example.com/a","enabled":false}]"""
         val decodedLegacy = decodeMobileFeedSubscriptions(legacy).single(); assertFalse(decodedLegacy.enabled); assertTrue(decodedLegacy.sendToWatch); assertNull(decodedLegacy.category)

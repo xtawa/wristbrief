@@ -2,9 +2,13 @@
 
 This roadmap is intentionally incremental. Do not replace working RSS, podcast, Wear UI, or gateway code just to match an idealized architecture.
 
-## Current short-term execution plan
+## Current execution status and batch roadmap
 
-The 24-slot execution window in [`docs/NEXT_24_HOURS.md`](./NEXT_24_HOURS.md) is complete once Slot 24 is marked green in [`docs/NEXT_24_HOURS_STATUS.md`](./NEXT_24_HOURS_STATUS.md). After that checkpoint, resume the broader priorities below and use [`docs/24H_REVIEW.md`](./24H_REVIEW.md) as the release-readiness handoff.
+The authoritative execution status across all implementation batches (Batch 0 through Batch 8) is maintained in:
+
+👉 [`docs/EXECUTION_STATUS.md`](./EXECUTION_STATUS.md)
+
+Historical 24-slot execution records ([`docs/NEXT_24_HOURS.md`](./NEXT_24_HOURS.md) / [`docs/NEXT_24_HOURS_STATUS.md`](./NEXT_24_HOURS_STATUS.md) / [`docs/24H_REVIEW.md`](./24H_REVIEW.md)) represent bootstrap baseline milestones. The current active phase progresses through user-outcome vertical slices from initial mobile regression fixes to production release gates.
 
 ## Product direction
 

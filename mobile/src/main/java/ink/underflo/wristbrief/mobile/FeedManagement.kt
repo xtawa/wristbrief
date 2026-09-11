@@ -40,6 +40,31 @@ fun normalizeFeedUrl(raw: String): String? = runCatching {
     URI("https", null, uri.host.lowercase(), if (uri.port == 443) -1 else uri.port, uri.path.ifBlank { "/" }, uri.query, null).toASCIIString()
 }.getOrNull()
 
+sealed interface FeedUrlValidationResult {
+    data object Valid : FeedUrlValidationResult
+    data object Empty : FeedUrlValidationResult
+    data object NotHttps : FeedUrlValidationResult
+    data object InvalidFormat : FeedUrlValidationResult
+    data object Duplicate : FeedUrlValidationResult
+}
+
+fun validateFeedUrlInput(
+    rawUrl: String,
+    existingUrls: Set<String>,
+    currentFeedUrl: String? = null,
+): FeedUrlValidationResult {
+    val trimmed = rawUrl.trim()
+    if (trimmed.isBlank()) return FeedUrlValidationResult.Empty
+    if (!trimmed.startsWith("https://", ignoreCase = true)) return FeedUrlValidationResult.NotHttps
+    val normalized = normalizeFeedUrl(trimmed) ?: return FeedUrlValidationResult.InvalidFormat
+    val currentNormalized = currentFeedUrl?.let(::normalizeFeedUrl)
+    val existingNormalized = existingUrls.mapNotNull(::normalizeFeedUrl).toSet()
+    if (normalized != currentNormalized && normalized in existingNormalized) {
+        return FeedUrlValidationResult.Duplicate
+    }
+    return FeedUrlValidationResult.Valid
+}
+
 fun normalizeFeedCategory(raw: String?): String? = raw?.trim()?.replace(Regex("\\s+"), " ")?.take(80)?.takeIf { it.isNotBlank() }
 
 fun normalizeWatchKeywords(values: Iterable<String>): List<String> {
@@ -157,6 +182,7 @@ class MobileFeedManager(
         title: String,
         category: String? = null,
         watchKeywords: List<String> = emptyList(),
+        sendToWatch: Boolean = true,
     ): FeedMutationResult {
         val url = normalizeFeedUrl(rawUrl) ?: return FeedMutationResult.Error("Use a valid HTTPS feed URL")
         if (store.load().any { normalizeFeedUrl(it.url) == url }) return FeedMutationResult.Error("Feed is already subscribed")
@@ -165,6 +191,7 @@ class MobileFeedManager(
             stableFeedId(url),
             title.trim().ifBlank { discovered ?: URI(url).host },
             url,
+            sendToWatch = sendToWatch,
             category = normalizeFeedCategory(category),
             watchKeywords = normalizeWatchKeywords(watchKeywords),
         )
@@ -177,6 +204,7 @@ class MobileFeedManager(
         title: String,
         category: String? = null,
         watchKeywords: List<String>? = null,
+        sendToWatch: Boolean? = null,
     ): FeedMutationResult {
         val url = normalizeFeedUrl(rawUrl) ?: return FeedMutationResult.Error("Use a valid HTTPS feed URL")
         val current = store.load(); val old = current.find { it.id == id } ?: return FeedMutationResult.Error("Feed no longer exists")
@@ -186,6 +214,7 @@ class MobileFeedManager(
             id = stableFeedId(url),
             url = url,
             title = title.trim().ifBlank { discovered ?: old.title },
+            sendToWatch = sendToWatch ?: old.sendToWatch,
             category = normalizeFeedCategory(category),
             watchKeywords = watchKeywords?.let(::normalizeWatchKeywords) ?: old.watchKeywords,
         )

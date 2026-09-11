@@ -58,4 +58,19 @@
     <string name="wear_action_pause">Pause</string>
     <string name="wear_empty_detail_refresh">Refresh to fetch your latest briefs</string>
     <string name="wear_empty_detail_add">Add feeds from the phone companion</string>
+    <string name="wear_untitled">Untitled</string>
+    <string name="wear_default_source">Feed</string>
+    <string name="wear_podcast_episode">Podcast episode</string>
+    <string name="wear_open_to_read_more">Open to read more</string>
+    <string name="wear_no_readable_preview">No readable preview is available for this item.</string>
+    <string name="wear_ai_generate_prompt">Generate AI brief</string>
+    <string name="wear_ai_reader_stays_available">Original reader stays available</string>
+    <string name="wear_ai_brief_unavailable">AI brief unavailable</string>
+    <string name="wear_ai_signin_phone">Sign in on the paired phone</string>
+    <string name="wear_ai_summarizing">Summarizing…</string>
+    <string name="wear_ai_reader_podcast_usable">Reader and podcast remain usable</string>
+    <string name="wear_ai_quota_reached">AI quota reached</string>
+    <string name="wear_ai_content_still_available">Original article and podcast are still available</string>
+    <string name="wear_ai_temporarily_unavailable">AI temporarily unavailable</string>
+    <string name="wear_ai_retry_hint">Tap to retry; original content still works</string>
 </resources>

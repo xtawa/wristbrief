@@ -58,4 +58,19 @@
     <string name="wear_action_pause">暂停</string>
     <string name="wear_empty_detail_refresh">刷新以获取最新简报</string>
     <string name="wear_empty_detail_add">请在手机端添加订阅源</string>
+    <string name="wear_untitled">无标题</string>
+    <string name="wear_default_source">订阅源</string>
+    <string name="wear_podcast_episode">播客单集</string>
+    <string name="wear_open_to_read_more">打开阅读更多</string>
+    <string name="wear_no_readable_preview">此条目暂无可读预览。</string>
+    <string name="wear_ai_generate_prompt">生成 AI 简报</string>
+    <string name="wear_ai_reader_stays_available">原文阅读保持可用</string>
+    <string name="wear_ai_brief_unavailable">AI 简报不可用</string>
+    <string name="wear_ai_signin_phone">请在配对手机上登录</string>
+    <string name="wear_ai_summarizing">正在生成摘要…</string>
+    <string name="wear_ai_reader_podcast_usable">阅读与播客仍可正常使用</string>
+    <string name="wear_ai_quota_reached">AI 配额已用尽</string>
+    <string name="wear_ai_content_still_available">原文与播客仍可使用</string>
+    <string name="wear_ai_temporarily_unavailable">AI 暂时不可用</string>
+    <string name="wear_ai_retry_hint">轻点重试；原文仍可阅读</string>
 </resources>

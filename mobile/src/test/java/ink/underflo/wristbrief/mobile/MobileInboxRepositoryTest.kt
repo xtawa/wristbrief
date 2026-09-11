@@ -105,7 +105,7 @@ class MobileInboxRepositoryTest {
         assertEquals(2, repo.unreadItems().size)
 
         val firstItem = repo.items()[0]
-        assertEquals("guid:guid-android-17", firstItem.id)
+        assertEquals("tech-feed-id:guid:guid-android-17", firstItem.id)
         assertEquals("Android 17 Preview", firstItem.title)
 
         // Test read status
@@ -157,5 +157,38 @@ class MobileInboxRepositoryTest {
         assertEquals("Flaky Feed", result.failedFeedTitles[0])
         assertEquals(1, repo.items().size)
         assertEquals("Previous Article", repo.items()[0].title)
+    }
+
+    @Test
+    fun differentFeedsWithSameGuid_doNotCollide() = runBlocking {
+        val feed1 = MobileFeedSubscription(id = "feed-1", title = "Feed 1", url = "https://example.com/1.xml")
+        val feed2 = MobileFeedSubscription(id = "feed-2", title = "Feed 2", url = "https://example.com/2.xml")
+        val feedManager = MobileFeedManager(InMemoryFeedStore(listOf(feed1, feed2)), FakeFeedProbe(), FakeFeedSyncPublisher())
+        val itemCommonGuid = ParsedFeedItem(
+            title = "Same Item Guid",
+            link = "https://example.com/item",
+            description = "Desc",
+            published = "2026-09-11",
+            audioUrl = null,
+            guid = "duplicate-guid-1",
+        )
+        val fetcher = FakeItemFetcher(mapOf(
+            "https://example.com/1.xml" to listOf(itemCommonGuid),
+            "https://example.com/2.xml" to listOf(itemCommonGuid),
+        ))
+        val repo = MobileInboxRepository(
+            feedManager = feedManager,
+            store = InMemoryInboxStore(),
+            stateAdapter = InMemoryItemStateAdapter(),
+            fetcher = fetcher,
+        )
+
+        val result = repo.refresh()
+        assertEquals(2, result.totalCount)
+        assertEquals(2, repo.items().size)
+        val ids = repo.items().map { it.id }
+        assertEquals(2, ids.distinct().size)
+        assertTrue(ids.contains("feed-1:guid:duplicate-guid-1"))
+        assertTrue(ids.contains("feed-2:guid:duplicate-guid-1"))
     }
 }

@@ -4,6 +4,11 @@ import android.content.Context
 import java.io.InputStream
 import java.net.URI
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonArray
@@ -65,10 +70,13 @@ fun mobileItemId(
     audioUrl: String?,
     title: String,
     published: String?,
-): String = guid?.trim()?.takeIf { it.isNotBlank() }?.let { "guid:$it" }
-    ?: normalizeIdentityUrl(link)?.let { "link:$it" }
-    ?: normalizeIdentityUrl(audioUrl)?.let { "audio:$it" }
-    ?: "fallback:$feedId:${title.trim()}:${published.orEmpty().trim()}"
+): String {
+    val raw = guid?.trim()?.takeIf { it.isNotBlank() }?.let { "guid:$it" }
+        ?: normalizeIdentityUrl(link)?.let { "link:$it" }
+        ?: normalizeIdentityUrl(audioUrl)?.let { "audio:$it" }
+        ?: "fallback:${title.trim()}:${published.orEmpty().trim()}"
+    return if (raw.startsWith("$feedId:")) raw else "$feedId:$raw"
+}
 
 interface MobileInboxStore {
     fun load(): List<MobileFeedItem>
@@ -205,24 +213,40 @@ class MobileInboxRepository(
         val fetchedItems = mutableListOf<MobileFeedItem>()
         val now = clock()
 
-        for (feed in feeds) {
-            try {
-                val parsed = fetcher.fetch(feed.url)
-                val items = parsed.map { p ->
-                    MobileFeedItem(
-                        id = mobileItemId(feed.id, p.guid, p.link, p.audioUrl, p.title, p.published),
-                        feedId = feed.id,
-                        feedTitle = feed.title,
-                        title = p.title,
-                        link = p.link,
-                        description = p.description,
-                        published = p.published,
-                        audioUrl = p.audioUrl,
-                        cachedAtEpochMs = now,
-                    )
+        val semaphore = Semaphore(4)
+        val feedResults = coroutineScope {
+            feeds.map { feed ->
+                async(Dispatchers.IO) {
+                    semaphore.withPermit {
+                        try {
+                            val parsed = fetcher.fetch(feed.url)
+                            val items = parsed.map { p ->
+                                MobileFeedItem(
+                                    id = mobileItemId(feed.id, p.guid, p.link, p.audioUrl, p.title, p.published),
+                                    feedId = feed.id,
+                                    feedTitle = feed.title,
+                                    title = p.title,
+                                    link = p.link,
+                                    description = p.description,
+                                    published = p.published,
+                                    audioUrl = p.audioUrl,
+                                    cachedAtEpochMs = now,
+                                )
+                            }
+                            Result.success(Pair(feed, items))
+                        } catch (e: Exception) {
+                            Result.failure(e)
+                        }
+                    }
                 }
+            }.awaitAll()
+        }
+
+        feedResults.forEachIndexed { index, res ->
+            val feed = feeds[index]
+            res.onSuccess { (_, items) ->
                 fetchedItems.addAll(items)
-            } catch (e: Exception) {
+            }.onFailure {
                 failedTitles.add(feed.title)
             }
         }
@@ -238,7 +262,7 @@ class MobileInboxRepository(
         val combined = (fetchedItems + retained)
             .distinctBy { it.id }
             .sortedByDescending { it.cachedAtEpochMs }
-            .take(200)
+            .take(500)
 
         store.save(combined)
 

@@ -73,4 +73,39 @@ class MobilePodcastProgressTest {
     fun playbackContractRejectsBlankTitle() {
         PodcastPlaybackRequest("id1", "   ", "https://example.com/audio.mp3")
     }
+
+    @Test
+    fun defaultGetLatestActiveReturnsOnlyInProgressEpisodes() {
+        val completed = PodcastEpisodeProgress("ep-done", 300_000L, 1f, 300_000L, false, 1000L, completed = true)
+        val notStarted = PodcastEpisodeProgress("ep-new", 0L, 1f, 300_000L, false, 2000L, completed = false)
+        val inProgress = PodcastEpisodeProgress("ep-active", 65_000L, 1.25f, 300_000L, true, 3000L, completed = false)
+
+        val store = object : PodcastProgressStore {
+            private val list = listOf(completed, notStarted, inProgress)
+            override fun get(episodeId: String) = list.find { it.episodeId == episodeId }
+            override fun all() = list
+            override fun save(progress: PodcastEpisodeProgress) {}
+        }
+
+        val active = store.getLatestActive()
+        assertEquals("ep-active", active?.episodeId)
+        assertEquals(65_000L, active?.positionMs)
+        assertEquals(1.25f, active?.playbackSpeed)
+    }
+
+    @Test
+    fun defaultGetLatestActiveReturnsNullWhenAllCompletedOrNotStarted() {
+        val completed = PodcastEpisodeProgress("ep-done", 300_000L, 1f, 300_000L, false, 1000L, completed = true)
+        val notStarted = PodcastEpisodeProgress("ep-new", 0L, 1f, 300_000L, false, 2000L, completed = false)
+
+        val store = object : PodcastProgressStore {
+            private val list = listOf(completed, notStarted)
+            override fun get(episodeId: String) = list.find { it.episodeId == episodeId }
+            override fun all() = list
+            override fun save(progress: PodcastEpisodeProgress) {}
+        }
+
+        val active = store.getLatestActive()
+        assertEquals(null, active)
+    }
 }

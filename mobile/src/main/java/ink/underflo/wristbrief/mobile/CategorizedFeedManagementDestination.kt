@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -95,6 +97,63 @@ internal fun CategorizedFeedManagementDestination(
         }
         if (feeds.isEmpty()) {
             item { Text(stringResource(R.string.feed_management_empty), style = MaterialTheme.typography.bodyLarge) }
+        }
+
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.extraLarge,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+            ) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        stringResource(R.string.sample_feeds_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    SampleFeeds.curatedFeeds.forEach { sample ->
+                        val isAdded = feeds.any { normalizeFeedUrl(it.url) == normalizeFeedUrl(sample.url) }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f).padding(end = 8.dp)) {
+                                Text(sample.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                                Text(sample.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            if (isAdded) {
+                                Text(
+                                    "✓",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            } else {
+                                OutlinedButton(
+                                    onClick = {
+                                        scope.launch {
+                                            busy = true
+                                            status = context.getString(R.string.feed_validating)
+                                            val result = manager.add(sample.url, sample.title, sample.category)
+                                            busy = false
+                                            if (result is FeedMutationResult.Success) {
+                                                feeds = result.feeds
+                                                status = context.getString(R.string.sample_feed_added, sample.title)
+                                            } else if (result is FeedMutationResult.Error) {
+                                                status = result.message
+                                            }
+                                        }
+                                    },
+                                    enabled = !busy,
+                                ) {
+                                    Text(stringResource(R.string.sample_feeds_quick_add))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         groupMobileFeedsByCategory(feeds).forEach { group ->
@@ -196,19 +255,21 @@ internal fun CategorizedFeedManagementDestination(
     }
 
     if (showEditor) {
+        val existingUrls = remember(feeds) { feeds.map { it.url }.toSet() }
         CategoryFeedEditorDialog(
             feed = editing,
+            existingUrls = existingUrls,
             busy = busy,
             onDismiss = { if (!busy) showEditor = false },
-            onSave = { url, title, category, keywordText ->
+            onSave = { url, title, category, keywordText, sendToWatch ->
                 scope.launch {
                     busy = true
                     status = context.getString(R.string.feed_validating)
                     val watchKeywords = normalizeWatchKeywords(keywordText)
                     val result = if (editing == null) {
-                        manager.add(url, title, category, watchKeywords)
+                        manager.add(url, title, category, watchKeywords, sendToWatch)
                     } else {
-                        manager.update(editing!!.id, url, title, category, watchKeywords)
+                        manager.update(editing!!.id, url, title, category, watchKeywords, sendToWatch)
                     }
                     busy = false
                     when (result) {
@@ -235,25 +296,45 @@ internal fun CategorizedFeedManagementDestination(
 @Composable
 private fun CategoryFeedEditorDialog(
     feed: MobileFeedSubscription?,
+    existingUrls: Set<String>,
     busy: Boolean,
     onDismiss: () -> Unit,
-    onSave: (String, String, String, String) -> Unit,
+    onSave: (String, String, String, String, Boolean) -> Unit,
 ) {
     var url by remember(feed?.id) { mutableStateOf(feed?.url.orEmpty()) }
     var title by remember(feed?.id) { mutableStateOf(feed?.title.orEmpty()) }
     var category by remember(feed?.id) { mutableStateOf(feed?.category.orEmpty()) }
     var watchKeywords by remember(feed?.id) { mutableStateOf(keywordWatchEditorText(feed?.watchKeywords.orEmpty())) }
+    var sendToWatch by remember(feed?.id) { mutableStateOf(feed?.sendToWatch ?: true) }
+
+    val validation = remember(url, existingUrls, feed?.url) {
+        validateFeedUrlInput(url, existingUrls, feed?.url)
+    }
+    val hasUrlInput = url.trim().isNotEmpty()
+    val isUrlError = hasUrlInput && validation !is FeedUrlValidationResult.Valid
+    val urlErrorText = when {
+        !isUrlError -> null
+        validation is FeedUrlValidationResult.NotHttps -> stringResource(R.string.feed_url_error_https)
+        validation is FeedUrlValidationResult.InvalidFormat -> stringResource(R.string.feed_url_error_invalid)
+        validation is FeedUrlValidationResult.Duplicate -> stringResource(R.string.feed_url_error_duplicate)
+        else -> null
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (feed == null) stringResource(R.string.feed_dialog_add) else stringResource(R.string.feed_dialog_edit)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 OutlinedTextField(
                     value = url,
                     onValueChange = { url = it },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text(stringResource(R.string.feed_url_label)) },
+                    isError = isUrlError,
+                    supportingText = urlErrorText?.let { err -> { Text(err, color = MaterialTheme.colorScheme.error) } },
                     singleLine = true,
                 )
                 OutlinedTextField(
@@ -282,10 +363,31 @@ private fun CategoryFeedEditorDialog(
                     minLines = 2,
                     maxLines = 4,
                 )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.feed_send_to_watch), style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            if (sendToWatch) stringResource(R.string.feed_available_wear) else stringResource(R.string.feed_phone_only),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(
+                        checked = sendToWatch,
+                        onCheckedChange = { sendToWatch = it },
+                    )
+                }
             }
         },
         confirmButton = {
-            Button(onClick = { onSave(url, title, category, watchKeywords) }, enabled = !busy) {
+            Button(
+                onClick = { onSave(url, title, category, watchKeywords, sendToWatch) },
+                enabled = !busy && validation is FeedUrlValidationResult.Valid,
+            ) {
                 Text(if (busy) stringResource(R.string.feed_validating) else stringResource(R.string.feed_save))
             }
         },

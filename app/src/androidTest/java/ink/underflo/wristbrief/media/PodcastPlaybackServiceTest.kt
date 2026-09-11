@@ -41,25 +41,27 @@ class PodcastPlaybackServiceTest {
         var firstController: MediaController? = null
         var secondController: MediaController? = null
         try {
-            firstController = connectController(context)
+            val configuredController = connectController(context)
+            firstController = configuredController
             InstrumentationRegistry.getInstrumentation().runOnMainSync {
-                firstController.setMediaItem(
+                configuredController.setMediaItem(
                     MediaItem.Builder()
                         .setMediaId("ci-episode")
                         .setUri("https://example.com/ci-episode.mp3")
                         .build()
                 )
-                firstController.seekTo(12_000L)
-                firstController.playbackParameters = PlaybackParameters(1.5f)
+                configuredController.seekTo(12_000L)
+                configuredController.playbackParameters = PlaybackParameters(1.5f)
             }
-            releaseController(firstController)
+            releaseController(configuredController)
             firstController = null
 
-            secondController = connectController(context)
+            val reconnectedController = connectController(context)
+            secondController = reconnectedController
             InstrumentationRegistry.getInstrumentation().runOnMainSync {
-                assertEquals("ci-episode", secondController.currentMediaItem?.mediaId)
-                assertEquals(12_000L, secondController.currentPosition)
-                assertEquals(1.5f, secondController.playbackParameters.speed, 0.001f)
+                assertEquals("ci-episode", reconnectedController.currentMediaItem?.mediaId)
+                assertEquals(12_000L, reconnectedController.currentPosition)
+                assertEquals(1.5f, reconnectedController.playbackParameters.speed, 0.001f)
             }
         } finally {
             firstController?.let(::releaseController)

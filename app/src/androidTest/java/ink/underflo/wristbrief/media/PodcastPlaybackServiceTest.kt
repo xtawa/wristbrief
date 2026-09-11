@@ -3,16 +3,23 @@ package ink.underflo.wristbrief.media
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackParameters
+import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import java.io.File
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -33,9 +40,10 @@ class PodcastPlaybackServiceTest {
     }
 
     @Test
-    fun serviceRetainsEpisodePositionAndSpeedAcrossControllerReconnect() {
+    fun serviceRetainsPreparedEpisodePositionAndSpeedAcrossControllerReconnect() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val serviceIntent = Intent(context, PodcastPlaybackService::class.java)
+        val mediaFile = createSilentWav(context)
         context.startService(serviceIntent)
 
         var firstController: MediaController? = null
@@ -43,14 +51,30 @@ class PodcastPlaybackServiceTest {
         try {
             val configuredController = connectController(context)
             firstController = configuredController
+            val ready = CountDownLatch(1)
+            val listener = object : Player.Listener {
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    if (playbackState == Player.STATE_READY) {
+                        ready.countDown()
+                    }
+                }
+            }
+
             InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                configuredController.addListener(listener)
                 configuredController.setMediaItem(
                     MediaItem.Builder()
                         .setMediaId("ci-episode")
-                        .setUri("https://example.com/ci-episode.mp3")
-                        .build(),
-                    12_000L,
+                        .setUri(Uri.fromFile(mediaFile))
+                        .build()
                 )
+                configuredController.prepare()
+            }
+            assertTrue("Local CI media did not reach STATE_READY", ready.await(10, TimeUnit.SECONDS))
+
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                configuredController.removeListener(listener)
+                configuredController.seekTo(12_000L)
                 configuredController.playbackParameters = PlaybackParameters(1.5f)
                 assertEquals("ci-episode", configuredController.currentMediaItem?.mediaId)
                 assertEquals(12_000L, configuredController.currentPosition)
@@ -70,6 +94,7 @@ class PodcastPlaybackServiceTest {
             firstController?.let(::releaseController)
             secondController?.let(::releaseController)
             context.stopService(serviceIntent)
+            mediaFile.delete()
         }
     }
 
@@ -88,6 +113,37 @@ class PodcastPlaybackServiceTest {
         // application thread. The controller is built with the app main looper here.
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             controller.release()
+        }
+    }
+
+    private fun createSilentWav(context: Context): File {
+        val sampleRate = 8_000
+        val durationSeconds = 15
+        val channels = 1
+        val bitsPerSample = 8
+        val dataSize = sampleRate * durationSeconds * channels * bitsPerSample / 8
+        val byteRate = sampleRate * channels * bitsPerSample / 8
+        val blockAlign = channels * bitsPerSample / 8
+        val header = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN).apply {
+            put("RIFF".toByteArray(Charsets.US_ASCII))
+            putInt(36 + dataSize)
+            put("WAVE".toByteArray(Charsets.US_ASCII))
+            put("fmt ".toByteArray(Charsets.US_ASCII))
+            putInt(16)
+            putShort(1.toShort())
+            putShort(channels.toShort())
+            putInt(sampleRate)
+            putInt(byteRate)
+            putShort(blockAlign.toShort())
+            putShort(bitsPerSample.toShort())
+            put("data".toByteArray(Charsets.US_ASCII))
+            putInt(dataSize)
+        }
+        return File(context.cacheDir, "ci-media-session-silence.wav").also { file ->
+            file.outputStream().use { output ->
+                output.write(header.array())
+                output.write(ByteArray(dataSize) { 0x80.toByte() })
+            }
         }
     }
 }

@@ -48,4 +48,14 @@ class MobileThemeTest {
         assertEquals(Color(0xFF006A6A), light.primary)
         assertEquals(Color(0xFF82D5D2), dark.primary)
     }
+
+    @Test
+    fun resolveDarkThemeFollowsPreferenceAndSystemFallback() {
+        assertEquals(true, resolveDarkTheme(AppThemeMode.DARK, systemDark = false))
+        assertEquals(true, resolveDarkTheme(AppThemeMode.DARK, systemDark = true))
+        assertEquals(false, resolveDarkTheme(AppThemeMode.LIGHT, systemDark = false))
+        assertEquals(false, resolveDarkTheme(AppThemeMode.LIGHT, systemDark = true))
+        assertEquals(false, resolveDarkTheme(AppThemeMode.SYSTEM, systemDark = false))
+        assertEquals(true, resolveDarkTheme(AppThemeMode.SYSTEM, systemDark = true))
+    }
 }

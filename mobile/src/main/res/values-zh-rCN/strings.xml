@@ -198,4 +198,51 @@
     <string name="membership_flow_failed">无法启动 Google Play 购买流程。</string>
     <string name="membership_privacy_title">隐私与数据</string>
     <string name="membership_privacy_body">WristBrief 不会出售个人数据或追踪阅读习惯。订阅与 AI 请求均经过安全加密处理。</string>
+
+    <!-- Navigation & General Actions -->
+    <string name="action_back">返回</string>
+    <string name="action_play">播放</string>
+    <string name="action_pause">暂停</string>
+    <string name="action_dismiss">关闭</string>
+    <string name="action_rewind_15">快退 15 秒</string>
+    <string name="action_fast_forward_30">快进 30 秒</string>
+    <string name="action_playback_speed">播放速度</string>
+    <string name="dialog_ok">确定</string>
+
+    <!-- Preferences -->
+    <string name="settings_preferences_title">偏好设置</string>
+    <string name="settings_theme_title">外观主题</string>
+    <string name="settings_theme_system">跟随系统</string>
+    <string name="settings_theme_light">浅色</string>
+    <string name="settings_theme_dark">深色</string>
+    <string name="settings_refresh_title">刷新频率</string>
+    <string name="settings_refresh_1h">1 小时</string>
+    <string name="settings_refresh_3h">3 小时</string>
+    <string name="settings_refresh_6h">6 小时</string>
+    <string name="settings_refresh_manual">手动</string>
+    <string name="settings_wifi_only_title">仅在 Wi-Fi 下下载</string>
+    <string name="settings_wifi_only_summary">在移动数据网络下暂停播客及大文件下载以节省流量</string>
+    <string name="settings_wear_sync_title">Wear OS 手表同步</string>
+    <string name="settings_wear_sync_summary">将未读文章、阅读状态与播放进度同步至手表</string>
+    <string name="settings_notifications_title">通知提醒</string>
+    <string name="settings_notifications_summary">显示媒体播放控制器及后台同步状态</string>
+
+    <!-- About & Legal -->
+    <string name="settings_replay_onboarding_desc">重新查看新手引导与初始设置选项。</string>
+    <string name="settings_privacy_policy">隐私政策</string>
+    <string name="settings_privacy_policy_title">隐私与数据保护</string>
+    <string name="settings_privacy_policy_body">WristBrief 不会出售您的个人数据，亦未嵌入任何第三方追踪 SDK。RSS 与播客内容由设备直接获取。云端 AI 摘要经托管网关安全处理，不会保留您的历史提示词用于模型训练。</string>
+    <string name="settings_licenses">开源许可</string>
+    <string name="settings_licenses_title">开源软件声明</string>
+    <string name="settings_licenses_body">WristBrief 使用了众多优秀的开源软件构建，包括 Android Jetpack、Jetpack Compose、Material Design 3、Kotlin Coroutines、OkHttp 以及 Wear Compose。</string>
+
+    <!-- Developer Diagnostics -->
+    <string name="settings_diagnostics_title">开发者诊断</string>
+    <string name="settings_diagnostics_gateway">网关地址</string>
+    <string name="settings_diagnostics_oauth">Google 登录配置</string>
+    <string name="settings_diagnostics_billing">Play 订阅商品</string>
+    <string name="settings_diagnostics_wear_sync">数据层同步</string>
+    <string name="settings_diagnostics_status_ready">已配置</string>
+    <string name="settings_diagnostics_status_default">默认 / 未配置</string>
+    <string name="settings_diagnostics_safe_notice">诊断信息仅在 Debug 构建中显示，不包含任何密钥或用户敏感信息。</string>
 </resources>

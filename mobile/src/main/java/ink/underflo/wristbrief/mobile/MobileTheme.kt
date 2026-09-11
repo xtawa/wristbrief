@@ -83,9 +83,17 @@ internal fun wristBriefFallbackColorScheme(darkTheme: Boolean): ColorScheme =
         )
     }
 
+internal fun resolveDarkTheme(themeMode: AppThemeMode, systemDark: Boolean): Boolean =
+    when (themeMode) {
+        AppThemeMode.SYSTEM -> systemDark
+        AppThemeMode.LIGHT -> false
+        AppThemeMode.DARK -> true
+    }
+
 @Composable
 internal fun WristBriefMobileTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    themeMode: AppThemeMode = AppThemeMode.SYSTEM,
+    darkTheme: Boolean = resolveDarkTheme(themeMode, isSystemInDarkTheme()),
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current

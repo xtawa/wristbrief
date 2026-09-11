@@ -198,4 +198,51 @@
     <string name="membership_flow_failed">Google Play purchase flow could not be started.</string>
     <string name="membership_privacy_title">Privacy &amp; Data</string>
     <string name="membership_privacy_body">WristBrief does not sell personal data or track your reading habits. Subscriptions and AI requests are processed securely.</string>
+
+    <!-- Navigation & General Actions -->
+    <string name="action_back">Back</string>
+    <string name="action_play">Play</string>
+    <string name="action_pause">Pause</string>
+    <string name="action_dismiss">Dismiss</string>
+    <string name="action_rewind_15">Rewind 15 seconds</string>
+    <string name="action_fast_forward_30">Fast forward 30 seconds</string>
+    <string name="action_playback_speed">Playback speed</string>
+    <string name="dialog_ok">OK</string>
+
+    <!-- Preferences -->
+    <string name="settings_preferences_title">Preferences</string>
+    <string name="settings_theme_title">Appearance</string>
+    <string name="settings_theme_system">System</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_refresh_title">Feed refresh frequency</string>
+    <string name="settings_refresh_1h">1 hour</string>
+    <string name="settings_refresh_3h">3 hours</string>
+    <string name="settings_refresh_6h">6 hours</string>
+    <string name="settings_refresh_manual">Manual</string>
+    <string name="settings_wifi_only_title">Download on Wi-Fi only</string>
+    <string name="settings_wifi_only_summary">Save mobile data for podcasts and feed sync</string>
+    <string name="settings_wear_sync_title">Wear OS synchronization</string>
+    <string name="settings_wear_sync_summary">Sync unread items, read states, and playback progress to your watch</string>
+    <string name="settings_notifications_title">Notifications</string>
+    <string name="settings_notifications_summary">Show media playback controls and background sync updates</string>
+
+    <!-- About & Legal -->
+    <string name="settings_replay_onboarding_desc">View the introductory guide and setup options again.</string>
+    <string name="settings_privacy_policy">Privacy Policy</string>
+    <string name="settings_privacy_policy_title">Privacy &amp; Data Protection</string>
+    <string name="settings_privacy_policy_body">WristBrief does not sell your personal data or embed tracking SDKs. RSS and podcast feeds are fetched directly on your device. Cloud AI summaries are processed securely through the managed gateway without retaining your prompt history.</string>
+    <string name="settings_licenses">Open Source Licenses</string>
+    <string name="settings_licenses_title">Open Source Software</string>
+    <string name="settings_licenses_body">WristBrief is built with open source software including Android Jetpack, Jetpack Compose, Material Design 3, Kotlin Coroutines, OkHttp, and Wear Compose.</string>
+
+    <!-- Developer Diagnostics -->
+    <string name="settings_diagnostics_title">Developer Diagnostics</string>
+    <string name="settings_diagnostics_gateway">Gateway URL</string>
+    <string name="settings_diagnostics_oauth">Google OAuth</string>
+    <string name="settings_diagnostics_billing">Play Billing Products</string>
+    <string name="settings_diagnostics_wear_sync">Data Layer Sync</string>
+    <string name="settings_diagnostics_status_ready">Configured</string>
+    <string name="settings_diagnostics_status_default">Default / Unset</string>
+    <string name="settings_diagnostics_safe_notice">Diagnostics only appear in debug builds. No secret tokens or credentials are displayed.</string>
 </resources>

@@ -14,6 +14,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -59,6 +61,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -75,8 +79,11 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable fun WristBriefMobileApp() {
-    WristBriefMobileTheme {
-        val context = LocalContext.current
+    val context = LocalContext.current
+    val appPreferences = remember(context) { AppPreferences(context) }
+    var themeMode by remember { mutableStateOf(appPreferences.getThemeMode()) }
+
+    WristBriefMobileTheme(themeMode = themeMode) {
         val onboarding = remember(context) { OnboardingPreferences(context) }
         var onboardingComplete by rememberSaveable { mutableStateOf(onboarding.isComplete()) }
         var onboardingAction by rememberSaveable { mutableStateOf<String?>(null) }
@@ -164,6 +171,8 @@ class MainActivity : ComponentActivity() {
                 },
                 onboardingAction = onboardingAction?.let(OnboardingAction::valueOf),
                 onOnboardingActionConsumed = { onboardingAction = null },
+                appPreferences = appPreferences,
+                onThemeChanged = { themeMode = it },
             )
         } else {
             MobileShell(
@@ -254,7 +263,11 @@ class MainActivity : ComponentActivity() {
                             }
                         },
                         actions = {
-                            androidx.compose.material3.IconButton(onClick = onOpenSettings) {
+                            val settingsDesc = stringResource(R.string.nav_settings)
+                            androidx.compose.material3.IconButton(
+                                onClick = onOpenSettings,
+                                modifier = Modifier.semantics { contentDescription = settingsDesc },
+                            ) {
                                 SettingsIcon()
                             }
                         },
@@ -300,41 +313,54 @@ class MainActivity : ComponentActivity() {
                     }
                 },
             ) { padding ->
-                AnimatedContent(
-                    targetState = destination,
-                    transitionSpec = {
-                        val motion = spring<Float>(stiffness = Spring.StiffnessMediumLow)
-                        val slide = spring<IntOffset>(stiffness = Spring.StiffnessMediumLow)
-                        (fadeIn(motion) + slideInHorizontally(slide) { it / 8 }) togetherWith fadeOut(motion)
-                    },
-                    label = "mobile-destination",
-                ) { currentDestination ->
-                    when (currentDestination) {
-                        MobileDestination.Today -> TodayDestination(
-                            padding = padding,
-                            inboxRepository = inboxRepository,
-                            feedManager = feedManager,
-                            onAddFeed = onAddFeed,
-                            onImportOpml = onImportOpml,
-                            onOpenAskAi = { select(MobileDestination.AiProvider) },
-                            onOpenLibrary = { select(MobileDestination.Library) },
-                            onOpenSettings = onOpenSettings,
-                            onOpenArticle = onOpenArticle,
-                            onPlayPodcast = onPlayPodcast,
-                        )
-                        MobileDestination.Library -> LibraryDestination(
-                            padding = padding,
-                            inboxRepository = inboxRepository,
-                            feedManager = feedManager,
-                            onManageSources = onOpenSettings,
-                            onOpenArticle = onOpenArticle,
-                            onPlayPodcast = onPlayPodcast,
-                        )
-                        MobileDestination.AiProvider -> PhoneLongSummaryDestination(
-                            padding = padding,
-                            initialTitle = aiPrefilledTitle,
-                            initialContent = aiPrefilledContent,
-                        )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                    contentAlignment = Alignment.TopCenter,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .widthIn(max = 840.dp),
+                    ) {
+                        AnimatedContent(
+                            targetState = destination,
+                            transitionSpec = {
+                                val motion = spring<Float>(stiffness = Spring.StiffnessMediumLow)
+                                val slide = spring<IntOffset>(stiffness = Spring.StiffnessMediumLow)
+                                (fadeIn(motion) + slideInHorizontally(slide) { it / 8 }) togetherWith fadeOut(motion)
+                            },
+                            label = "mobile-destination",
+                        ) { currentDestination ->
+                            when (currentDestination) {
+                                MobileDestination.Today -> TodayDestination(
+                                    padding = PaddingValues(0.dp),
+                                    inboxRepository = inboxRepository,
+                                    feedManager = feedManager,
+                                    onAddFeed = onAddFeed,
+                                    onImportOpml = onImportOpml,
+                                    onOpenAskAi = { select(MobileDestination.AiProvider) },
+                                    onOpenLibrary = { select(MobileDestination.Library) },
+                                    onOpenSettings = onOpenSettings,
+                                    onOpenArticle = onOpenArticle,
+                                    onPlayPodcast = onPlayPodcast,
+                                )
+                                MobileDestination.Library -> LibraryDestination(
+                                    padding = PaddingValues(0.dp),
+                                    inboxRepository = inboxRepository,
+                                    feedManager = feedManager,
+                                    onManageSources = onOpenSettings,
+                                    onOpenArticle = onOpenArticle,
+                                    onPlayPodcast = onPlayPodcast,
+                                )
+                                MobileDestination.AiProvider -> PhoneLongSummaryDestination(
+                                    padding = PaddingValues(0.dp),
+                                    initialTitle = aiPrefilledTitle,
+                                    initialContent = aiPrefilledContent,
+                                )
+                            }
+                        }
                     }
                 }
             }

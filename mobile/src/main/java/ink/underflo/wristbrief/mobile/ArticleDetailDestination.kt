@@ -3,6 +3,7 @@ package ink.underflo.wristbrief.mobile
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -11,6 +12,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
@@ -35,6 +38,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import java.util.Locale
@@ -100,7 +105,11 @@ internal fun ArticleDetailDestination(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    val backDesc = stringResource(R.string.action_back)
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier.semantics { contentDescription = backDesc },
+                    ) {
                         Text("←", style = MaterialTheme.typography.titleLarge)
                     }
                 },
@@ -120,39 +129,51 @@ internal fun ArticleDetailDestination(
                 color = MaterialTheme.colorScheme.surfaceContainer,
                 tonalElevation = 3.dp,
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = {
-                            val next = !isRead
-                            inboxRepository.setRead(item.id, next)
-                            isRead = next
-                        }) {
-                            Text(stringResource(if (isRead) R.string.action_mark_unread else R.string.action_mark_read))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .widthIn(max = 840.dp)
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = {
+                                val next = !isRead
+                                inboxRepository.setRead(item.id, next)
+                                isRead = next
+                            }) {
+                                Text(stringResource(if (isRead) R.string.action_mark_unread else R.string.action_mark_read))
+                            }
+                            OutlinedButton(onClick = ::shareArticle) {
+                                Text(stringResource(R.string.action_share))
+                            }
                         }
-                        OutlinedButton(onClick = ::shareArticle) {
-                            Text(stringResource(R.string.action_share))
+                        Button(onClick = { onAskAi(item.title, sanitized.plainText.ifBlank { item.title }) }) {
+                            Text(stringResource(R.string.action_ask_ai))
                         }
-                    }
-                    Button(onClick = { onAskAi(item.title, sanitized.plainText.ifBlank { item.title }) }) {
-                        Text(stringResource(R.string.action_ask_ai))
                     }
                 }
             }
         },
     ) { padding ->
-        LazyColumn(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = PaddingValues(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentAlignment = Alignment.TopCenter,
         ) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .widthIn(max = 840.dp),
+                contentPadding = PaddingValues(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
             // Meta info: Date & reading time
             item {
                 Row(
@@ -234,4 +255,5 @@ internal fun ArticleDetailDestination(
             }
         }
     }
+}
 }

@@ -21,7 +21,10 @@ Subsequent repository work has also completed the following foundations:
 - CI execution of Mobile instrumentation on a managed Android device and Wear instrumentation on both small-round and large-round Wear OS emulator profiles;
 - MainActivity recreation/resume smoke coverage for both Wear and Mobile, plus a Wear playback-service lifecycle smoke test across activity recreation/background-resume, executed by CI instrumentation jobs;
 - Wear navigation/state-restoration interaction coverage on the small-round profile at configured system font scale `1.30`, while retaining the large-round default-font profile;
-- instrumented Media3 `MediaController` coverage that verifies the non-exported `PodcastPlaybackService` accepts controller connections and, with a locally generated prepared WAV fixture, preserves the current episode identity, 12-second seek position and 1.5× playback speed across controller disconnect/reconnect while the service remains alive. The fixture is local to CI and does not depend on external media networking.
+- instrumented Media3 `MediaController` coverage that verifies the non-exported `PodcastPlaybackService` accepts controller connections and, with a locally generated prepared WAV fixture, preserves the current episode identity, 12-second seek position and 1.5× playback speed across controller disconnect/reconnect while the service remains alive. The fixture is local to CI and does not depend on external media networking;
+- Wear subscription Data Layer decoding now applies the same HTTPS/canonical-identity invariants as the repository and rejects duplicate IDs or duplicate logical feed URLs;
+- read/saved item-state Data Layer payloads now reject duplicate records and enforce channel ownership (`PHONE` fields only on the phone-owned path and `WEAR` fields only on the Wear-owned path), preventing forged origin values from changing merge tie-breaking;
+- the phone→Wear scoped account-session bridge now publishes a single latest-state DataItem rather than a best-effort transient message, so a set/clear performed while devices are disconnected can be delivered after reconnect; invalid, malformed, or already-expired latest session state fails closed and clears any older Wear session instead of leaving stale credentials active.
 
 These repository implementations do not by themselves prove production deployment or the full physical-device interaction matrix.
 
@@ -33,6 +36,7 @@ These repository implementations do not by themselves prove production deploymen
 - Gateway tests cover server-owned provider routing, fixed HTTPS upstreams, bounded request sizes, provider timeout/retry behavior, malformed output, authentication/quota bypass attempts, Google account/session boundaries, purchase-token ownership, Android Publisher verification and authenticated RTDN re-verification.
 - Feed/article/transcript source text remains treated as untrusted input for summarization; structured output is validated before reaching Wear UI.
 - Tiles/complications use local cached state and meaningful-change updates rather than render-time feed/AI polling.
+- Data Layer inputs are treated as versioned state boundaries rather than implicitly trusted serialization: feed identity is canonicalized, item-state origin ownership is checked, and account-session state is durable across reconnect while failing closed on invalid latest state.
 
 ## Current CI/release checkpoint
 
@@ -52,9 +56,9 @@ Repository-controlled checks now include:
 - release manifest guard;
 - unsigned Wear/Mobile release APK + AAB assembly and artifact upload on `main` pushes.
 
-CI #314 verified the current suite on commit `c2e8d2f97ba545c502b89f71c7d0c99eea031e87`: release guard, Gateway typecheck/Vitest, Wear and Mobile JVM/debug/instrumentation APK builds, unsigned release APK/AAB builds, Mobile managed-device instrumentation, and both Wear small-round (`1.30` font scale) and large-round instrumentation all completed successfully. The Wear suite now prepares a deterministic local WAV, seeks it to 12 seconds, applies 1.5× speed, disconnects the controller, reconnects, and verifies the service-owned MediaSession still exposes the same media identity, position and speed.
+CI #323 verified the current suite on commit `0489dfa9700c96dcbd0ca5416f6b04ac2f63fa99`: release guard, Gateway typecheck/Vitest, Wear and Mobile JVM/debug/instrumentation APK builds, unsigned release APK/AAB builds, Mobile managed-device instrumentation, and both Wear small-round (`1.30` font scale) and large-round instrumentation all completed successfully. This checkpoint also includes the subscription/item-state/account-session Data Layer hardening above. The Wear suite prepares a deterministic local WAV, seeks it to 12 seconds, applies 1.5× speed, disconnects the controller, reconnects, and verifies the service-owned MediaSession still exposes the same media identity, position and speed.
 
-These smoke suites prove launch/recreation/navigation, configured large-font layout interaction, MediaSession-service connection/lifecycle behavior, and prepared local-media controller reconnect state continuity on the configured CI devices. They do **not** substitute for rotary-input testing, continuously playing/audio-routing behavior, connectivity permutations, Tile/Complication interaction, Play validation, or the broader physical-device matrix below.
+These smoke suites prove launch/recreation/navigation, configured large-font layout interaction, MediaSession-service connection/lifecycle behavior, prepared local-media controller reconnect state continuity, and the JVM-level Data Layer validation/state semantics now checked into the repository. They do **not** substitute for rotary-input testing, continuously playing/audio-routing behavior, a real paired-device disconnect/reconnect transport exercise, Tile/Complication interaction, Play validation, or the broader physical-device matrix below.
 
 ## Remaining external or execution-dependent release blockers
 
@@ -68,7 +72,7 @@ The following work remains intentionally unclaimed:
 - expand Android/Wear instrumentation beyond the current launch/recreation/navigation/prepared-media checks into additional deterministic interaction flows where practical;
 - execute rotary-input checks on representative Wear profiles; CI now covers the small-round profile at system font scale `1.30` and the large-round size dimension, but it does not synthesize representative crown/rotary interaction;
 - exercise MediaSession during continuously playing media, Bluetooth controls, noisy-route/audio-focus and persisted resume behavior on representative Wear hardware/emulators;
-- exercise paired phone↔Wear Data Layer flows across connected, disconnected and reconnected states;
+- exercise paired phone↔Wear Data Layer flows across connected, disconnected and reconnected states; the account-session transport now stores latest state durably, but CI still does not run a paired phone/watch topology that proves the platform transport path end-to-end;
 - verify Tile and complication launch/readability/update behavior on Wear OS.
 
 No production credential, signing key or console-only result should be committed merely to clear one of these blockers.
@@ -76,10 +80,11 @@ No production credential, signing key or console-only result should be committed
 ## Recommended next release-readiness order
 
 1. Expand the now-running instrumentation suites around deterministic app interaction/state restoration, rotary behavior and active-media lifecycle where CI can test it reliably.
-2. Deploy a non-production Gateway with the real D1 bindings/migrations and secret-store configuration, then run security/auth/membership smoke checks against that deployment.
-3. Wire Play internal testing plus authenticated RTDN in Google Cloud and execute the complete purchase/restore/lifecycle matrix.
-4. Sign and upload a traceable AAB through the established Play App Signing path and record the exact source SHA/artifact digest/version.
-5. Complete the paired phone/Wear, MediaSession, Tile/Complication and accessibility/device matrix before widening distribution.
+2. Add a paired phone/Wear execution topology when CI infrastructure can support it, then exercise Data Layer set/clear/state convergence across disconnect/reconnect rather than relying only on contract/JVM checks.
+3. Deploy a non-production Gateway with the real D1 bindings/migrations and secret-store configuration, then run security/auth/membership smoke checks against that deployment.
+4. Wire Play internal testing plus authenticated RTDN in Google Cloud and execute the complete purchase/restore/lifecycle matrix.
+5. Sign and upload a traceable AAB through the established Play App Signing path and record the exact source SHA/artifact digest/version.
+6. Complete the MediaSession, Tile/Complication and accessibility/device matrix before widening distribution.
 
 ## Release-ready boundary
 

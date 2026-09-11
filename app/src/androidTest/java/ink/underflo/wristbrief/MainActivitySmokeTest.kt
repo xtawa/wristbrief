@@ -1,14 +1,16 @@
 package ink.underflo.wristbrief
 
-import android.app.ActivityManager
+import android.content.ComponentName
 import android.content.Context
-import android.content.Intent
 import androidx.lifecycle.Lifecycle
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import ink.underflo.wristbrief.media.PodcastPlaybackService
+import java.util.concurrent.TimeUnit
 import kotlin.math.abs
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -90,35 +92,43 @@ class MainActivitySmokeTest {
         }
     }
 
-    @Suppress("DEPRECATION")
     @Test
-    fun playbackServiceSurvivesActivityRecreationAndBackgroundCycle() {
+    fun mediaSessionControllerSurvivesActivityRecreationAndBackgroundCycle() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val serviceIntent = Intent(context, PodcastPlaybackService::class.java)
-        val activityManager = context.getSystemService(ActivityManager::class.java)
+        val sessionToken = SessionToken(
+            context,
+            ComponentName(context, PodcastPlaybackService::class.java),
+        )
+        val controllerFuture = MediaController.Builder(context, sessionToken).buildAsync()
+        val controller = controllerFuture.get(15, TimeUnit.SECONDS)
 
         try {
-            context.startService(serviceIntent)
-            assertTrue(isPlaybackServiceRunning(activityManager))
+            assertTrue("MediaController must connect to the playback service", controller.isConnected)
 
             ActivityScenario.launch(MainActivity::class.java).use { activityScenario ->
                 activityScenario.recreate()
                 assertEquals(Lifecycle.State.RESUMED, activityScenario.state)
+                assertTrue(
+                    "Playback session must outlive activity recreation",
+                    controller.isConnected,
+                )
+
                 activityScenario.moveToState(Lifecycle.State.CREATED)
                 assertEquals(Lifecycle.State.CREATED, activityScenario.state)
+                assertTrue(
+                    "Playback session must remain available while the activity is backgrounded",
+                    controller.isConnected,
+                )
+
                 activityScenario.moveToState(Lifecycle.State.RESUMED)
                 assertEquals(Lifecycle.State.RESUMED, activityScenario.state)
+                assertTrue(
+                    "Playback session must remain connected after foreground resume",
+                    controller.isConnected,
+                )
             }
-
-            assertTrue(isPlaybackServiceRunning(activityManager))
         } finally {
-            context.stopService(serviceIntent)
+            MediaController.releaseFuture(controllerFuture)
         }
     }
-
-    @Suppress("DEPRECATION")
-    private fun isPlaybackServiceRunning(activityManager: ActivityManager): Boolean =
-        activityManager.getRunningServices(Int.MAX_VALUE).any { serviceInfo ->
-            serviceInfo.service.className == PodcastPlaybackService::class.java.name
-        }
 }

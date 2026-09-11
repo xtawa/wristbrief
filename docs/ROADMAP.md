@@ -155,11 +155,12 @@ Implement after the current production RTDN hardening, and before calling the me
 - [x] `entitlements`: authoritative FREE/PRO state, source, expiry/status metadata and last verification time.
 - [x] `play_purchase_bindings`: one-way purchase-token hash -> internal user ID ownership binding; package/product/status authority comes from server-side Play verification rather than client/RTDN claims.
 - [x] `quota_usage`: managed-AI quota counters keyed by internal user ID and quota window; BYOK remains excluded.
+- [x] `legacy_migration_grants`: short-lived one-time migration credentials stored only as SHA-256 hashes and atomically consumed when linking a verified Google identity.
 
 #### Migration and recovery
 
 - [x] Define a one-time upgrade path from the current serverless identity to Google-backed identity without silently creating duplicate paid accounts.
-- [ ] Wire a safe phone-side handoff that can actually request legacy → verified `(google, sub)` linking on first Google sign-in when a legitimate legacy principal exists; never solve this by embedding the legacy server bearer in the APK.
+- [x] Wire a safe phone-side handoff that can actually request legacy → verified `(google, sub)` linking on first Google sign-in when a legitimate legacy principal exists; the legacy principal exchanges its runtime credential for a short-lived one-time grant, and the new APK never embeds the legacy server bearer.
 - [x] Preserve existing entitlement/quota state in the server-side same-user linking path; retain conflict/idempotency tests for duplicate Google identity and ownership collisions.
 - [x] Define account deletion, session revocation and Google-identity unlink behavior before production launch.
 - [x] Keep account merging/recovery explicit and auditable; never merge accounts solely because email strings match.
@@ -219,7 +220,7 @@ Do not call WristBrief production-ready until all of the following are true:
 - Wear screens pass round/small display and large-font review on devices/emulators.
 - Tile/complication behavior is battery-conscious.
 - Phone and Wear artifacts use the same Play application ID and production signing identity, with non-conflicting multi-APK version codes.
-- No global/server-wide Gateway bearer is embedded in either Android artifact; Wear receives only a scoped runtime account session once the bridge is implemented.
+- No global/server-wide Gateway bearer is embedded in either Android artifact; Wear receives only a scoped runtime account session.
 - CI is green from a clean checkout; commits produced during Actions-capacity static-review mode remain unverified until this succeeds.
 - Real Play verification/RTDN and durable production membership storage are deployed and exercised in an internal-test environment.
 - Release signing/versioning, deployment, secret-management, privacy and recovery docs/checklists are complete.

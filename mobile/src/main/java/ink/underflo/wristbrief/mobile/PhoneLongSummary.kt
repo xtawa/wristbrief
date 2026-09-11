@@ -1,6 +1,7 @@
 package ink.underflo.wristbrief.mobile
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
@@ -13,6 +14,10 @@ data class PhoneLongSummary(
     val sourceLanguage: String,
     val outputLanguage: String,
     val model: String,
+    val tiny: String = "",
+    val brief: String = "",
+    val bullets: List<String> = emptyList(),
+    val topics: List<String> = emptyList(),
 )
 
 fun parsePhoneLongSummaryResponse(raw: String): PhoneLongSummary {
@@ -32,10 +37,23 @@ fun parsePhoneLongSummaryResponse(raw: String): PhoneLongSummary {
     require(sourceLanguage.isNotEmpty()) { "Missing source language" }
     require(outputLanguage.isNotEmpty()) { "Missing output language" }
 
+    val tiny = structured["tiny"]?.jsonPrimitive?.content?.trim().orEmpty()
+    val brief = structured["brief"]?.jsonPrimitive?.content?.trim().orEmpty()
+    val bullets = structured["bullets"]?.jsonArray?.mapNotNull {
+        it.jsonPrimitive.content.trim().takeIf { s -> s.isNotEmpty() }
+    } ?: emptyList()
+    val topics = structured["topics"]?.jsonArray?.mapNotNull {
+        it.jsonPrimitive.content.trim().takeIf { s -> s.isNotEmpty() }
+    } ?: emptyList()
+
     return PhoneLongSummary(
         text = text,
         sourceLanguage = sourceLanguage,
         outputLanguage = outputLanguage,
         model = root["model"]?.jsonPrimitive?.content?.trim().orEmpty(),
+        tiny = tiny,
+        brief = brief,
+        bullets = bullets,
+        topics = topics,
     )
 }

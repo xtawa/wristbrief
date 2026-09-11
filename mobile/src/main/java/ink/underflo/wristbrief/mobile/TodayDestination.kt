@@ -13,7 +13,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -35,7 +38,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -64,6 +69,59 @@ internal fun TodayDestination(
     val saved = items.filter { inboxRepository.isSaved(it.id) }
     val continueReading = unread.firstOrNull { it.audioUrl == null }
     val continueListening = items.firstOrNull { it.audioUrl != null }
+
+    val dailyBriefStore = remember(context) { SharedPreferencesDailyBriefStore(context) }
+    var dailyBriefRecord by remember { mutableStateOf(dailyBriefStore.getLatest()) }
+    var isGeneratingBrief by remember { mutableStateOf(false) }
+    var briefErrorMessage by remember { mutableStateOf<String?>(null) }
+    var showFullBriefDialog by remember { mutableStateOf(false) }
+    val todayKey = remember { DailyBriefInputBuilder.todayKey() }
+    val session = remember(context) { AccountSessionPreferences(context) }.read()
+    val summaryClient = remember { PhoneLongSummaryClient() }
+
+    fun generateDailyBrief() {
+        if (session == null) {
+            onOpenAskAi()
+            return
+        }
+        val input = DailyBriefInputBuilder.build(unread) ?: return
+        isGeneratingBrief = true
+        briefErrorMessage = null
+        scope.launch {
+            try {
+                val summary = withContext(Dispatchers.IO) {
+                    summaryClient.summarize(
+                        BuildConfig.GATEWAY_BASE_URL,
+                        session.sessionToken,
+                        input.title,
+                        input.content,
+                    )
+                }
+                val record = DailyBriefRecord(
+                    dateKey = todayKey,
+                    title = input.title,
+                    tiny = summary.tiny.ifBlank { summary.text.take(150) },
+                    long = summary.text,
+                    bullets = summary.bullets,
+                    topics = summary.topics,
+                    generatedAtEpochMs = System.currentTimeMillis(),
+                    sourceCount = input.itemCount,
+                )
+                dailyBriefStore.save(record)
+                dailyBriefRecord = record
+            } catch (e: PhoneSummaryRequestException) {
+                briefErrorMessage = when (e.failure) {
+                    PhoneSummaryFailure.Quota -> context.getString(R.string.ai_quota_exceeded)
+                    PhoneSummaryFailure.ProviderUnavailable -> context.getString(R.string.ai_provider_unavailable)
+                    else -> context.getString(R.string.ai_error)
+                }
+            } catch (_: Exception) {
+                briefErrorMessage = context.getString(R.string.ai_error)
+            } finally {
+                isGeneratingBrief = false
+            }
+        }
+    }
 
     val todayDateFormatted = remember {
         val format = SimpleDateFormat("EEEE, MMMM d", Locale.getDefault())
@@ -216,16 +274,84 @@ internal fun TodayDestination(
                             color = MaterialTheme.colorScheme.onPrimaryContainer,
                             fontWeight = FontWeight.SemiBold,
                         )
-                        Text(
-                            text = stringResource(R.string.today_brief_body),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
-                        )
-                        Button(
-                            onClick = onOpenAskAi,
-                            modifier = Modifier.align(Alignment.End),
-                        ) {
-                            Text(stringResource(R.string.today_brief_action))
+
+                        if (dailyBriefRecord != null && dailyBriefRecord?.dateKey == todayKey) {
+                            val record = dailyBriefRecord!!
+                            Text(
+                                text = record.tiny,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            )
+                            if (record.bullets.isNotEmpty()) {
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    record.bullets.take(3).forEach { bullet ->
+                                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            Text("•", color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                            Text(
+                                                bullet,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f),
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Button(
+                                    onClick = { showFullBriefDialog = true },
+                                ) {
+                                    Text(stringResource(R.string.daily_brief_read_full))
+                                }
+                                TextButton(
+                                    enabled = !isGeneratingBrief,
+                                    onClick = ::generateDailyBrief,
+                                ) {
+                                    Text(
+                                        stringResource(if (isGeneratingBrief) R.string.daily_brief_generating else R.string.daily_brief_regenerate),
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    )
+                                }
+                            }
+                        } else if (unread.isNotEmpty()) {
+                            Text(
+                                text = stringResource(R.string.daily_brief_unread_prompt, unread.size),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
+                            )
+                            briefErrorMessage?.let { err ->
+                                Text(
+                                    text = err,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                            }
+                            Button(
+                                enabled = !isGeneratingBrief,
+                                onClick = ::generateDailyBrief,
+                                modifier = Modifier.align(Alignment.End),
+                            ) {
+                                Text(stringResource(if (isGeneratingBrief) R.string.daily_brief_generating else R.string.daily_brief_generate))
+                            }
+                        } else {
+                            Text(
+                                text = stringResource(R.string.daily_brief_all_caught_up),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                            )
+                            TextButton(
+                                onClick = onOpenAskAi,
+                                modifier = Modifier.align(Alignment.End),
+                            ) {
+                                Text(
+                                    stringResource(R.string.today_brief_action),
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                )
+                            }
                         }
                     }
                 }
@@ -481,5 +607,64 @@ internal fun TodayDestination(
                 }
             }
         }
+    }
+
+    if (showFullBriefDialog && dailyBriefRecord != null) {
+        val record = dailyBriefRecord!!
+        AlertDialog(
+            onDismissRequest = { showFullBriefDialog = false },
+            title = { Text(record.title, fontWeight = FontWeight.Bold) },
+            text = {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    item {
+                        Text(
+                            text = record.tiny,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                    item {
+                        Text(
+                            text = record.long,
+                            style = MaterialTheme.typography.bodyMedium,
+                            lineHeight = MaterialTheme.typography.bodyMedium.lineHeight * 1.3f,
+                        )
+                    }
+                    if (record.bullets.isNotEmpty()) {
+                        item {
+                            Text(
+                                text = stringResource(R.string.ai_prompt_takeaways),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                        items(record.bullets) { bullet ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text("•", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                Text(bullet, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                    if (record.topics.isNotEmpty()) {
+                        item {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                items(record.topics) { topic ->
+                                    AssistChip(onClick = {}, label = { Text(topic) })
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = { showFullBriefDialog = false }) {
+                    Text(stringResource(R.string.daily_brief_close))
+                }
+            },
+        )
     }
 }

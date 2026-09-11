@@ -7,6 +7,8 @@ sealed interface PhoneLongSummaryUiState {
         val text: String,
         val languageLabel: String,
         val modelLabel: String?,
+        val bullets: List<String> = emptyList(),
+        val topics: List<String> = emptyList(),
     ) : PhoneLongSummaryUiState
     data class Error(val message: String) : PhoneLongSummaryUiState
 }
@@ -32,6 +34,8 @@ fun phoneLongSummaryReadyState(summary: PhoneLongSummary): PhoneLongSummaryUiSta
             "${summary.sourceLanguage} → ${summary.outputLanguage}"
         },
         modelLabel = summary.model.takeIf { it.isNotBlank() },
+        bullets = summary.bullets,
+        topics = summary.topics,
     )
 
 fun phoneLongSummaryFailureState(failure: PhoneSummaryFailure): PhoneLongSummaryUiState.Error =

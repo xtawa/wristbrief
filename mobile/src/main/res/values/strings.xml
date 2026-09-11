@@ -92,4 +92,18 @@
     <string name="podcast_buffering">Buffering…</string>
     <string name="podcast_error_playback">Unable to play audio stream</string>
     <string name="podcast_close">Close player</string>
+    <string name="daily_brief_generate">Generate Daily Brief</string>
+    <string name="daily_brief_regenerate">Regenerate</string>
+    <string name="daily_brief_generating">Creating daily brief…</string>
+    <string name="daily_brief_all_caught_up">All caught up! Add more feeds to receive your daily brief.</string>
+    <string name="daily_brief_unread_prompt">Summarize your %1$d unread articles into a calm, focused brief.</string>
+    <string name="daily_brief_read_full">Read full brief</string>
+    <string name="daily_brief_close">Close</string>
+    <string name="ai_prompt_summarize">Summarize core points</string>
+    <string name="ai_prompt_takeaways">Actionable takeaways</string>
+    <string name="ai_prompt_critique">What to question</string>
+    <string name="ai_action_copy">Copy</string>
+    <string name="ai_copied">Copied to clipboard</string>
+    <string name="ai_quota_exceeded">You’ve reached your daily AI brief limit. Upgrade to Plus or check back tomorrow.</string>
+    <string name="ai_provider_unavailable">AI service is temporarily busy. Please try again in a few moments.</string>
 </resources>

@@ -3,6 +3,7 @@ import { InMemoryAccountIdentityStore } from "./accountIdentity";
 import { InMemoryAccountSessionStore } from "./accountSession";
 import { exchangeGoogleIdToken } from "./authServer";
 import type { GoogleIdTokenVerifier, VerifiedGoogleIdentity } from "./googleIdentity";
+import { InMemoryLegacyMigrationGrantStore, LegacyMigrationGrantService } from "./migrationGrant";
 
 class FakeVerifier implements GoogleIdTokenVerifier {
   constructor(private readonly identities: Record<string, VerifiedGoogleIdentity | undefined>) {}
@@ -57,6 +58,27 @@ describe("Google auth exchange", () => {
     expect(response.body.created).toBe(true);
     expect(identityStore.identityForGoogleSubject("google-sub-link")?.userId).toBe("legacy-user-1");
     expect(response.body.sessionToken).toMatch(/^wbs_[A-Za-z0-9_-]{43}$/);
+  });
+
+  it("links through a one-time migration grant without a legacy bearer in the Google exchange", async () => {
+    const identityStore = new InMemoryAccountIdentityStore();
+    const sessionStore = new InMemoryAccountSessionStore();
+    const grantStore = new InMemoryLegacyMigrationGrantStore();
+    const grant = await new LegacyMigrationGrantService(grantStore).issue("legacy-user-grant");
+    const env = {
+      GOOGLE_ID_TOKEN_VERIFIER: new FakeVerifier({ token: identity("google-sub-grant", "person@example.com") }),
+      ACCOUNT_IDENTITY_STORE: identityStore,
+      ACCOUNT_SESSION_STORE: sessionStore,
+      LEGACY_MIGRATION_GRANT_STORE: grantStore
+    };
+
+    const response = await exchangeGoogleIdToken({ idToken: "token", migrationGrant: grant.token }, env);
+    expect(response.status).toBe(200);
+    expect(response.body.user).toEqual({ id: "legacy-user-grant" });
+    expect(identityStore.identityForGoogleSubject("google-sub-grant")?.userId).toBe("legacy-user-grant");
+
+    const replay = await exchangeGoogleIdToken({ idToken: "token", migrationGrant: grant.token }, env);
+    expect(replay).toEqual({ status: 401, body: { error: "invalid_migration_grant" } });
   });
 
   it("returns conflict and does not issue another session when Google identity belongs to another user", async () => {

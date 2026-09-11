@@ -15,10 +15,17 @@ import {
   type GoogleIdTokenVerifier,
   type GoogleIdentityEnv
 } from "./googleIdentity";
+import {
+  createConfiguredMigrationGrantStore,
+  LegacyMigrationGrantService,
+  migrationGrantTtlSeconds,
+  type MigrationGrantEnv
+} from "./migrationGrant";
 
 const MAX_GOOGLE_ID_TOKEN_LENGTH = 16_384;
+const MAX_MIGRATION_GRANT_LENGTH = 128;
 
-export type AuthServerEnv = GoogleIdentityEnv & AccountPersistenceEnv & {
+export type AuthServerEnv = GoogleIdentityEnv & AccountPersistenceEnv & MigrationGrantEnv & {
   GOOGLE_ID_TOKEN_VERIFIER?: GoogleIdTokenVerifier;
   ACCOUNT_IDENTITY_STORE?: AccountIdentityStore;
   ACCOUNT_SESSION_STORE?: AccountSessionStore;
@@ -34,6 +41,18 @@ export type GoogleExchangeOptions = {
   existingUserId?: string;
 };
 
+export async function issueLegacyMigrationGrant(userId: string, env: AuthServerEnv): Promise<AuthResult> {
+  const store = createConfiguredMigrationGrantStore(env);
+  if (!store) return result(503, "auth_not_configured");
+  try {
+    const service = new LegacyMigrationGrantService(store, migrationGrantTtlSeconds(env.LEGACY_MIGRATION_GRANT_TTL_SECONDS));
+    const grant = await service.issue(userId);
+    return { status: 200, body: { migrationGrant: grant.token, expiresAt: grant.expiresAt } };
+  } catch {
+    return result(503, "auth_unavailable");
+  }
+}
+
 export async function exchangeGoogleIdToken(
   body: unknown,
   env: AuthServerEnv,
@@ -41,6 +60,9 @@ export async function exchangeGoogleIdToken(
 ): Promise<AuthResult> {
   const idToken = parseIdToken(body);
   if (!idToken) return result(400, "invalid_request");
+  const migrationGrant = parseMigrationGrant(body);
+  if (migrationGrant === "invalid") return result(400, "invalid_request");
+  if (migrationGrant && options.existingUserId) return result(400, "invalid_request");
 
   const verifier = env.GOOGLE_ID_TOKEN_VERIFIER ?? createConfiguredGoogleIdTokenVerifier(env);
   const configuredD1 = createConfiguredD1AccountStores(env);
@@ -51,10 +73,25 @@ export async function exchangeGoogleIdToken(
   const verified = await verifier.verify(idToken);
   if (!verified) return result(401, "invalid_google_identity");
 
+  let existingUserId = options.existingUserId;
+  if (migrationGrant) {
+    const grantStore = createConfiguredMigrationGrantStore(env);
+    if (!grantStore) return result(503, "auth_not_configured");
+    try {
+      existingUserId = await new LegacyMigrationGrantService(
+        grantStore,
+        migrationGrantTtlSeconds(env.LEGACY_MIGRATION_GRANT_TTL_SECONDS)
+      ).consume(migrationGrant) ?? undefined;
+    } catch {
+      return result(503, "auth_unavailable");
+    }
+    if (!existingUserId) return result(401, "invalid_migration_grant");
+  }
+
   try {
     const identities = new AccountIdentityService(identityStore);
-    const identity = options.existingUserId
-      ? await identities.linkGoogleToExistingUser(options.existingUserId, verified)
+    const identity = existingUserId
+      ? await identities.linkGoogleToExistingUser(existingUserId, verified)
       : await identities.resolveGoogle(verified);
     const sessions = new AccountSessionService(sessionStore, {
       ttlSeconds: parseSessionTtl(env.ACCOUNT_SESSION_TTL_SECONDS)
@@ -82,6 +119,15 @@ function parseIdToken(value: unknown): string | null {
   if (typeof token !== "string" || token.length < 1 || token.length > MAX_GOOGLE_ID_TOKEN_LENGTH) return null;
   if (token !== token.trim() || /[\u0000-\u001F\u007F]/.test(token)) return null;
   return token;
+}
+
+function parseMigrationGrant(value: unknown): string | null | "invalid" {
+  if (!value || typeof value !== "object") return null;
+  const grant = (value as Record<string, unknown>).migrationGrant;
+  if (grant === undefined) return null;
+  if (typeof grant !== "string" || grant.length < 1 || grant.length > MAX_MIGRATION_GRANT_LENGTH) return "invalid";
+  if (grant !== grant.trim() || /[\u0000-\u001F\u007F]/.test(grant)) return "invalid";
+  return grant;
 }
 
 function parseSessionTtl(value: string | undefined): number | undefined {

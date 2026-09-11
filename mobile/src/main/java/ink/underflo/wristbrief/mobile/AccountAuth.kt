@@ -10,11 +10,9 @@ import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.put
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -74,11 +72,18 @@ class GoogleAccountAuthClient(
     private val httpClient: OkHttpClient = OkHttpClient(),
     private val credentialManager: CredentialManager = CredentialManager.create(context),
     private val sessionPreferences: AccountSessionPreferences = AccountSessionPreferences(context),
+    private val migrationGrantPreferences: LegacyMigrationGrantPreferences = LegacyMigrationGrantPreferences(context),
     private val sessionBridge: AccountSessionBridge = GoogleWearAccountSessionBridge(context),
     private val webClientId: String = BuildConfig.GOOGLE_WEB_CLIENT_ID,
     private val gatewayBaseUrl: String = BuildConfig.GATEWAY_BASE_URL,
 ) {
     private val json = Json { ignoreUnknownKeys = true }
+
+    fun storeLegacyMigrationGrant(grant: String): Boolean {
+        if (!validLegacyMigrationGrant(grant)) return false
+        migrationGrantPreferences.write(grant)
+        return true
+    }
 
     suspend fun signIn(): AccountAuthResult {
         val config = accountAuthConfig(webClientId, gatewayBaseUrl)
@@ -104,7 +109,7 @@ class GoogleAccountAuthClient(
             return AccountAuthResult.Failure("google_sign_in_failed")
         }
 
-        // The Google ID token stays in memory only long enough to exchange it for a WristBrief session.
+        // The Google ID token and optional one-time migration grant stay in memory only for the exchange.
         return exchangeIdToken(config.gatewayBaseUrl, idToken)
     }
 
@@ -124,6 +129,7 @@ class GoogleAccountAuthClient(
             }
         }
         sessionPreferences.clear()
+        migrationGrantPreferences.clear()
         sessionBridge.clear()
         try {
             credentialManager.clearCredentialState(ClearCredentialStateRequest())
@@ -135,7 +141,8 @@ class GoogleAccountAuthClient(
 
     private suspend fun exchangeIdToken(baseUrl: String, idToken: String): AccountAuthResult = withContext(Dispatchers.IO) {
         if (idToken.isBlank() || idToken.length > 16_384) return@withContext AccountAuthResult.Failure("invalid_google_identity")
-        val body = buildJsonObject { put("idToken", idToken) }.toString()
+        val migrationGrant = migrationGrantPreferences.read()
+        val body = googleAuthRequestJson(idToken, migrationGrant)
             .toRequestBody("application/json; charset=utf-8".toMediaType())
         val request = Request.Builder()
             .url(baseUrl + "/v1/auth/google")
@@ -151,6 +158,7 @@ class GoogleAccountAuthClient(
                 val session = parseAccountSession(responseBody)
                     ?: return@withContext AccountAuthResult.Failure("invalid_auth_response")
                 sessionPreferences.write(session)
+                if (migrationGrant != null) migrationGrantPreferences.clear()
                 sessionBridge.publish(session)
                 AccountAuthResult.Success(session)
             }

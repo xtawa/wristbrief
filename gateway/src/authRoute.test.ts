@@ -4,6 +4,7 @@ import { InMemoryAccountIdentityStore } from "./accountIdentity";
 import { InMemoryAccountSessionStore } from "./accountSession";
 import type { GoogleIdTokenVerifier } from "./googleIdentity";
 import { InMemoryMembershipStore } from "./membership";
+import { InMemoryLegacyMigrationGrantStore } from "./migrationGrant";
 
 const verifier: GoogleIdTokenVerifier = {
   async verify(idToken: string) {
@@ -43,6 +44,44 @@ describe("POST /v1/auth/google", () => {
     expect(JSON.stringify(sessionStore.records())).not.toContain(body.sessionToken);
   });
 
+  it("issues a short-lived migration grant only to a valid legacy principal and consumes it during Google sign-in", async () => {
+    const raw = baseEnv();
+    const env = {
+      ...raw,
+      GATEWAY_TOKEN: "legacy-gateway-secret",
+      GATEWAY_USER_ID: "legacy-user-42",
+      LEGACY_MIGRATION_GRANT_STORE: new InMemoryLegacyMigrationGrantStore()
+    } as unknown as Parameters<typeof worker.fetch>[1];
+
+    const denied = await worker.fetch(new Request("https://gateway.example/v1/auth/legacy-migration-grant", {
+      method: "POST"
+    }), env);
+    expect(denied.status).toBe(401);
+
+    const grantResponse = await worker.fetch(new Request("https://gateway.example/v1/auth/legacy-migration-grant", {
+      method: "POST",
+      headers: { Authorization: "Bearer legacy-gateway-secret" }
+    }), env);
+    expect(grantResponse.status).toBe(200);
+    const grantBody = await grantResponse.json() as { migrationGrant: string; expiresAt: string };
+    expect(grantBody.migrationGrant).toMatch(/^wbm_[A-Za-z0-9_-]{43}$/);
+
+    const exchange = () => worker.fetch(new Request("https://gateway.example/v1/auth/google", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idToken: "route-google-token", migrationGrant: grantBody.migrationGrant })
+    }), env);
+
+    const linked = await exchange();
+    expect(linked.status).toBe(200);
+    await expect(linked.json()).resolves.toMatchObject({ user: { id: "legacy-user-42" } });
+    expect(raw.ACCOUNT_IDENTITY_STORE.identityForGoogleSubject("route-google-sub")?.userId).toBe("legacy-user-42");
+
+    const replay = await exchange();
+    expect(replay.status).toBe(401);
+    await expect(replay.json()).resolves.toMatchObject({ error: "invalid_migration_grant" });
+  });
+
   it("links to the authenticated legacy user idempotently and preserves membership state", async () => {
     const raw = baseEnv();
     const membership = new InMemoryMembershipStore([{
@@ -80,7 +119,6 @@ describe("POST /v1/auth/google", () => {
     expect(second.status).toBe(200);
     const secondBody = await second.json() as { user: { id: string }; sessionToken: string };
     expect(secondBody.user.id).toBe("legacy-user-42");
-    expect(raw.ACCOUNT_IDENTITY_STORE.identityForGoogleSubject("route-google-sub")?.userId).toBe("legacy-user-42");
 
     const me = await worker.fetch(new Request("https://gateway.example/v1/me", {
       headers: { Authorization: `Bearer ${firstBody.sessionToken}` }
@@ -88,16 +126,8 @@ describe("POST /v1/auth/google", () => {
     expect(me.status).toBe(200);
     await expect(me.json()).resolves.toMatchObject({
       user: { id: "legacy-user-42" },
-      entitlement: {
-        plan: "PRO",
-        source: "billing",
-        expiresAt: "2026-12-31T00:00:00Z"
-      },
-      managedAiQuota: {
-        limit: 20,
-        used: 7,
-        remaining: 13
-      }
+      entitlement: { plan: "PRO", source: "billing", expiresAt: "2026-12-31T00:00:00Z" },
+      managedAiQuota: { limit: 20, used: 7, remaining: 13 }
     });
   });
 

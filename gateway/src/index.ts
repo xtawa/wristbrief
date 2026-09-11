@@ -32,6 +32,7 @@ import {
 } from "./billingServer";
 import {
   exchangeGoogleIdToken,
+  issueLegacyMigrationGrant,
   type AuthResult,
   type AuthServerEnv
 } from "./authServer";
@@ -59,6 +60,16 @@ export default {
     const url = new URL(request.url);
 
     if (request.method === "GET" && url.pathname === "/health") return respond({ ok: true });
+
+    if (request.method === "POST" && url.pathname === "/v1/auth/legacy-migration-grant") {
+      const legacyUser = authenticateGatewayUser(request, env);
+      if (!legacyUser) return respond({ error: "legacy_auth_required" }, 401);
+      try {
+        return respondAuth(await issueLegacyMigrationGrant(legacyUser.id, env));
+      } catch {
+        return respond({ error: "auth_unavailable" }, 503);
+      }
+    }
 
     if (request.method === "POST" && url.pathname === "/v1/auth/google") {
       const parsedBody = await readJsonBodyLimited<unknown>(request, MAX_AUTH_REQUEST_BYTES);

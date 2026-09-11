@@ -17,6 +17,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import kotlin.math.abs
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -221,6 +222,18 @@ class PodcastPlaybackServiceTest {
                 assertEquals(17_000L, configuredController.currentPosition)
                 assertEquals(1.75f, configuredController.playbackParameters.speed, 0.001f)
             }
+
+            val persistedBeforeStop = awaitStoredProgress(
+                store = progressStore,
+                episodeId = episodeId,
+                expectedPositionMs = 17_000L,
+                expectedPlaybackSpeed = 1.75f,
+                timeoutMs = 5_000L,
+            )
+            assertNotNull("Seek/speed were not persisted before service stop", persistedBeforeStop)
+            assertEquals(17_000L, persistedBeforeStop!!.positionMs)
+            assertEquals(1.75f, persistedBeforeStop.playbackSpeed, 0.001f)
+
             releaseController(configuredController)
             controller = null
 
@@ -229,9 +242,10 @@ class PodcastPlaybackServiceTest {
                 store = progressStore,
                 episodeId = episodeId,
                 expectedPositionMs = 17_000L,
+                expectedPlaybackSpeed = 1.75f,
                 timeoutMs = 5_000L,
             )
-            assertNotNull("Service stop did not persist podcast progress", saved)
+            assertNotNull("Service stop did not preserve podcast progress", saved)
             assertEquals(17_000L, saved!!.positionMs)
             assertEquals(1.75f, saved.playbackSpeed, 0.001f)
         } finally {
@@ -263,12 +277,15 @@ class PodcastPlaybackServiceTest {
         store: PodcastProgressStore,
         episodeId: String,
         expectedPositionMs: Long,
+        expectedPlaybackSpeed: Float? = null,
         timeoutMs: Long,
     ): PodcastEpisodeProgress? {
         val deadlineNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs)
         while (System.nanoTime() < deadlineNanos) {
             store.get(episodeId)?.let { progress ->
-                if (progress.positionMs == expectedPositionMs) return progress
+                val speedMatches = expectedPlaybackSpeed == null ||
+                    abs(progress.playbackSpeed - expectedPlaybackSpeed) < 0.001f
+                if (progress.positionMs == expectedPositionMs && speedMatches) return progress
             }
             Thread.sleep(50L)
         }

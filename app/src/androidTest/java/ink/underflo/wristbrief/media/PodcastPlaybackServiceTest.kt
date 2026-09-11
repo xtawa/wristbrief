@@ -112,17 +112,10 @@ class PodcastPlaybackServiceTest {
             val playingController = connectController(context)
             firstController = playingController
             val ready = CountDownLatch(1)
-            val playing = CountDownLatch(1)
             val listener = object : Player.Listener {
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     if (playbackState == Player.STATE_READY) {
                         ready.countDown()
-                    }
-                }
-
-                override fun onIsPlayingChanged(isPlaying: Boolean) {
-                    if (isPlaying) {
-                        playing.countDown()
                     }
                 }
             }
@@ -143,32 +136,36 @@ class PodcastPlaybackServiceTest {
                 playingController.seekTo(5_000L)
                 playingController.play()
             }
-            assertTrue("Local CI media did not enter active playback", playing.await(10, TimeUnit.SECONDS))
+            assertTrue(
+                "Local CI media did not make playback progress before reconnect",
+                awaitControllerState(playingController, timeoutMs = 5_000L) {
+                    it.currentMediaItem?.mediaId == "ci-active-episode" &&
+                        it.playWhenReady &&
+                        it.currentPosition >= 5_100L
+                }
+            )
 
             val positionBeforeReconnect = longArrayOf(0L)
             InstrumentationRegistry.getInstrumentation().runOnMainSync {
                 playingController.removeListener(listener)
-                assertTrue(playingController.playWhenReady)
-                assertTrue(playingController.isPlaying)
                 positionBeforeReconnect[0] = playingController.currentPosition
             }
             releaseController(playingController)
             firstController = null
 
             // No controller owns playback during this interval. The MediaSessionService should
-            // remain the owner and keep the player active until a new controller connects.
+            // remain the owner and keep the player progressing until a new controller connects.
             Thread.sleep(500L)
 
             val reconnectedController = connectController(context)
             secondController = reconnectedController
             assertTrue(
-                "Active service-owned playback did not stabilize after controller reconnect",
+                "Service-owned playback did not keep progressing across controller reconnect",
                 awaitControllerState(reconnectedController, timeoutMs = 5_000L) {
                     it.currentMediaItem?.mediaId == "ci-active-episode" &&
                         it.playbackState == Player.STATE_READY &&
                         it.playWhenReady &&
-                        it.isPlaying &&
-                        it.currentPosition >= positionBeforeReconnect[0]
+                        it.currentPosition >= positionBeforeReconnect[0] + 100L
                 }
             )
             InstrumentationRegistry.getInstrumentation().runOnMainSync {

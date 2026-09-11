@@ -21,7 +21,7 @@ Subsequent repository work has also completed the following foundations:
 - CI execution of Mobile instrumentation on a managed Android device and Wear instrumentation on both small-round and large-round Wear OS emulator profiles;
 - MainActivity recreation/resume smoke coverage for both Wear and Mobile, plus a Wear playback-service lifecycle smoke test across activity recreation/background-resume, executed by CI instrumentation jobs;
 - Wear navigation/state-restoration interaction coverage on the small-round profile at configured system font scale `1.30`, while retaining the large-round default-font profile;
-- an instrumented Media3 `MediaController` connection smoke test that verifies the non-exported `PodcastPlaybackService` can accept a controller connection without preparing media, with controller lifecycle operations kept on the Media3 application thread.
+- instrumented Media3 `MediaController` coverage that verifies the non-exported `PodcastPlaybackService` accepts controller connections and, with a locally generated prepared WAV fixture, preserves the current episode identity, 12-second seek position and 1.5× playback speed across controller disconnect/reconnect while the service remains alive. The fixture is local to CI and does not depend on external media networking.
 
 These repository implementations do not by themselves prove production deployment or the full physical-device interaction matrix.
 
@@ -41,7 +41,7 @@ Repository-controlled checks now include:
 - Wear JVM tests;
 - Wear debug assembly;
 - Wear debug instrumentation-test APK assembly;
-- Wear OS small-round emulator execution at system font scale `1.30`, including navigation/state-restoration and MediaSession-service controller smoke coverage;
+- Wear OS small-round emulator execution at system font scale `1.30`, including navigation/state-restoration and prepared-media MediaSession controller reconnect/state-continuity coverage;
 - Wear OS large-round emulator execution at the default font scale, including the same instrumentation suite;
 - Mobile JVM tests;
 - Mobile debug assembly;
@@ -52,9 +52,9 @@ Repository-controlled checks now include:
 - release manifest guard;
 - unsigned Wear/Mobile release APK + AAB assembly and artifact upload on `main` pushes.
 
-CI #309 verified the current suite on commit `ee53496219e7da31280b0ba007079c186a4527a6`: release guard, Gateway typecheck/Vitest, Wear and Mobile JVM/debug/instrumentation APK builds, unsigned release APK/AAB builds, Mobile managed-device instrumentation, and both Wear small-round (`1.30` font scale) and large-round instrumentation all completed successfully.
+CI #314 verified the current suite on commit `c2e8d2f97ba545c502b89f71c7d0c99eea031e87`: release guard, Gateway typecheck/Vitest, Wear and Mobile JVM/debug/instrumentation APK builds, unsigned release APK/AAB builds, Mobile managed-device instrumentation, and both Wear small-round (`1.30` font scale) and large-round instrumentation all completed successfully. The Wear suite now prepares a deterministic local WAV, seeks it to 12 seconds, applies 1.5× speed, disconnects the controller, reconnects, and verifies the service-owned MediaSession still exposes the same media identity, position and speed.
 
-These smoke suites prove launch/recreation/navigation, configured large-font layout interaction, and bounded MediaSession-service connection/lifecycle behavior on the configured CI devices. They do **not** substitute for rotary-input testing, active playback/audio-routing behavior, connectivity permutations, Tile/Complication interaction, Play validation, or the broader physical-device matrix below.
+These smoke suites prove launch/recreation/navigation, configured large-font layout interaction, MediaSession-service connection/lifecycle behavior, and prepared local-media controller reconnect state continuity on the configured CI devices. They do **not** substitute for rotary-input testing, continuously playing/audio-routing behavior, connectivity permutations, Tile/Complication interaction, Play validation, or the broader physical-device matrix below.
 
 ## Remaining external or execution-dependent release blockers
 
@@ -65,9 +65,9 @@ The following work remains intentionally unclaimed:
 - configure the actual Google Cloud Pub/Sub RTDN topic and authenticated push subscription, then exercise live push delivery against the configured production-like audience/service account;
 - execute the full Play lifecycle matrix: active, cancellation-with-time-remaining, grace period, account hold, expiration and revoke;
 - configure the established Play App Signing/upload-key path and upload a traceable AAB to the Play internal-testing track;
-- expand Android/Wear instrumentation beyond the current launch/recreation/navigation/service-connection smoke checks into additional deterministic interaction flows where practical;
+- expand Android/Wear instrumentation beyond the current launch/recreation/navigation/prepared-media checks into additional deterministic interaction flows where practical;
 - execute rotary-input checks on representative Wear profiles; CI now covers the small-round profile at system font scale `1.30` and the large-round size dimension, but it does not synthesize representative crown/rotary interaction;
-- exercise MediaSession during active playback, Bluetooth controls, noisy-route/audio-focus and persisted resume behavior on representative Wear hardware/emulators;
+- exercise MediaSession during continuously playing media, Bluetooth controls, noisy-route/audio-focus and persisted resume behavior on representative Wear hardware/emulators;
 - exercise paired phone↔Wear Data Layer flows across connected, disconnected and reconnected states;
 - verify Tile and complication launch/readability/update behavior on Wear OS.
 

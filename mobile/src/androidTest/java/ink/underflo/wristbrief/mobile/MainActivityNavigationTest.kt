@@ -16,7 +16,9 @@ class MainActivityNavigationTest {
 
     @Test
     fun membershipDestinationSurvivesActivityRecreation() {
-        composeRule.onNode(hasText("Membership", substring = false)).performClick()
+        composeRule.onNode(hasText("Skip", substring = false)).performClick()
+        composeRule.onNode(hasText("Start exploring", substring = false)).performClick()
+        composeRule.onNode(hasText("Account", substring = false)).performClick()
         composeRule.onNode(hasText("Plans and prices below come from Google Play.", substring = true)).assertIsDisplayed()
 
         composeRule.activityRule.scenario.recreate()

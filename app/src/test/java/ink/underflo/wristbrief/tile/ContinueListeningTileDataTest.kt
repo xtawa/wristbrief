@@ -4,6 +4,7 @@ import ink.underflo.wristbrief.data.CachedFeedItem
 import ink.underflo.wristbrief.media.PodcastEpisodeProgress
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ContinueListeningTileDataTest {
@@ -48,6 +49,20 @@ class ContinueListeningTileDataTest {
         requireNotNull(result)
         assertEquals("A very long podcast episode title that shou…", result.title)
         assertEquals("Resume 1:01:01 · 2×", result.resumeLabel)
+    }
+
+    @Test
+    fun compacts_without_splitting_supplementary_unicode() {
+        val compact = ("a".repeat(42) + "😀" + "tail").compactTileText()
+
+        assertEquals("a".repeat(42) + "😀…", compact)
+        assertEquals(44, compact.codePointCount(0, compact.length))
+        assertTrue(Character.isSurrogatePair(compact[42], compact[43]))
+    }
+
+    @Test
+    fun zero_budget_returns_empty_title() {
+        assertEquals("", "Podcast".compactTileText(maxCodePoints = 0))
     }
 
     private fun item(

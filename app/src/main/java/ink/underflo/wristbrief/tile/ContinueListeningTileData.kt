@@ -3,6 +3,8 @@ package ink.underflo.wristbrief.tile
 import ink.underflo.wristbrief.data.CachedFeedItem
 import ink.underflo.wristbrief.media.PodcastEpisodeProgress
 
+private const val MAX_CONTINUE_TILE_TITLE_CODE_POINTS = 44
+
 data class ContinueListeningTileData(
     val episodeId: String,
     val title: String,
@@ -30,10 +32,13 @@ internal fun mapContinueListeningTileData(
     )
 }
 
-private fun String.compactTileText(maxChars: Int = 44): String {
+internal fun String.compactTileText(maxCodePoints: Int = MAX_CONTINUE_TILE_TITLE_CODE_POINTS): String {
+    if (maxCodePoints <= 0) return ""
     val normalized = trim().replace(Regex("\\s+"), " ")
-    if (normalized.length <= maxChars) return normalized
-    return normalized.take((maxChars - 1).coerceAtLeast(0)).trimEnd() + "…"
+    val codePointCount = normalized.codePointCount(0, normalized.length)
+    if (codePointCount <= maxCodePoints) return normalized
+    val endIndex = normalized.offsetByCodePoints(0, maxCodePoints - 1)
+    return normalized.substring(0, endIndex).trimEnd() + "…"
 }
 
 private fun formatResumeTime(positionMs: Long): String {

@@ -4,6 +4,7 @@ import ink.underflo.wristbrief.data.CachedFeedItem
 import ink.underflo.wristbrief.data.FeedSubscription
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class UnreadComplicationDataTest {
@@ -52,6 +53,20 @@ class UnreadComplicationDataTest {
 
         assertEquals("99+", snapshot.shortText)
         assertEquals("A very long headline that s…", snapshot.latestTitle)
+    }
+
+    @Test
+    fun title_compaction_preserves_supplementary_unicode_at_boundary() {
+        val compact = ("a".repeat(26) + "😀" + "tail").compactComplicationText()
+
+        assertEquals("a".repeat(26) + "😀…", compact)
+        assertEquals(28, compact.codePointCount(0, compact.length))
+        assertTrue(Character.isSurrogatePair(compact[26], compact[27]))
+    }
+
+    @Test
+    fun zero_budget_returns_empty_text() {
+        assertEquals("", "headline".compactComplicationText(maxCodePoints = 0))
     }
 
     private fun item(id: String, feedId: String, title: String, cachedAt: Long) = CachedFeedItem(

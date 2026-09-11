@@ -36,8 +36,11 @@ internal fun buildUnreadComplicationSnapshot(
     )
 }
 
-internal fun String.compactComplicationText(maxChars: Int = 28): String {
+internal fun String.compactComplicationText(maxCodePoints: Int = 28): String {
+    if (maxCodePoints <= 0) return ""
     val normalized = trim().replace(Regex("\\s+"), " ")
-    if (normalized.length <= maxChars) return normalized
-    return normalized.take((maxChars - 1).coerceAtLeast(0)).trimEnd() + "…"
+    val codePointCount = normalized.codePointCount(0, normalized.length)
+    if (codePointCount <= maxCodePoints) return normalized
+    val endIndex = normalized.offsetByCodePoints(0, maxCodePoints - 1)
+    return normalized.substring(0, endIndex).trimEnd() + "…"
 }

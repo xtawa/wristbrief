@@ -179,6 +179,68 @@ class PodcastPlaybackServiceTest {
         }
     }
 
+    @Test
+    fun orderlyServiceStopPersistsPreparedEpisodePositionAndSpeed() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val serviceIntent = Intent(context, PodcastPlaybackService::class.java)
+        val mediaFile = createSilentWav(context, durationSeconds = 60)
+        val episodeId = "ci-service-stop-episode"
+        val progressStore = SharedPreferencesPodcastProgressStore(context)
+        progressStore.save(PodcastEpisodeProgress(episodeId, positionMs = 0L, playbackSpeed = 1f))
+        context.startService(serviceIntent)
+
+        var controller: MediaController? = null
+        try {
+            val configuredController = connectController(context)
+            controller = configuredController
+            val ready = CountDownLatch(1)
+            val listener = object : Player.Listener {
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    if (playbackState == Player.STATE_READY) {
+                        ready.countDown()
+                    }
+                }
+            }
+
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                configuredController.addListener(listener)
+                configuredController.setMediaItem(
+                    MediaItem.Builder()
+                        .setMediaId(episodeId)
+                        .setUri(Uri.fromFile(mediaFile))
+                        .build()
+                )
+                configuredController.prepare()
+            }
+            assertTrue("Local CI media did not reach STATE_READY", ready.await(10, TimeUnit.SECONDS))
+
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                configuredController.removeListener(listener)
+                configuredController.seekTo(17_000L)
+                configuredController.playbackParameters = PlaybackParameters(1.75f)
+                assertEquals(17_000L, configuredController.currentPosition)
+                assertEquals(1.75f, configuredController.playbackParameters.speed, 0.001f)
+            }
+            releaseController(configuredController)
+            controller = null
+
+            assertTrue("Started playback service could not be stopped", context.stopService(serviceIntent))
+            val saved = awaitStoredProgress(
+                store = progressStore,
+                episodeId = episodeId,
+                expectedPositionMs = 17_000L,
+                timeoutMs = 5_000L,
+            )
+            assertNotNull("Service stop did not persist podcast progress", saved)
+            assertEquals(17_000L, saved!!.positionMs)
+            assertEquals(1.75f, saved.playbackSpeed, 0.001f)
+        } finally {
+            controller?.let(::releaseController)
+            context.stopService(serviceIntent)
+            mediaFile.delete()
+        }
+    }
+
     private fun connectController(context: Context): MediaController {
         val token = SessionToken(
             context,
@@ -195,6 +257,22 @@ class PodcastPlaybackServiceTest {
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             controller.release()
         }
+    }
+
+    private fun awaitStoredProgress(
+        store: PodcastProgressStore,
+        episodeId: String,
+        expectedPositionMs: Long,
+        timeoutMs: Long,
+    ): PodcastEpisodeProgress? {
+        val deadlineNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs)
+        while (System.nanoTime() < deadlineNanos) {
+            store.get(episodeId)?.let { progress ->
+                if (progress.positionMs == expectedPositionMs) return progress
+            }
+            Thread.sleep(50L)
+        }
+        return store.get(episodeId)
     }
 
     private fun createSilentWav(context: Context, durationSeconds: Int = 15): File {

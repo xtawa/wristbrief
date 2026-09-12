@@ -4,9 +4,41 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
+    "deploy": "wrangler deploy --x-provision --x-auto-create --keep-vars && npm run db:migrations:apply",
+    "db:migrations:apply": "wrangler d1 migrations apply ACCOUNT_DB --remote",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
+  },
+  "cloudflare": {
+    "bindings": {
+      "AI_API_KEY": {
+        "description": "Required AI provider API key. Add it as a Cloudflare Worker secret or provide it in gateway/.env.cloudflare.local."
+      },
+      "GOOGLE_OAUTH_CLIENT_ID": {
+        "description": "Optional Google OAuth client ID used by the identity verifier."
+      },
+      "GATEWAY_TOKEN": {
+        "description": "Optional legacy gateway token; use a high-entropy value and store it only as a Cloudflare Worker secret."
+      },
+      "GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL": {
+        "description": "Google Play service-account email for purchase verification."
+      },
+      "GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY": {
+        "description": "Google Play service-account private key for purchase verification; keep it only in Cloudflare Worker secrets."
+      },
+      "PUBSUB_PUSH_SERVICE_ACCOUNT_EMAIL": {
+        "description": "Expected Google service-account email for authenticated Play RTDN Pub/Sub pushes."
+      },
+      "PUBSUB_PUSH_AUDIENCE": {
+        "description": "HTTPS audience configured on the authenticated Play RTDN Pub/Sub push subscription."
+      },
+      "PLAY_PACKAGE_NAME": {
+        "description": "Android application package name used by Google Play purchase verification."
+      },
+      "PLAY_SUBSCRIPTION_PRODUCT_IDS": {
+        "description": "Comma-separated Google Play subscription product IDs accepted by the gateway."
+      }
+    }
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20260906.1",

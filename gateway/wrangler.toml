@@ -1,6 +1,7 @@
 name = "wristbrief-gateway"
 main = "src/index.ts"
 compatibility_date = "2026-02-01"
+keep_vars = true
 [vars]
 AI_MODEL = "gpt-5-mini"
 AI_BASE_URL = "https://api.openai.com/v1"
@@ -8,7 +9,7 @@ AI_BASE_URL = "https://api.openai.com/v1"
 [[d1_databases]]
 binding = "ACCOUNT_DB"
 database_name = "wristbrief-account-db"
-database_id = "wristbrief-account-db-id"
+# Leave database_id unset so Wrangler can find or provision this database by name.
 migrations_dir = "migrations"
 
 [[r2_buckets]]

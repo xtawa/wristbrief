@@ -26,7 +26,21 @@ Configure through the deployment platform's secret/binding system:
 7. Point the push subscription at the gateway RTDN route.
 8. Verify that RTDN processing re-queries Play before updating entitlement.
 
-## Cloudflare persistence
+## Cloudflare persistence and automated deployment
+
+`gateway/wrangler.toml` declares the D1 database, R2 bucket, and Queue by stable names. `scripts/deploy_gateway.ps1` invokes Wrangler's beta automatic resource provisioning, so a first run can create missing resources and later runs reuse them. Review the account and expected billing before the first real run. The script also applies pending remote D1 migrations and preserves Dashboard variables through `keep_vars = true`.
+
+From the repository root:
+
+```powershell
+Copy-Item gateway/.env.cloudflare.example gateway/.env.cloudflare.local
+# Fill gateway/.env.cloudflare.local locally; it is ignored by Git.
+.\scripts\deploy_gateway.ps1 -HealthUrl "https://api.example.com"
+```
+
+The script does not delete resources. `-SkipMigrations`, `-SkipSecrets`, and `-SkipProvisioning` are explicit opt-outs; use them only when the corresponding remote state is already prepared. Cloudflare credentials and provider/Google Play values remain operator-supplied inputs and are never generated or committed by the script.
+
+For Workers Builds, set the root directory to `gateway`. Its `package.json` deploy command provisions the Worker and then applies `ACCOUNT_DB` migrations. A successful local typecheck or Vitest run is not production or real-device proof; verify the deployed `/health` endpoint separately.
 
 Apply reviewed D1 migrations before enabling persistent membership/billing state. Add a unique purchase-token-hash ownership constraint before production billing launch. KV may be used only for generated-summary caching, never for credentials or raw purchase tokens.
 

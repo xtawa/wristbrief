@@ -3,7 +3,12 @@ param(
     [switch]$SkipInstall,
     [switch]$SkipLogin,
     [switch]$SkipMigrations,
+    [switch]$SkipSecrets,
+    [switch]$SkipProvisioning,
     [switch]$SkipTypecheck,
+    [switch]$InteractiveMigrations,
+    [switch]$DryRun,
+    [string]$SecretsFile,
     [string]$HealthUrl
 )
 
@@ -25,23 +30,100 @@ function Resolve-Tool {
     return $command.Path
 }
 
+function Get-ConfigValue {
+    param(
+        [Parameter(Mandatory)][string]$Text,
+        [Parameter(Mandatory)][string]$Key
+    )
+
+    $pattern = '(?m)^\s*' + [regex]::Escape($Key) + '\s*=\s*"([^"]*)"\s*$'
+    $match = [regex]::Match($Text, $pattern)
+    if (-not $match.Success) {
+        return $null
+    }
+    return $match.Groups[1].Value.Trim()
+}
+
 function Invoke-GatewayCommand {
     param(
         [Parameter(Mandatory)][string]$CommandPath,
-        [Parameter()][string[]]$Arguments = @()
+        [Parameter()][string[]]$Arguments = @(),
+        [Parameter()][hashtable]$EnvironmentOverrides = @{}
     )
 
+    $previousEnvironment = @{}
     Push-Location -LiteralPath $gatewayRoot
     try {
+        foreach ($entry in $EnvironmentOverrides.GetEnumerator()) {
+            $name = [string]$entry.Key
+            $previousEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, "Process")
+            [Environment]::SetEnvironmentVariable($name, [string]$entry.Value, "Process")
+        }
+
         & $CommandPath @Arguments
-        if ($LASTEXITCODE -ne 0) {
+        $exitCode = $LASTEXITCODE
+        if ($exitCode -ne 0) {
             $rendered = $Arguments -join " "
-            throw "Command failed ($LASTEXITCODE): $CommandPath $rendered"
+            throw "Command failed ($exitCode): $CommandPath $rendered"
         }
     }
     finally {
+        foreach ($entry in $previousEnvironment.GetEnumerator()) {
+            [Environment]::SetEnvironmentVariable($entry.Key, $entry.Value, "Process")
+        }
         Pop-Location
     }
+}
+
+function Invoke-RemoteMigrations {
+    param(
+        [Parameter(Mandatory)][string]$NpxPath,
+        [Parameter(Mandatory)][bool]$PromptBeforeApply
+    )
+
+    Write-Step "Applying pending remote D1 migrations"
+    $migrationArguments = @(
+        "wrangler",
+        "d1",
+        "migrations",
+        "apply",
+        "ACCOUNT_DB",
+        "--remote",
+        "--config",
+        "wrangler.toml"
+    )
+    if ($PromptBeforeApply) {
+        Write-Host "Wrangler will ask for confirmation before changing the remote database." -ForegroundColor Yellow
+        Invoke-GatewayCommand $NpxPath $migrationArguments
+    }
+    else {
+        Write-Host "Automatic migration confirmation is enabled (CI=1). Use -InteractiveMigrations to prompt." -ForegroundColor Yellow
+        Invoke-GatewayCommand $NpxPath $migrationArguments @{ CI = "1" }
+    }
+}
+
+function Resolve-SecretsFile {
+    param([string]$RequestedPath)
+
+    if (-not [string]::IsNullOrWhiteSpace($RequestedPath)) {
+        $candidate = if ([IO.Path]::IsPathRooted($RequestedPath)) {
+            $RequestedPath
+        }
+        else {
+            Join-Path (Get-Location) $RequestedPath
+        }
+
+        if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) {
+            throw "Secrets file was not found: $candidate"
+        }
+        return (Resolve-Path -LiteralPath $candidate).Path
+    }
+
+    $defaultPath = Join-Path $gatewayRoot ".env.cloudflare.local"
+    if (Test-Path -LiteralPath $defaultPath -PathType Leaf) {
+        return (Resolve-Path -LiteralPath $defaultPath).Path
+    }
+    return $null
 }
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -57,26 +139,52 @@ if (-not (Test-Path -LiteralPath $migrationsPath -PathType Container)) {
 }
 
 $config = Get-Content -LiteralPath $configPath -Raw
-if ($config -notmatch '(?m)^\s*name\s*=\s*"wristbrief-gateway"\s*$') {
+$workerName = Get-ConfigValue $config "name"
+if ($workerName -ne "wristbrief-gateway") {
     throw "wrangler.toml must deploy the wristbrief-gateway Worker."
 }
 
-$databaseIdMatch = [regex]::Match($config, '(?m)^\s*database_id\s*=\s*"([^"]+)"\s*$')
-if (-not $databaseIdMatch.Success) {
-    throw "wrangler.toml is missing a D1 database_id. Create the D1 database first."
+$databaseName = Get-ConfigValue $config "database_name"
+if ([string]::IsNullOrWhiteSpace($databaseName)) {
+    throw "wrangler.toml must define a D1 database_name for ACCOUNT_DB."
 }
 
-$databaseId = $databaseIdMatch.Groups[1].Value.Trim()
-if ([string]::IsNullOrWhiteSpace($databaseId) -or $databaseId -match 'wristbrief-account-db-id|placeholder|<|>') {
-    throw "Replace the placeholder D1 database_id in gateway/wrangler.toml before deploying."
+$databaseId = Get-ConfigValue $config "database_id"
+if (-not [string]::IsNullOrWhiteSpace($databaseId) -and $databaseId -match 'wristbrief-account-db-id|placeholder|<|>') {
+    throw "The D1 database_id is still a placeholder. Pull the latest gateway/wrangler.toml so Wrangler can provision by database_name."
+}
+
+$r2BucketName = Get-ConfigValue $config "bucket_name"
+if ([string]::IsNullOrWhiteSpace($r2BucketName)) {
+    throw "wrangler.toml must define an R2 bucket_name for TRANSCRIPTS_BUCKET."
+}
+
+$queueName = Get-ConfigValue $config "queue"
+if ([string]::IsNullOrWhiteSpace($queueName)) {
+    throw "wrangler.toml must define a Queue name for TRANSCRIPT_QUEUE."
 }
 
 $npm = Resolve-Tool "npm"
 $npx = Resolve-Tool "npx"
+$resolvedSecretsFile = if ($SkipSecrets) { $null } else { Resolve-SecretsFile $SecretsFile }
+$databaseNeedsProvisioning = [string]::IsNullOrWhiteSpace($databaseId)
+
+if ($DryRun -and -not [string]::IsNullOrWhiteSpace($HealthUrl)) {
+    throw "-DryRun cannot be combined with -HealthUrl because no deployment is made."
+}
 
 Write-Host "WristBrief Gateway deploy" -ForegroundColor Green
 Write-Host "Repository: $repoRoot"
-Write-Host "D1 database ID: $databaseId"
+Write-Host "Worker: $workerName"
+Write-Host "D1: $databaseName$(if ($databaseNeedsProvisioning) { ' (auto-provision by name)' } else { " (ID $databaseId)" })"
+Write-Host "R2: $r2BucketName"
+Write-Host "Queue: $queueName"
+if ($resolvedSecretsFile) {
+    Write-Host "Secrets: local file selected (values will not be printed)"
+}
+else {
+    Write-Warning "No local secrets file selected. Deployment continues, but AI/billing/auth routes need Cloudflare Secrets configured separately."
+}
 
 if (-not $SkipInstall) {
     Write-Step "Installing gateway dependencies"
@@ -105,26 +213,64 @@ if (-not $SkipLogin) {
     }
 }
 
-if (-not $SkipMigrations) {
-    Write-Step "Applying pending remote D1 migrations"
-    Write-Host "Wrangler will ask for confirmation before changing the remote database." -ForegroundColor Yellow
+if (-not $DryRun -and -not $SkipMigrations -and -not $databaseNeedsProvisioning) {
+    Invoke-RemoteMigrations $npx $InteractiveMigrations.IsPresent
+}
+elseif ($SkipMigrations) {
+    Write-Warning "D1 migrations were skipped. Deploy only if the remote schema is already current."
+}
+elseif ($DryRun) {
+    Write-Host "Dry run: remote migrations and secret uploads are skipped." -ForegroundColor Yellow
+}
+
+Write-Step "Provisioning declared Cloudflare resources and deploying Worker"
+$deployArguments = @(
+    "wrangler",
+    "deploy",
+    "--config",
+    "wrangler.toml",
+    "--keep-vars"
+)
+if ($DryRun) {
+    $deployArguments += "--dry-run"
+}
+if ($SkipProvisioning) {
+    $deployArguments += "--no-x-provision"
+    Write-Warning "Automatic resource provisioning was disabled. Existing bindings must already be connected."
+}
+else {
+    $deployArguments += @("--x-provision", "--x-auto-create")
+    Write-Host "Wrangler will find or create the configured D1, R2, and Queue resources by name." -ForegroundColor Yellow
+}
+Invoke-GatewayCommand $npx $deployArguments
+
+if ($resolvedSecretsFile -and -not $DryRun) {
+    Write-Step "Uploading Cloudflare Worker secrets from the local file"
     Invoke-GatewayCommand $npx @(
         "wrangler",
-        "d1",
-        "migrations",
-        "apply",
-        "wristbrief-account-db",
-        "--remote",
+        "secret",
+        "bulk",
+        $resolvedSecretsFile,
+        "--name",
+        $workerName,
         "--config",
         "wrangler.toml"
     )
 }
-else {
-    Write-Warning "D1 migrations were skipped. Deploy only if the remote schema is already current."
+
+if (-not $DryRun -and -not $SkipMigrations -and $databaseNeedsProvisioning) {
+    Write-Host "The D1 binding was auto-provisioned during deploy; migrations run now against ACCOUNT_DB." -ForegroundColor Yellow
+    Invoke-RemoteMigrations $npx $InteractiveMigrations.IsPresent
 }
 
-Write-Step "Deploying Worker to Cloudflare"
-Invoke-GatewayCommand $npx @("wrangler", "deploy", "--config", "wrangler.toml")
+$updatedConfig = Get-Content -LiteralPath $configPath -Raw
+$updatedDatabaseId = Get-ConfigValue $updatedConfig "database_id"
+if (-not [string]::IsNullOrWhiteSpace($updatedDatabaseId)) {
+    Write-Host "D1 database linked: $updatedDatabaseId" -ForegroundColor Green
+    if ($updatedConfig -ne $config) {
+        Write-Host "Wrangler wrote the provisioned resource ID back to gateway/wrangler.toml; review and commit that non-secret change if desired." -ForegroundColor Yellow
+    }
+}
 
 if (-not [string]::IsNullOrWhiteSpace($HealthUrl)) {
     $healthTarget = $HealthUrl.Trim().TrimEnd("/")
@@ -151,7 +297,12 @@ if (-not [string]::IsNullOrWhiteSpace($HealthUrl)) {
     }
 }
 else {
-    Write-Host "Deployment completed. Pass -HealthUrl https://<domain> to run /health automatically." -ForegroundColor Green
+    if ($DryRun) {
+        Write-Host "Dry run completed. No Cloudflare resources, secrets, migrations, or Worker deployment were changed." -ForegroundColor Green
+    }
+    else {
+        Write-Host "Deployment completed. Pass -HealthUrl https://<domain> to run /health automatically." -ForegroundColor Green
+    }
 }
 
 Write-Host "`nNote: the repository currently declares a Queue producer but does not include a transcript Queue consumer." -ForegroundColor Yellow

@@ -8,11 +8,27 @@ import { TranscriptService } from "./transcriptService";
 import { InMemoryTranscriptStorage } from "./transcriptStorage";
 import { type TranscriptRequestInput } from "./transcriptTypes";
 
+class FailingCreateJobStore extends D1ArtifactStore {
+  override async createJob(): Promise<never> {
+    throw new Error("create_job_failed");
+  }
+}
+
+class FailingTextStorage extends InMemoryTranscriptStorage {
+  private writes = 0;
+
+  override async put(key: string, data: string, contentType?: string): Promise<void> {
+    this.writes += 1;
+    if (this.writes === 2) throw new Error("storage_write_failed");
+    await super.put(key, data);
+  }
+}
+
 describe("TranscriptService, Shared Cache & 1/5 Quota", () => {
   it("executes complete lifecycle: 1.0x generation, 0.2x shared cache hit, 0x reopen, and single-flight dedup", async () => {
     const { d1 } = createMigratedTestDb();
     const contentStore = new D1ContentStore(d1);
-    const contentResolver = new ContentResolver(contentStore);
+    const contentResolver = new ContentResolver(contentStore, { publicReuseHosts: ["example.com"] });
     const artifactStore = new D1ArtifactStore(d1);
     const quotaStore = new D1QuotaLedgerStore(d1);
 
@@ -100,5 +116,73 @@ describe("TranscriptService, Shared Cache & 1/5 Quota", () => {
       expect(resBReopen.quota.multiplier).toBe(0);
       expect(resBReopen.quota.chargedUnits).toBe(0);
     }
+  });
+
+  it("releases a generation reservation when job creation fails", async () => {
+    const { d1 } = createMigratedTestDb();
+    const contentResolver = new ContentResolver(new D1ContentStore(d1));
+    const artifactStore = new FailingCreateJobStore(d1);
+    const quotaStore = new D1QuotaLedgerStore(d1);
+    const service = new TranscriptService(contentResolver, artifactStore, quotaStore);
+
+    await expect(service.requestTranscript("usr_fail", {
+      episode: { audioUrl: "https://cdn.example.com/fail.mp3", durationMs: 60000 }
+    })).rejects.toThrow("create_job_failed");
+
+    const tx = await d1.prepare("SELECT status FROM credit_transactions LIMIT 1").first<{ status: string }>();
+    expect(tx?.status).toBe("RELEASED");
+  });
+
+  it("can retry a failed queued job without violating the dedupe unique key", async () => {
+    const { d1 } = createMigratedTestDb();
+    const contentResolver = new ContentResolver(new D1ContentStore(d1));
+    const artifactStore = new D1ArtifactStore(d1);
+    const quotaStore = new D1QuotaLedgerStore(d1);
+    const failingQueue = { send: async () => { throw new Error("queue_down"); } } as unknown as Queue;
+    const first = new TranscriptService(contentResolver, artifactStore, quotaStore, { TRANSCRIPT_QUEUE: failingQueue });
+
+    await expect(first.requestTranscript("usr_retry", {
+      episode: { audioUrl: "https://cdn.example.com/retry.mp3", durationMs: 60000 }
+    })).rejects.toThrow("queue_down");
+
+    const second = new TranscriptService(contentResolver, artifactStore, quotaStore);
+    const retry = await second.requestTranscript("usr_retry", {
+      episode: { audioUrl: "https://cdn.example.com/retry.mp3", durationMs: 60000 }
+    });
+    expect(retry.status).toBe("processing");
+    if (retry.status === "processing") {
+      const job = await artifactStore.getJobById(retry.jobId);
+      expect(job?.status).toBe("queued");
+      expect(job?.attemptCount).toBe(2);
+    }
+  });
+
+  it("cleans partial transcript storage and releases quota when finalization fails", async () => {
+    const { d1 } = createMigratedTestDb();
+    const contentResolver = new ContentResolver(new D1ContentStore(d1));
+    const artifactStore = new D1ArtifactStore(d1);
+    const quotaStore = new D1QuotaLedgerStore(d1);
+    const service = new TranscriptService(contentResolver, artifactStore, quotaStore);
+    const requested = await service.requestTranscript("usr_storage", {
+      sharePolicy: "PRIVATE_ACCOUNT",
+      episode: { audioUrl: "https://cdn.example.com/storage-fail.mp3", durationMs: 60000 }
+    });
+    if (requested.status !== "processing") throw new Error("expected processing response");
+
+    const storage = new FailingTextStorage();
+    await expect(service.completeJobWithArtifact(requested.jobId, {
+      schemaVersion: "1",
+      contentCode: requested.contentCode,
+      language: "en",
+      durationMs: 60000,
+      fullText: "hello",
+      segments: [{ id: 1, startMs: 0, endMs: 1000, text: "hello" }]
+    }, storage)).rejects.toThrow("storage_write_failed");
+
+    expect(await storage.get(`transcripts/${(await new D1ContentStore(d1).findByContentCode(requested.contentCode))?.id}/en/1/transcript.json`)).toBeNull();
+    const job = await artifactStore.getJobById(requested.jobId);
+    expect(job?.status).toBe("failed");
+    const tx = await quotaStore.findByReference("usr_storage", "transcript_generation", requested.jobId);
+    expect(tx?.status).toBe("RELEASED");
   });
 });

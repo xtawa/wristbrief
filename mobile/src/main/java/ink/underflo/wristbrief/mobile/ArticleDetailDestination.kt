@@ -3,6 +3,10 @@ package ink.underflo.wristbrief.mobile
 import android.content.Intent
 import android.net.Uri
 import ink.underflo.wristbrief.mobile.ui.BackIconButton
+import ink.underflo.wristbrief.mobile.ui.AppIcon
+import ink.underflo.wristbrief.mobile.ui.AppIconKind
+import ink.underflo.wristbrief.mobile.ui.glass.GlassHeader
+import ink.underflo.wristbrief.mobile.ui.glass.GlassTokens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
@@ -22,13 +27,13 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -63,6 +68,7 @@ internal fun ArticleDetailDestination(
     onOpenTranscript: ((MobileFeedItem) -> Unit)? = null,
     articleRepository: ink.underflo.wristbrief.mobile.articles.ArticleRepository? = null,
     articleImageLoader: coil.ImageLoader? = null,
+    darkTheme: Boolean = androidx.compose.foundation.isSystemInDarkTheme(),
 ) {
     val context = LocalContext.current
     var isRead by remember(item.id) { mutableStateOf(inboxRepository.isRead(item.id)) }
@@ -76,14 +82,20 @@ internal fun ArticleDetailDestination(
     var articleDocument by remember(item.id) {
         mutableStateOf<ink.underflo.wristbrief.mobile.articles.ArticleDocument?>(null)
     }
+    var articleLoading by remember(item.id) { mutableStateOf(false) }
     LaunchedEffect(item.id) {
         if (articleDocument == null) {
-            articleDocument = articleRepository?.loadArticle(
-                url = item.link,
-                rssContent = item.description,
-                title = item.title,
-                sourceName = item.feedTitle,
-            )
+            articleLoading = true
+            try {
+                articleDocument = articleRepository?.loadArticle(
+                    url = item.link,
+                    rssContent = item.description,
+                    title = item.title,
+                    sourceName = item.feedTitle,
+                )
+            } finally {
+                articleLoading = false
+            }
         }
     }
 
@@ -102,8 +114,9 @@ internal fun ArticleDetailDestination(
     val document = articleDocument
     val bodyPlainText = document?.plainText()?.takeIf { it.isNotBlank() } ?: sanitized.plainText
 
-    val readingTime = remember(sanitized.readingTimeMinutes) {
-        ArticleContentSanitizer.formatReadingTime(sanitized.readingTimeMinutes, Locale.getDefault())
+    val readingTime = remember(bodyPlainText) {
+        val minutes = ArticleContentSanitizer.sanitize(bodyPlainText).readingTimeMinutes
+        ArticleContentSanitizer.formatReadingTime(minutes, Locale.getDefault())
     }
 
     fun openBrowser() {
@@ -129,60 +142,74 @@ internal fun ArticleDetailDestination(
     }
 
     Scaffold(
+        containerColor = GlassTokens.canvas(darkTheme),
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = item.feedTitle,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Medium,
-                    )
-                },
-                navigationIcon = {
-                    BackIconButton(onClick = onBack)
-                },
+            GlassHeader(
+                title = item.feedTitle,
+                subtitle = stringResource(R.string.article_reader_label),
+                navigationIcon = { BackIconButton(onClick = onBack) },
                 actions = {
-                    TextButton(onClick = {
-                        val next = !isSaved
-                        inboxRepository.setSaved(item.id, next)
-                        isSaved = next
-                    }) {
-                        Text(stringResource(if (isSaved) R.string.action_saved else R.string.action_save))
+                    val saveLabel = stringResource(if (isSaved) R.string.action_saved else R.string.action_save)
+                    androidx.compose.material3.IconButton(
+                        onClick = {
+                            val next = !isSaved
+                            inboxRepository.setSaved(item.id, next)
+                            isSaved = next
+                        },
+                        modifier = Modifier.semantics { contentDescription = saveLabel },
+                    ) {
+                        AppIcon(
+                            kind = if (isSaved) AppIconKind.BookmarkFilled else AppIconKind.Bookmark,
+                            modifier = Modifier.size(22.dp),
+                            tint = GlassTokens.textPrimary(darkTheme),
+                        )
                     }
                 },
             )
         },
         bottomBar = {
             Surface(
-                color = MaterialTheme.colorScheme.surfaceContainer,
-                tonalElevation = 3.dp,
+                color = GlassTokens.surfaceGlassStrong(darkTheme),
+                shadowElevation = 8.dp,
+                tonalElevation = 2.dp,
             ) {
                 Box(
                     modifier = Modifier.fillMaxWidth(),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Row(
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .widthIn(max = 840.dp)
                             .padding(horizontal = 16.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = {
-                                val next = !isRead
-                                inboxRepository.setRead(item.id, next)
-                                isRead = next
-                            }) {
+                        Button(
+                            onClick = { onAskAi(item.title, bodyPlainText.ifBlank { item.title }) },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(stringResource(R.string.action_ask_ai))
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    val next = !isRead
+                                    inboxRepository.setRead(item.id, next)
+                                    isRead = next
+                                },
+                                modifier = Modifier.weight(1f),
+                            ) {
                                 Text(stringResource(if (isRead) R.string.action_mark_unread else R.string.action_mark_read))
                             }
-                            OutlinedButton(onClick = ::shareArticle) {
+                            OutlinedButton(
+                                onClick = ::shareArticle,
+                                modifier = Modifier.weight(1f),
+                            ) {
                                 Text(stringResource(R.string.action_share))
                             }
-                        }
-                        Button(onClick = { onAskAi(item.title, bodyPlainText.ifBlank { item.title }) }) {
-                            Text(stringResource(R.string.action_ask_ai))
                         }
                     }
                 }
@@ -311,6 +338,17 @@ internal fun ArticleDetailDestination(
                             }
                         },
                     )
+                }
+            } else if (articleLoading) {
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        Text(
+                            text = stringResource(R.string.article_loading),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             } else if (sanitized.paragraphs.isNotEmpty()) {
                 items(sanitized.paragraphs) { paragraph ->

@@ -1,0 +1,277 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"><title>WristBrief</title><link href="https://fonts.googleapis.com" rel="preconnect"><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"><link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,300;400;500;600;700&amp;display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { colors: { "primary-container": "#C8E6FF", "surface-bright": "#f8f9fa", "tertiary": "#42474c", "tertiary-fixed": "#dfe3e8", "on-secondary-container": "#0d6d79", "on-tertiary-fixed-variant": "#42474c", "outline": "#73777F", "on-surface-variant": "#43474E", "semantic-warning": "#8C5000", "on-primary-container": "#b3deff", "glass-border": "rgba(0, 0, 0, 0.06)", "semantic-error": "#BA1A1A", "surface-dim": "#d9dadb", "secondary-fixed-dim": "#85d2e0", "surface-container": "#edeeef", "primary-fixed-dim": "#88ceff", "on-error-container": "#93000a", "on-surface": "#191c1d", "primary": "#004c6e", "secondary-container": "#9fecfa", "error": "#ba1a1a", "surface-container-low": "#f3f4f5", "surface-container-lowest": "#ffffff", "surface-container-highest": "#e1e3e4", "on-background": "#191c1d", "on-tertiary": "#ffffff", "error-container": "#ffdad6", "surface-tint": "#006590", "outline-variant": "rgba(0, 0, 0, 0.06)", "tertiary-container": "#5a5f63", "on-secondary-fixed-variant": "#004f58", "inverse-on-surface": "#f0f1f2", "surface": "#F8F9FA", "inverse-primary": "#88ceff", "on-secondary": "#ffffff", "on-tertiary-container": "#d5d9de", "surface-variant": "#e1e3e4", "secondary-fixed": "#a2effd", "on-primary": "#ffffff", "semantic-success": "#1B6C43", "glass-surface": "rgba(255, 255, 255, 0.78)", "background": "#f8f9fa", "surface-container-high": "#e7e8e9", "inverse-surface": "#2e3132", "tertiary-fixed-dim": "#c2c7cc", "on-primary-fixed": "#001e2e", "secondary": "#016874", "on-error": "#ffffff", "primary-fixed": "#c8e6ff", "on-primary-fixed-variant": "#004c6d", "on-secondary-fixed": "#001f24", "on-tertiary-fixed": "#171c20" }, borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, spacing: { "space-lg": "1.5rem", "space-xs": "0.25rem", "space-sm": "0.5rem", "margin-tablet": "2rem", "space-md": "1rem", "gutter": "1rem", "space-xl": "2rem", "gutter-tablet": "1.5rem", "margin": "1.25rem" }, fontFamily: { "display-lg": ["Roboto Flex"], "label-md": ["Roboto Flex"], "title-lg": ["Roboto Flex"], "label-lg": ["Roboto Flex"], "body-md": ["Roboto Flex"], "headline-lg": ["Roboto Flex"], "headline-lg-mobile": ["Roboto Flex"], "body-sm": ["Roboto Flex"], "display-lg-mobile": ["Roboto Flex"], "body-lg": ["Roboto Flex"], "label-sm": ["Roboto Flex"], "headline-md": ["Roboto Flex"], "title-md": ["Roboto Flex"] }, fontSize: { "display-lg": ["40px", { lineHeight: "48px", letterSpacing: "-0.02em", fontWeight: "700" }], "label-md": ["11px", { lineHeight: "16px", letterSpacing: "0.03em", fontWeight: "500" }], "title-lg": ["17px", { lineHeight: "24px", letterSpacing: "0em", fontWeight: "600" }], "label-lg": ["13px", { lineHeight: "18px", letterSpacing: "0.01em", fontWeight: "600" }], "body-md": ["14px", { lineHeight: "22px", letterSpacing: "0.01em", fontWeight: "400" }], "headline-lg": ["30px", { lineHeight: "38px", letterSpacing: "-0.01em", fontWeight: "700" }], "headline-lg-mobile": ["24px", { lineHeight: "30px", letterSpacing: "-0.01em", fontWeight: "700" }], "body-sm": ["12px", { lineHeight: "17px", letterSpacing: "0.02em", fontWeight: "400" }], "display-lg-mobile": ["30px", { lineHeight: "36px", letterSpacing: "-0.02em", fontWeight: "700" }], "body-lg": ["17px", { lineHeight: "26px", letterSpacing: "0.01em", fontWeight: "400" }], "label-sm": ["10px", { lineHeight: "14px", letterSpacing: "0.04em", fontWeight: "500" }], "headline-md": ["20px", { lineHeight: "26px", letterSpacing: "0em", fontWeight: "600" }], "title-md": ["15px", { lineHeight: "20px", letterSpacing: "0.01em", fontWeight: "600" }] } } } }</script><style>@layer base { html, body { width: 100vw; margin: 0; padding: 0; background-color: #F8F9FA; -webkit-tap-highlight-color: transparent; } body { overscroll-behavior-y: none; } .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); } .pt-safe { padding-top: env(safe-area-inset-top, 0px); } main > :first-child { margin-top: 0 !important; } main > :last-child { margin-bottom: 0 !important; } } ::-webkit-scrollbar { display: none; } .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; } [data-active="true"] .material-symbols-outlined { font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24; }</style><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  <style>
+h1, h2, h3, h4, h5, h6, [class*='font-headline'], [class*='font-title'], [class*='font-serif'], .font-serif, body, * {
+  font-family: 'Roboto Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+}
+</style></head><body class="bg-surface text-on-surface flex flex-col min-h-screen selection:bg-primary-fixed selection:text-on-primary-fixed"><header class="fixed top-0 w-full z-50 pt-safe bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="h-16 px-margin flex items-center justify-between"><div class="flex items-center gap-space-sm"><img alt="Brand logo. - Primary color: #2c3e50
+- Font: robotoFlex
+- Mode: dark
+- Roundness: rounded-md
+" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/AEtjO1UvrxCgwgf9RQICGw0ItihxRDoGY6tu-Ln-ADcWMXIx57QOT5PU_PnXLh32wlf7CLgWu-nQRuYyUgsFVe1JYS1TNIMdVwEQ2YMn2LCdzgXROTBolwKrWYK3X1IaTc6IOfqRnHqj9o2l-rujVTx21Q_HbapA3H9nJfGeUmxGrWQTu7YfxV3CufvOXkLQBRS8j-VgeSx0sweEmutan5OX2CGr-sXoRLI6tNXnEbvJaWMwiGkjhok5I-qFT9E"><div class="flex flex-col"><span class="font-label-sm text-label-sm text-secondary uppercase tracking-wider">WristBrief</span><h1 class="font-title-md text-title-md text-on-surface tracking-tight leading-none">Library</h1></div></div><div class="flex items-center gap-space-xs"><button aria-label="Notifications" class="w-11 h-11 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container active:bg-surface-container-high transition-colors"><span class="material-symbols-outlined text-[22px]">notifications</span></button><button aria-label="Profile Account" class="w-11 h-11 flex items-center justify-center rounded-full focus:outline-none focus:ring-2 focus:ring-primary/20"><img alt="Profile" class="w-8 h-8 rounded-full object-cover ring-1 ring-black/5" src="https://lh3.googleusercontent.com/aida/AEtjO1VA8P6zNVmYr5QNQSkPuVyXxiwjN8tAtXmyIa6O6TPFt87BMw0HzhgSwZvJzTe5zEi9zjfPemEHHWe6z130VTSmk7jeKzVHPUJbLco7xb8fW61GmIC3AJSBHrkKOJYNzW11-o1MlNbK7eWw64xZx9YwVeLEHsgIUGEz0ti2IEgLLG_0nu_iAfdwyWlUlzIyYMei2ajuM3CAUQMAqSsK3ytMYnjd-PX0PEvEkevcZyXA_peTnQNW0rBNPqI"></button></div></div></header><main class="flex-1 flex flex-col relative w-full pt-16 pb-40 bg-surface"><div class="flex flex-col w-full px-margin pb-6 gap-space-md">
+<!-- Content Database Header Block -->
+<div class="flex items-center justify-between pt-2">
+<div class="flex flex-col">
+<div class="flex items-center gap-space-xs">
+<span class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface tracking-tight">Library</span>
+<span class="inline-flex items-center px-2 py-0.5 rounded-full bg-secondary-container text-on-secondary-container font-label-sm text-label-sm font-semibold">Live Sync</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">142 items · <span class="text-secondary font-medium">18 unread</span></p>
+</div>
+<button aria-label="Manage sources" class="w-11 h-11 rounded-full bg-surface-container hover:bg-surface-container-high active:bg-surface-container-highest text-on-surface-variant flex items-center justify-center transition-colors shadow-sm">
+<span class="material-symbols-outlined text-[22px]">tune</span>
+</button>
+</div>
+<!-- Search and Quick Query Interface -->
+<div class="relative w-full">
+<div class="w-full bg-surface-container-lowest rounded-full shadow-sm flex items-center px-4 py-2.5 gap-space-sm focus-within:shadow-md transition-all">
+<span class="material-symbols-outlined text-on-surface-variant text-[22px]">search</span>
+<input class="bg-transparent border-none outline-none flex-1 font-body-md text-body-md text-on-surface placeholder:text-outline" placeholder="Search articles, podcasts, transcripts" type="text">
+<button aria-label="Voice Search" class="w-8 h-8 rounded-full flex items-center justify-center text-on-surface-variant hover:text-on-surface">
+<span class="material-symbols-outlined text-[20px]">mic</span>
+</button>
+</div>
+</div>
+<!-- Primary Filter Row (Pills) -->
+<div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 -mx-margin px-margin">
+<button class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-surface-container-high text-on-surface font-label-lg text-label-lg whitespace-nowrap active:scale-95 transition-transform">
+<span class="">Newest</span>
+<span class="material-symbols-outlined text-[16px]">arrow_drop_down</span>
+</button>
+<button class="px-4 py-2 rounded-full bg-surface-container text-on-surface-variant font-label-lg text-label-lg whitespace-nowrap active:scale-95 transition-transform hover:bg-surface-container-high">
+      All
+    </button>
+<button class="px-4 py-2 rounded-full bg-primary-container text-on-primary-fixed font-label-lg text-label-lg font-semibold whitespace-nowrap active:scale-95 transition-transform shadow-sm flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+<span class="">Unread (18)</span>
+</button>
+<button class="px-4 py-2 rounded-full bg-surface-container text-on-surface-variant font-label-lg text-label-lg whitespace-nowrap active:scale-95 transition-transform hover:bg-surface-container-high">
+      Saved
+    </button>
+<button class="px-4 py-2 rounded-full bg-surface-container text-on-surface-variant font-label-lg text-label-lg whitespace-nowrap active:scale-95 transition-transform hover:bg-surface-container-high">
+      Articles
+    </button>
+<button class="px-4 py-2 rounded-full bg-surface-container text-on-surface-variant font-label-lg text-label-lg whitespace-nowrap active:scale-95 transition-transform hover:bg-surface-container-high">
+      Podcasts
+    </button>
+</div>
+<!-- Category Clusters / Topic Micro-tags -->
+<div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar -mx-margin px-margin">
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-outline px-1">Tags:</span>
+<span class="px-2.5 py-1 rounded-lg bg-surface-container-low text-on-surface-variant font-label-sm text-label-sm font-medium whitespace-nowrap">#GenAI</span>
+<span class="px-2.5 py-1 rounded-lg bg-surface-container-low text-on-surface-variant font-label-sm text-label-sm font-medium whitespace-nowrap">#Silicon</span>
+<span class="px-2.5 py-1 rounded-lg bg-surface-container-low text-on-surface-variant font-label-sm text-label-sm font-medium whitespace-nowrap">#MacroEconomy</span>
+<span class="px-2.5 py-1 rounded-lg bg-surface-container-low text-on-surface-variant font-label-sm text-label-sm font-medium whitespace-nowrap">#Energy</span>
+<span class="px-2.5 py-1 rounded-lg bg-surface-container-low text-on-surface-variant font-label-sm text-label-sm font-medium whitespace-nowrap">#BioTech</span>
+</div>
+<!-- High Density Content Feed -->
+<div class="flex flex-col gap-3 mt-1">
+<!-- Item 1: Unread Priority Article -->
+<article class="p-4 rounded-2xl bg-surface-container-lowest shadow-sm flex flex-col gap-2.5 transition-all hover:shadow-md relative overflow-hidden">
+<div class="flex items-center justify-between text-on-surface-variant font-label-sm text-label-sm">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+<span class="font-semibold text-secondary uppercase tracking-wider">MIT Tech Review</span>
+<span class="">·</span>
+<span class="">7 min read</span>
+</div>
+<span class="text-outline">18m ago</span>
+</div>
+<div class="flex gap-3 items-start justify-between">
+<div class="flex-1 min-w-0">
+<h2 class="font-title-lg text-title-lg text-on-surface leading-snug font-bold">
+            The Thermodynamic Limits of Next-Gen Datacenter Clusters
+          </h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-2 mt-1">
+            As liquid-cooling transitions to sub-ambient closed loops, chip designers are re-evaluating thermal dissipation budgets at rack scale.
+          </p>
+</div>
+<div class="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 bg-surface-container-high shadow-inner">
+<img class="w-full h-full object-cover" data-alt="Futuristic data center server racks glowing with cyan and teal liquid cooling pipes under soft ambient studio lighting, sharp architectural detail and modern engineering aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDr7dzdSzOWj7Wk88rCgIJ8nQ8MvXbTsHv4DhdJ1BrJdzZs_5x5weGX7dO7402OcnSRERriOc8vKxfelTUmoRzlYt3-KIFGbexXZbCpOTu7OlC01t8lyJz1Pvt3hKnEmUx44P18xZWwqpPDbw2RBJcNC5Fipvz4S1SmU6b_CYbgEfiaKQnWsPspVvUGg-G-u1efyVl1ckpSzDuQaqx5izoWNV17tsnAwl9ZqWTCLODtPc22QYGCVYYe">
+</div>
+</div>
+<div class="flex items-center justify-between pt-1">
+<div class="flex items-center gap-2">
+<button class="px-3 py-1.5 rounded-full bg-primary text-on-primary font-label-md text-label-md font-semibold active:scale-95 transition-transform flex items-center gap-1.5 shadow-sm">
+<span class="material-symbols-outlined text-[16px]">menu_book</span>
+<span class="">Read</span>
+</button>
+<button class="px-3 py-1.5 rounded-full bg-surface-container text-on-surface-variant hover:text-on-surface font-label-md text-label-md font-medium active:scale-95 transition-transform flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">headphones</span>
+<span class="">Synthesize</span>
+</button>
+</div>
+<div class="flex items-center gap-1 text-on-surface-variant">
+<button aria-label="Bookmark" class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-surface-container active:scale-90 transition-transform">
+<span class="material-symbols-outlined text-[20px] text-primary" style="font-variation-settings: 'FILL' 1;">bookmark</span>
+</button>
+<button aria-label="More options" class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-surface-container">
+<span class="material-symbols-outlined text-[20px]">more_vert</span>
+</button>
+</div>
+</div>
+</article>
+<!-- Item 2: Podcast In-Progress -->
+<article class="p-4 rounded-2xl bg-surface-container-lowest shadow-sm flex flex-col gap-3 transition-all hover:shadow-md">
+<div class="flex items-center justify-between text-on-surface-variant font-label-sm text-label-sm">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[15px] text-secondary">podcasts</span>
+<span class="font-semibold text-on-surface">Latent Space</span>
+<span class="">·</span>
+<span class="">Ep. 74</span>
+</div>
+<span class="px-2 py-0.5 rounded-full bg-secondary-container text-on-secondary-container font-medium font-label-sm text-label-sm">In Progress</span>
+</div>
+<div class="flex items-center gap-3">
+<div class="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 shadow-sm bg-surface-container-high">
+<img class="w-full h-full object-cover" data-alt="Abstract geometric podcast album art with deep navy background, sharp teal wave lines, minimalist typographic badge reading Latent Space in clean modern Swiss style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBPL5PdZy5prcl2ILfmk5tYYA03Ecwzps5D2Huk6EEY9TbCG0xE5yfGVpARh7ReBfabXvYw1KpZ_JcaV8aT1_WDoG5i-tHbgUJMDqCxfr2s7LLuJaUVfT24oV7L9iNw9eE_U7Zsk1xloPPGY3bQV-Kp2bJe7tJXRKds9J0-vXQuX_HUtnZaGxWwx_T-aFjxBk581lIyAjl0ZvJXAxRmvYMv5Aw-8Ja-4kXpRdr2jw1TnDaModUovdyb">
+</div>
+<div class="flex-1 min-w-0 flex flex-col">
+<h3 class="font-title-md text-title-md text-on-surface truncate font-semibold">
+            Reasoning Models, Search &amp; The Post-Pretraining Frontier
+          </h3>
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate">With Noam Brown &amp; Swyx</span>
+</div>
+</div>
+<!-- Playback scrub status & resume -->
+<div class="flex flex-col gap-1.5 bg-surface-container-low p-2.5 rounded-xl">
+<div class="flex items-center justify-between font-label-sm text-label-sm">
+<span class="text-secondary font-medium">38:40 played</span>
+<span class="text-on-surface-variant">22m left</span>
+</div>
+<div class="w-full h-1.5 rounded-full bg-surface-container-highest overflow-hidden">
+<div class="h-full bg-secondary rounded-full" style="width: 64%;"></div>
+</div>
+</div>
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<button class="px-3.5 py-1.5 rounded-full bg-primary-container text-on-primary-fixed font-label-md text-label-md font-semibold active:scale-95 transition-transform flex items-center gap-1.5 shadow-sm">
+<span class="material-symbols-outlined text-[18px]">play_arrow</span>
+<span class="">Resume</span>
+</button>
+<span class="font-label-sm text-label-sm text-on-surface-variant">1.5x Speed ready</span>
+</div>
+<div class="flex items-center gap-1 text-on-surface-variant">
+<button aria-label="Add to Queue" class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-surface-container">
+<span class="material-symbols-outlined text-[20px]">playlist_add</span>
+</button>
+<button aria-label="Episode Details" class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-surface-container">
+<span class="material-symbols-outlined text-[20px]">info</span>
+</button>
+</div>
+</div>
+</article>
+<!-- Item 3: Read Article (Subdued Elegance) -->
+<article class="p-3.5 rounded-2xl bg-surface-container-low opacity-80 hover:opacity-100 transition-opacity flex flex-col gap-2">
+<div class="flex items-center justify-between font-label-sm text-label-sm text-outline">
+<div class="flex items-center gap-1.5">
+<span class="font-medium text-on-surface-variant">Financial Times</span>
+<span class="">·</span>
+<span class="">Archived 2h ago</span>
+</div>
+<span class="material-symbols-outlined text-[16px] text-semantic-success">check_circle</span>
+</div>
+<div class="flex justify-between items-start gap-2">
+<div class="flex-1 min-w-0">
+<h4 class="font-title-md text-title-md text-on-surface-variant font-medium line-clamp-1">
+            Sovereign Wealth Funds Double Down on Domestic Infrastructure
+          </h4>
+<p class="font-body-sm text-body-sm text-outline line-clamp-1 mt-0.5">
+            Key takeaways summarized: High interest regimes force localized rebalancing into power and transport assets.
+          </p>
+</div>
+</div>
+<div class="flex items-center justify-between pt-0.5">
+<div class="flex items-center gap-2">
+<span class="font-label-sm text-label-sm px-2 py-0.5 rounded bg-surface-container-high text-on-surface-variant font-medium">Read · 4 min</span>
+<button class="font-label-sm text-label-sm text-secondary hover:underline font-medium">View AI Briefing</button>
+</div>
+<button aria-label="Favorite" class="w-8 h-8 rounded-full flex items-center justify-center text-outline hover:text-on-surface">
+<span class="material-symbols-outlined text-[18px]">bookmark_border</span>
+</button>
+</div>
+</article>
+<!-- Item 4: Another Unread Quick Take -->
+<article class="p-4 rounded-2xl bg-surface-container-lowest shadow-sm flex flex-col gap-2.5 transition-all hover:shadow-md">
+<div class="flex items-center justify-between text-on-surface-variant font-label-sm text-label-sm">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+<span class="font-semibold text-secondary uppercase tracking-wider">Stratechery</span>
+<span class="">·</span>
+<span class="">12 min read</span>
+</div>
+<span class="text-outline">4h ago</span>
+</div>
+<div class="flex gap-3 items-start justify-between">
+<div class="flex-1 min-w-0">
+<h2 class="font-title-lg text-title-lg text-on-surface leading-snug font-bold">
+            The Aggregation Dynamics of Foundation Model Marketplaces
+          </h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-2 mt-1">
+            Why proprietary distribution rails and context-caching layers are capturing surplus value from pure inference providers.
+          </p>
+</div>
+</div>
+<div class="flex items-center justify-between pt-1">
+<div class="flex items-center gap-2">
+<button class="px-3 py-1.5 rounded-full bg-surface-container-high text-on-surface font-label-md text-label-md font-semibold active:scale-95 transition-transform flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[16px]">menu_book</span>
+<span class="">Read Now</span>
+</button>
+<button class="px-3 py-1.5 rounded-full bg-surface-container text-on-surface-variant hover:text-on-surface font-label-md text-label-md font-medium active:scale-95 transition-transform flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">headphones</span>
+<span class="">Add Audio Queue</span>
+</button>
+</div>
+<button aria-label="Bookmark" class="w-8 h-8 rounded-full flex items-center justify-center text-outline hover:text-primary">
+<span class="material-symbols-outlined text-[20px]">bookmark_border</span>
+</button>
+</div>
+</article>
+<!-- Item 5: Completed Podcast Episode -->
+<article class="p-3.5 rounded-2xl bg-surface-container-low opacity-80 hover:opacity-100 transition-opacity flex items-center justify-between gap-3">
+<div class="flex items-center gap-3 min-w-0">
+<div class="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 relative bg-surface-container-high">
+<img class="w-full h-full object-cover grayscale" data-alt="Minimalist podcast artwork featuring clean studio microphone icon on warm stone gray background with soft cyan studio glow." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDVMf4j74851DEszqWZvW6izvUh2p-l6np6a1Nn-gRqymiEXy9rzygZKpi0IC_aVSbL9tOYgMnjXfcoyN0DlfanUXVl02WjGu1JYTOgK-zXqgh7K6tVJ9jo_AV3hMfYr0sEbMr7d-ZTP2sNCSP4eFthcgpHz7xk8qARsPexqUW3lXulbflVyGKqYC2Ua-UWpsuSQyd5b3qG17PfrcYL7AjrX5ZvF2c2R3BtKY9vgKnjk5OkOwv9R1K9">
+<div class="absolute inset-0 bg-surface-dim/40 flex items-center justify-center">
+<span class="material-symbols-outlined text-white text-[20px]">check</span>
+</div>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-1 text-outline font-label-sm text-label-sm">
+<span class="">Hard Fork</span>
+<span class="">·</span>
+<span class="">Completed yesterday</span>
+</div>
+<h4 class="font-title-md text-title-md text-on-surface-variant truncate font-medium">
+            The Autonomous Agents Workday Experiment
+          </h4>
+</div>
+</div>
+<button aria-label="Replay episode" class="w-9 h-9 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container-highest transition-colors">
+<span class="material-symbols-outlined text-[20px]">replay</span>
+</button>
+</article>
+</div>
+<!-- Local Offline Cache Status Banner -->
+<div class="mt-2 w-full p-3.5 rounded-2xl bg-surface-container flex items-center justify-between gap-space-sm shadow-sm">
+<div class="flex items-center gap-2.5 min-w-0">
+<div class="w-8 h-8 rounded-lg bg-surface-container-highest flex items-center justify-center text-secondary flex-shrink-0">
+<span class="material-symbols-outlined text-[18px]">cloud_done</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-title-md text-title-md text-on-surface leading-tight truncate">Offline Vault Ready</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant truncate">48 briefings &amp; 3 podcasts cached for flight (1.2 GB)</span>
+</div>
+</div>
+<button class="px-3 py-1.5 rounded-full bg-surface-container-highest text-on-surface font-label-md text-label-md font-medium whitespace-nowrap active:scale-95 transition-transform">
+      Manage
+    </button>
+</div>
+</div></main><aside aria-label="Now Playing Bar" class="fixed bottom-[74px] inset-x-0 z-40 px-margin pointer-events-none"><div class="pointer-events-auto max-w-[560px] mx-auto bg-white/85 backdrop-blur-2xl rounded-full p-1.5 pl-2.5 pr-2 shadow-[0_4px_20px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.06] flex items-center justify-between gap-space-sm relative overflow-hidden"><div class="absolute bottom-0 inset-x-0 h-0.5 bg-surface-container-highest"><div class="h-full bg-secondary w-2/5 rounded-full"></div></div><div class="flex items-center gap-space-sm min-w-0 flex-1 py-0.5"><div class="w-9 h-9 rounded-lg bg-surface-container-high flex-shrink-0 flex items-center justify-center text-secondary shadow-inner"><span class="material-symbols-outlined text-[20px]">podcasts</span></div><div class="flex flex-col min-w-0 flex-1 pr-1"><span class="font-title-md text-title-md text-on-surface truncate leading-tight">Morning Synthesis: Global Markets</span><span class="font-label-sm text-label-sm text-on-surface-variant truncate">Briefing • 04:18 left</span></div></div><div class="flex items-center gap-0.5 flex-shrink-0"><button aria-label="Rewind 15 seconds" class="w-11 h-11 flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors"><span class="material-symbols-outlined text-[22px]">export_notes</span></button><button aria-label="Play or Pause" class="w-11 h-11 flex items-center justify-center bg-primary-container text-on-primary-fixed rounded-full hover:bg-primary-fixed active:scale-95 transition-all shadow-sm"><span class="material-symbols-outlined text-[22px]">pause</span></button></div></div></aside><nav class="fixed bottom-0 w-full z-50 pb-safe bg-white/80 backdrop-blur-2xl shadow-[0_-1px_12px_rgba(0,0,0,0.04)] ring-1 ring-black/[0.05]" data-active-classes="bg-primary-container text-on-primary-fixed font-title-md"><div class="flex justify-around items-center h-16 max-w-[560px] mx-auto px-space-sm"><a class="flex flex-col items-center justify-center flex-1 h-12 rounded-full text-on-surface-variant hover:text-on-surface transition-all gap-0.5" data-path="home" href="#"><div class="px-4 py-1 rounded-full flex items-center justify-center"><span class="material-symbols-outlined text-[22px]">newspaper</span></div><span class="font-label-sm text-label-sm">Home</span></a><a class="flex flex-col items-center justify-center flex-1 h-12 rounded-full text-on-surface-variant hover:text-on-surface transition-all gap-0.5" data-path="explore" href="#"><div class="px-4 py-1 rounded-full flex items-center justify-center"><span class="material-symbols-outlined text-[22px]">explore</span></div><span class="font-label-sm text-label-sm">Explore</span></a><a class="flex flex-col items-center justify-center flex-1 h-12 rounded-full text-on-surface-variant hover:text-on-surface transition-all gap-0.5" data-path="ask-ai" href="#"><div class="px-4 py-1 rounded-full flex items-center justify-center"><span class="material-symbols-outlined text-[22px]">auto_awesome</span></div><span class="font-label-sm text-label-sm">Ask AI</span></a><a aria-current="page" class="flex flex-col items-center justify-center flex-1 h-12 rounded-full transition-all gap-0.5 bg-primary-container text-on-primary-fixed font-title-md" data-path="library" href="#"><div class="px-4 py-1 rounded-full flex items-center justify-center"><span class="material-symbols-outlined text-[22px]">bookmarks</span></div><span class="font-label-sm text-label-sm">Library</span></a></div></nav>
+
+</body></html>

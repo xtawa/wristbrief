@@ -25,6 +25,10 @@ export interface ResolveResult {
   content: PodcastContent;
 }
 
+export interface ContentResolverOptions {
+  publicReuseHosts?: Iterable<string>;
+}
+
 /**
  * Normalizes an audio URL by stripping tracking parameters (e.g., utm_*, etc.)
  */
@@ -154,7 +158,15 @@ export function validateAudioUrl(rawUrl: string): AudioUrlValidationResult {
 }
 
 export class ContentResolver {
-  constructor(private readonly store: ContentStore) {}
+  private readonly publicReuseHosts: ReadonlySet<string>;
+
+  constructor(private readonly store: ContentStore, options: ContentResolverOptions = {}) {
+    this.publicReuseHosts = new Set(
+      [...(options.publicReuseHosts ?? [])]
+        .map((host) => host.trim().toLowerCase().replace(/\.$/, ""))
+        .filter(Boolean)
+    );
+  }
 
   /**
    * Stage A: Candidate resolution using cheap aliases (audio SHA, enclosure URL, feed+guid)
@@ -212,7 +224,9 @@ export class ContentResolver {
     // Server-enforced share policy:
     // Sharing is opt-in. A feed URL alone must never make account content public.
     const sharePolicy: "PUBLIC_REUSE" | "PRIVATE_ACCOUNT" =
-      input.sharePolicy === "PUBLIC_REUSE" ? "PUBLIC_REUSE" : "PRIVATE_ACCOUNT";
+      input.sharePolicy === "PUBLIC_REUSE" && this.isPublicReuseEligible(input.feedUrl)
+        ? "PUBLIC_REUSE"
+        : "PRIVATE_ACCOUNT";
 
     // No existing content matched -> Create canonical row
     const contentId = `cnt_${crypto.randomUUID()}`;
@@ -260,5 +274,15 @@ export class ContentResolver {
 
   async getById(id: string): Promise<PodcastContent | null> {
     return this.store.findById(id);
+  }
+
+  private isPublicReuseEligible(feedUrl?: string): boolean {
+    if (!feedUrl || this.publicReuseHosts.size === 0) return false;
+    try {
+      const parsed = new URL(feedUrl.trim());
+      return parsed.protocol === "https:" && this.publicReuseHosts.has(parsed.hostname.toLowerCase().replace(/\.$/, ""));
+    } catch {
+      return false;
+    }
   }
 }

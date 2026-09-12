@@ -1,5 +1,6 @@
 package ink.underflo.wristbrief.mobile.articles
 
+import ink.underflo.wristbrief.mobile.ArticleContentSanitizer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
@@ -41,6 +42,33 @@ data class ArticleDocument(
     val sourceName: String?,
     val blocks: List<ArticleBlock>,
 )
+
+/**
+ * Builds a safe native document from a feed's full-content field. This keeps
+ * public RSS feeds readable while signed out or when the gateway is offline;
+ * the gateway remains responsible for page extraction and rich HTML parsing.
+ */
+fun articleDocumentFromRss(
+    canonicalUrl: String,
+    rssContent: String?,
+    title: String?,
+    sourceName: String?,
+): ArticleDocument? {
+    val sanitized = ArticleContentSanitizer.sanitize(rssContent)
+    if (sanitized.plainText.length < MIN_FULL_TEXT_CHARS || sanitized.paragraphs.isEmpty()) return null
+    return ArticleDocument(
+        title = title.orEmpty(),
+        author = null,
+        publishedAt = null,
+        canonicalUrl = canonicalUrl,
+        sourceName = sourceName,
+        blocks = sanitized.paragraphs.map { paragraph ->
+            ArticleBlock.Paragraph(listOf(ArticleInline.Text(paragraph)))
+        },
+    )
+}
+
+private const val MIN_FULL_TEXT_CHARS = 500
 
 private val json = Json { ignoreUnknownKeys = true }
 
@@ -111,7 +139,7 @@ fun ArticleDocument.plainText(): String = blocks.joinToString("\n\n") { block ->
     when (block) {
         is ArticleBlock.Paragraph -> block.spans.joinToString("") { it.text }
         is ArticleBlock.Heading -> block.spans.joinToString("") { it.text }
-        is ArticleBlock.UnorderedList -> block.items.joinToString("\n") { spans -> "• " + spans.joinToString("") { it.text } }
+        is ArticleBlock.UnorderedList -> block.items.joinToString("\n") { spans -> "- " + spans.joinToString("") { it.text } }
         is ArticleBlock.OrderedList -> block.items.mapIndexed { index, spans -> "${index + 1}. " + spans.joinToString("") { it.text } }.joinToString("\n")
         is ArticleBlock.Quote -> block.spans.joinToString("") { it.text }
         is ArticleBlock.CodeBlock -> block.text

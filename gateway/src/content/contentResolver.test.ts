@@ -14,7 +14,7 @@ describe("ContentResolver & ContentStore", () => {
   it("resolves a new episode into a canonical content row with aliases", async () => {
     const { d1 } = createMigratedTestDb();
     const store = new D1ContentStore(d1);
-    const resolver = new ContentResolver(store);
+    const resolver = new ContentResolver(store, { publicReuseHosts: ["example.com"] });
 
     const result = await resolver.resolve({
       sharePolicy: "PUBLIC_REUSE",
@@ -83,5 +83,16 @@ describe("ContentResolver & ContentStore", () => {
 
     expect(second.isNew).toBe(false);
     expect(second.contentId).toBe(first.contentId);
+  });
+
+  it("fails closed to private content when public reuse host is not allowlisted", async () => {
+    const { d1 } = createMigratedTestDb();
+    const resolver = new ContentResolver(new D1ContentStore(d1), { publicReuseHosts: ["trusted.example"] });
+    const result = await resolver.resolve({
+      sharePolicy: "PUBLIC_REUSE",
+      feedUrl: "https://untrusted.example/feed.xml",
+      audioUrl: "https://cdn.example.com/episode.mp3"
+    });
+    expect(result.content.sharePolicy).toBe("PRIVATE_ACCOUNT");
   });
 });

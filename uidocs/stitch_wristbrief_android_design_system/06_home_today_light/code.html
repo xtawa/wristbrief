@@ -1,0 +1,303 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"><title>WristBrief</title><link href="https://fonts.googleapis.com" rel="preconnect"><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"><link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,300;400;500;600;700&amp;display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { colors: { "primary-container": "#C8E6FF", "surface-bright": "#f8f9fa", "tertiary": "#42474c", "tertiary-fixed": "#dfe3e8", "on-secondary-container": "#0d6d79", "on-tertiary-fixed-variant": "#42474c", "outline": "#73777F", "on-surface-variant": "#43474E", "semantic-warning": "#8C5000", "on-primary-container": "#b3deff", "glass-border": "rgba(0, 0, 0, 0.06)", "semantic-error": "#BA1A1A", "surface-dim": "#d9dadb", "secondary-fixed-dim": "#85d2e0", "surface-container": "#edeeef", "primary-fixed-dim": "#88ceff", "on-error-container": "#93000a", "on-surface": "#191c1d", "primary": "#004c6e", "secondary-container": "#9fecfa", "error": "#ba1a1a", "surface-container-low": "#f3f4f5", "surface-container-lowest": "#ffffff", "surface-container-highest": "#e1e3e4", "on-background": "#191c1d", "on-tertiary": "#ffffff", "error-container": "#ffdad6", "surface-tint": "#006590", "outline-variant": "rgba(0, 0, 0, 0.06)", "tertiary-container": "#5a5f63", "on-secondary-fixed-variant": "#004f58", "inverse-on-surface": "#f0f1f2", "surface": "#F8F9FA", "inverse-primary": "#88ceff", "on-secondary": "#ffffff", "on-tertiary-container": "#d5d9de", "surface-variant": "#e1e3e4", "secondary-fixed": "#a2effd", "on-primary": "#ffffff", "semantic-success": "#1B6C43", "glass-surface": "rgba(255, 255, 255, 0.78)", "background": "#f8f9fa", "surface-container-high": "#e7e8e9", "inverse-surface": "#2e3132", "tertiary-fixed-dim": "#c2c7cc", "on-primary-fixed": "#001e2e", "secondary": "#016874", "on-error": "#ffffff", "primary-fixed": "#c8e6ff", "on-primary-fixed-variant": "#004c6d", "on-secondary-fixed": "#001f24", "on-tertiary-fixed": "#171c20" }, borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, spacing: { "space-lg": "1.5rem", "space-xs": "0.25rem", "space-sm": "0.5rem", "margin-tablet": "2rem", "space-md": "1rem", "gutter": "1rem", "space-xl": "2rem", "gutter-tablet": "1.5rem", "margin": "1.25rem" }, fontFamily: { "display-lg": ["Roboto Flex"], "label-md": ["Roboto Flex"], "title-lg": ["Roboto Flex"], "label-lg": ["Roboto Flex"], "body-md": ["Roboto Flex"], "headline-lg": ["Roboto Flex"], "headline-lg-mobile": ["Roboto Flex"], "body-sm": ["Roboto Flex"], "display-lg-mobile": ["Roboto Flex"], "body-lg": ["Roboto Flex"], "label-sm": ["Roboto Flex"], "headline-md": ["Roboto Flex"], "title-md": ["Roboto Flex"] }, fontSize: { "display-lg": ["40px", { lineHeight: "48px", letterSpacing: "-0.02em", fontWeight: "700" }], "label-md": ["11px", { lineHeight: "16px", letterSpacing: "0.03em", fontWeight: "500" }], "title-lg": ["17px", { lineHeight: "24px", letterSpacing: "0em", fontWeight: "600" }], "label-lg": ["13px", { lineHeight: "18px", letterSpacing: "0.01em", fontWeight: "600" }], "body-md": ["14px", { lineHeight: "22px", letterSpacing: "0.01em", fontWeight: "400" }], "headline-lg": ["30px", { lineHeight: "38px", letterSpacing: "-0.01em", fontWeight: "700" }], "headline-lg-mobile": ["24px", { lineHeight: "30px", letterSpacing: "-0.01em", fontWeight: "700" }], "body-sm": ["12px", { lineHeight: "17px", letterSpacing: "0.02em", fontWeight: "400" }], "display-lg-mobile": ["30px", { lineHeight: "36px", letterSpacing: "-0.02em", fontWeight: "700" }], "body-lg": ["17px", { lineHeight: "26px", letterSpacing: "0.01em", fontWeight: "400" }], "label-sm": ["10px", { lineHeight: "14px", letterSpacing: "0.04em", fontWeight: "500" }], "headline-md": ["20px", { lineHeight: "26px", letterSpacing: "0em", fontWeight: "600" }], "title-md": ["15px", { lineHeight: "20px", letterSpacing: "0.01em", fontWeight: "600" }] } } } }</script><style>@layer base { html, body { width: 100vw; margin: 0; padding: 0; background-color: #F8F9FA; -webkit-tap-highlight-color: transparent; } body { overscroll-behavior-y: none; } .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); } .pt-safe { padding-top: env(safe-area-inset-top, 0px); } main > :first-child { margin-top: 0 !important; } main > :last-child { margin-bottom: 0 !important; } } ::-webkit-scrollbar { display: none; } .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; } [data-active="true"] .material-symbols-outlined { font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24; }</style><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  <style>
+h1, h2, h3, h4, h5, h6, [class*='font-headline'], [class*='font-title'], [class*='font-serif'], .font-serif, body, * {
+  font-family: 'Roboto Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+}
+</style></head><body class="bg-surface text-on-surface flex flex-col min-h-screen selection:bg-primary-fixed selection:text-on-primary-fixed"><header class="fixed top-0 w-full z-50 pt-safe bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="h-16 px-margin flex items-center justify-between"><div class="flex items-center gap-space-sm"><img alt="Brand logo. - Primary color: #2c3e50
+- Font: robotoFlex
+- Mode: dark
+- Roundness: rounded-md
+" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/AEtjO1UvrxCgwgf9RQICGw0ItihxRDoGY6tu-Ln-ADcWMXIx57QOT5PU_PnXLh32wlf7CLgWu-nQRuYyUgsFVe1JYS1TNIMdVwEQ2YMn2LCdzgXROTBolwKrWYK3X1IaTc6IOfqRnHqj9o2l-rujVTx21Q_HbapA3H9nJfGeUmxGrWQTu7YfxV3CufvOXkLQBRS8j-VgeSx0sweEmutan5OX2CGr-sXoRLI6tNXnEbvJaWMwiGkjhok5I-qFT9E"><div class="flex flex-col"><span class="font-label-sm text-label-sm text-secondary uppercase tracking-wider">WristBrief</span><h1 class="font-title-md text-title-md text-on-surface tracking-tight leading-none">Home</h1></div></div><div class="flex items-center gap-space-xs"><button aria-label="Notifications" class="w-11 h-11 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container active:bg-surface-container-high transition-colors"><span class="material-symbols-outlined text-[22px]">notifications</span></button><button aria-label="Profile Account" class="w-11 h-11 flex items-center justify-center rounded-full focus:outline-none focus:ring-2 focus:ring-primary/20"><img alt="Profile" class="w-8 h-8 rounded-full object-cover ring-1 ring-black/5" src="https://lh3.googleusercontent.com/aida/AEtjO1VA8P6zNVmYr5QNQSkPuVyXxiwjN8tAtXmyIa6O6TPFt87BMw0HzhgSwZvJzTe5zEi9zjfPemEHHWe6z130VTSmk7jeKzVHPUJbLco7xb8fW61GmIC3AJSBHrkKOJYNzW11-o1MlNbK7eWw64xZx9YwVeLEHsgIUGEz0ti2IEgLLG_0nu_iAfdwyWlUlzIyYMei2ajuM3CAUQMAqSsK3ytMYnjd-PX0PEvEkevcZyXA_peTnQNW0rBNPqI"></button></div></div></header><main class="flex-1 flex flex-col relative w-full pt-16 pb-40 bg-surface"><div class="flex flex-col w-full px-margin pb-8 space-y-space-md">
+<!-- Sub-header editorial date & greeting banner -->
+<div class="flex items-center justify-between pt-1">
+<div class="flex flex-col">
+<div class="flex items-center gap-1.5 text-secondary font-label-md text-label-md tracking-wider uppercase">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+<span class="">Saturday, Sep 12</span>
+</div>
+<p class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface tracking-tight">Good afternoon</p>
+</div>
+<!-- Quick search trigger -->
+<button aria-label="Search articles and podcasts" class="w-11 h-11 flex items-center justify-center rounded-full bg-surface-container-lowest text-on-surface-variant shadow-sm active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[22px]">search</span>
+</button>
+</div>
+<!-- Category Filter Chips -->
+<div class="flex items-center gap-space-xs overflow-x-auto no-scrollbar py-0.5 -mx-margin px-margin">
+<button class="flex items-center gap-1 px-4 py-2 rounded-full bg-primary-container text-on-primary-fixed font-title-md text-title-md whitespace-nowrap shadow-sm active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[18px]">check</span>
+<span class="">All</span>
+</button>
+<button class="flex items-center px-4 py-2 rounded-full bg-surface-container-lowest text-on-surface-variant font-body-md text-body-md whitespace-nowrap hover:bg-surface-container active:scale-95 transition-all">
+<span class="">Technology</span>
+</button>
+<button class="flex items-center px-4 py-2 rounded-full bg-surface-container-lowest text-on-surface-variant font-body-md text-body-md whitespace-nowrap hover:bg-surface-container active:scale-95 transition-all">
+<span class="">Science</span>
+</button>
+<button class="flex items-center px-4 py-2 rounded-full bg-surface-container-lowest text-on-surface-variant font-body-md text-body-md whitespace-nowrap hover:bg-surface-container active:scale-95 transition-all">
+<span class="">Design</span>
+</button>
+<button class="flex items-center px-4 py-2 rounded-full bg-surface-container-lowest text-on-surface-variant font-body-md text-body-md whitespace-nowrap hover:bg-surface-container active:scale-95 transition-all">
+<span class="">Markets</span>
+</button>
+</div>
+<!-- TODAY'S BRIEF Glass Hero Card -->
+<section aria-label="Today's Briefing" class="relative rounded-2xl p-space-md bg-glass-surface backdrop-blur-xl shadow-sm overflow-hidden">
+<!-- Subtle gradient glow -->
+<div class="absolute -top-10 -right-10 w-44 h-44 bg-gradient-to-br from-secondary-container/40 via-primary-container/20 to-transparent rounded-full blur-2xl pointer-events-none"></div>
+<div class="relative flex flex-col space-y-3">
+<!-- Metadata Row -->
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-1.5 text-secondary">
+<span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+<span class="font-label-md text-label-md tracking-wider uppercase font-semibold">Today's Brief</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="font-label-sm text-label-sm text-on-surface-variant">6 sources · 8:42 AM</span>
+<button aria-label="Regenerate brief" class="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container active:rotate-180 transition-all duration-300" id="regen-btn">
+<span class="material-symbols-outlined text-[18px]">cached</span>
+</button>
+</div>
+</div>
+<!-- Concise AI Overview -->
+<p class="font-body-md text-body-md text-on-surface leading-relaxed">
+        Silicon photonics breakthrough delivers 10x throughput in production clusters, while open-weights reasoning models leap ahead in hardware efficiency.
+      </p>
+<!-- Key Takeaways List -->
+<div class="space-y-2 py-1">
+<div class="flex items-start gap-2.5">
+<span class="material-symbols-outlined text-secondary text-[16px] mt-0.5 flex-shrink-0" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant"><strong class="font-semibold text-on-surface">Ars &amp; Nature:</strong> Sub-wavelength interconnects bypass traditional copper thermal limits.</p>
+</div>
+<div class="flex items-start gap-2.5">
+<span class="material-symbols-outlined text-secondary text-[16px] mt-0.5 flex-shrink-0" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant"><strong class="font-semibold text-on-surface">Latent Space:</strong> Quantized attention heads achieve 94% parity at one-fourth memory overhead.</p>
+</div>
+<div class="flex items-start gap-2.5">
+<span class="material-symbols-outlined text-secondary text-[16px] mt-0.5 flex-shrink-0" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant"><strong class="font-semibold text-on-surface">ECB Policy:</strong> Tech infrastructure funds clear cross-border compliance streamlined standards.</p>
+</div>
+</div>
+<!-- Action Row -->
+<div class="flex items-center justify-between pt-1">
+<button class="flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-on-primary font-title-md text-title-md shadow-sm active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[18px]">article</span>
+<span class="">Read full brief</span>
+</button>
+<button class="flex items-center gap-1 text-secondary font-label-lg text-label-lg px-2 py-1 rounded-full hover:bg-secondary-container/30 active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[18px]">headphones</span>
+<span class="">Audio summary (3m)</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Resume Carousel / Side-by-Side Dual Deck -->
+<div class="space-y-2">
+<h2 class="font-title-lg text-title-lg text-on-surface tracking-tight px-0.5">Jump Back In</h2>
+<div class="grid grid-cols-1 gap-3">
+<!-- Continue Listening Card -->
+<div class="flex items-center gap-3 p-3 rounded-2xl bg-surface-container-lowest shadow-sm hover:shadow transition-shadow">
+<div class="relative w-16 h-16 flex-shrink-0 rounded-xl overflow-hidden shadow-inner">
+<img class="w-full h-full object-cover" data-alt="Podcast album cover graphic depicting deep space network nodes, neon cyan wave telemetry, high-end editorial minimal typography with Latent Space branding, soft volumetric lighting on high grade dark surface" src="https://lh3.googleusercontent.com/aida-public/AB6AXuArfjSWNAwbNOQcClTkHDaLgTK35waU7Rq3tXjh0Ysa_JuWLkQ3hgoNZQtxgNTA5JgwnjnzU0sw90B3sTwbaHBj_SMkBMfbK8_8UJwS505spc2sLPbHOp76HY_wDtsOqC6XYgxBqTTMjUGJgkIb8UozbwZ7bwupMtHabONLnBmHFBkBAMomKT0AGtm6hBlfbJXeuuMRXMX3xhGXpe5AR3uGpSGcyqdTLsEm_i1GB1CdN0ULcCYfsovj">
+<div class="absolute inset-0 bg-secondary/15 flex items-center justify-center">
+<span class="material-symbols-outlined text-white text-[20px]" style="font-variation-settings: 'FILL' 1;">podcasts</span>
+</div>
+</div>
+<div class="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+<div>
+<div class="flex items-center justify-between gap-1">
+<span class="font-label-sm text-label-sm text-secondary uppercase font-semibold truncate">Latent Space • Ep. 84</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant flex-shrink-0">22m left</span>
+</div>
+<p class="font-title-md text-title-md text-on-surface truncate leading-tight mt-0.5">The Frontier of Local Small Language Models</p>
+</div>
+<!-- Progress bar track -->
+<div class="w-full mt-2 flex items-center gap-2">
+<div class="flex-1 h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full bg-secondary w-3/5 rounded-full"></div>
+</div>
+<button aria-label="Resume Latent Space Ep 84" class="w-8 h-8 rounded-full bg-primary-container text-on-primary-fixed flex items-center justify-center active:scale-95 transition-all shadow-sm">
+<span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Continue Reading Card -->
+<div class="flex items-center gap-3 p-3 rounded-2xl bg-surface-container-lowest shadow-sm hover:shadow transition-shadow">
+<div class="w-16 h-16 flex-shrink-0 rounded-xl overflow-hidden shadow-inner">
+<img class="w-full h-full object-cover" data-alt="Modern editorial journalism photography of clean architectural laboratory cleanroom with laser optics benches, softly lit in off-white, deep charcoal and slight teal reflections" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAitJEKpnqjuYepatT-lSd-j1k_kcc67QKUoGgkgqoneLrIKKa4is6COBvBOghbhlSuSU3Cu3xlWKygdfGA2_VBjE1HedQceuuxseX23s1W5PZGJl8ixhMWg6Th_RbzMmiDAyco6O0RP2m5KHpmZDzIFvl1HwOxgmoUFoITr-X-JnwyC8ACdYTO4fSddqwdug9Bc-2Hki5bMPQkfh-JM3s7EDYUq0bL435qdsOrVQj2Mh0O3d5sjkcg">
+</div>
+<div class="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+<div>
+<div class="flex items-center justify-between gap-1">
+<span class="font-label-sm text-label-sm text-primary uppercase font-semibold truncate">Ars Technica</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant flex-shrink-0">4 min read</span>
+</div>
+<p class="font-title-md text-title-md text-on-surface line-clamp-1 leading-tight mt-0.5">Photonics takes over the rack: Optical transceivers at scale</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-1 mt-0.5">New fabrication facilities confirm commercial runs begin next quarter.</p>
+</div>
+<div class="w-full mt-2 flex items-center justify-between">
+<div class="flex items-center gap-1 text-on-surface-variant font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[14px]">menu_book</span>
+<span class="">65% completed</span>
+</div>
+<button class="px-2.5 py-1 rounded-full bg-surface-container text-on-surface font-label-md text-label-md hover:bg-surface-container-high active:scale-95 transition-all">
+              Resume
+            </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Latest From Feeds Stream -->
+<section class="space-y-3 pt-1">
+<div class="flex items-center justify-between px-0.5">
+<div class="flex items-center gap-2">
+<h2 class="font-title-lg text-title-lg text-on-surface tracking-tight">Latest from Feeds</h2>
+<span class="px-2 py-0.5 rounded-full bg-secondary-container text-on-secondary-container font-label-sm text-label-sm font-semibold">14 New</span>
+</div>
+<button class="font-label-lg text-label-lg text-secondary hover:underline">Mark all read</button>
+</div>
+<!-- Feed Stream Cards -->
+<div class="space-y-3">
+<!-- Article Row 1 -->
+<article class="p-3.5 rounded-2xl bg-surface-container-lowest shadow-sm flex flex-col space-y-2.5">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-secondary flex-shrink-0" title="Unread"></span>
+<div class="w-5 h-5 rounded-md bg-surface-container-high flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[14px]">newspaper</span>
+</div>
+<span class="font-label-md text-label-md text-on-surface-variant font-semibold">MIT Technology Review</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">18m ago</span>
+</div>
+<div class="flex gap-3">
+<div class="flex-1 min-w-0">
+<h3 class="font-title-md text-title-md text-on-surface font-semibold leading-snug line-clamp-2">
+              Next-Generation Solid State Batteries Reach Commercial Vehicle Purity Benchmarks
+            </h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-2 mt-1">
+              Field tests across winter terrain indicate no capacity degradation after twelve hundred fast charge stress cycles.
+            </p>
+</div>
+<div class="w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 shadow-inner">
+<img class="w-full h-full object-cover" data-alt="High-end studio macroscopic capture of a solid state battery cathode material structure, metallic graphite textures and refined turquoise light accents on clean laboratory surface" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAwFDeqiuoZ70Fmua3eVjdKgeRVkPsXQ0kj6fu8uJUgDNzKUTr8-GFqJ_6QDyPoFRBaszhLdJTOdwnKjiy1mmh4u9XObGKwIdVYiJIZr2NRCGUju-p7q2TSK7lnFhecaG8-asibJ9HlD9SPbofi5Mf812mi6xoGibAAlg9a23LZeRXHBTPlaKN_sSn0FL0D3L7Rx2IwsoRKPnwufxZ7-68zj2wCDc2mJsk_j3IQ1RZHfKv6c-vdHCiC">
+</div>
+</div>
+<div class="flex items-center justify-between pt-1">
+<div class="flex items-center gap-2">
+<span class="px-2 py-0.5 rounded-md bg-surface-container-low text-on-surface-variant font-label-sm text-label-sm">Hardware</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">5 min read</span>
+</div>
+<div class="flex items-center gap-1">
+<button aria-label="Listen with text to speech" class="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:text-secondary hover:bg-surface-container active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[18px]">volume_up</span>
+</button>
+<button aria-label="Bookmark article" class="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:text-on-surface hover:bg-surface-container active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[18px]">bookmark_border</span>
+</button>
+</div>
+</div>
+</article>
+<!-- Podcast Row -->
+<article class="p-3.5 rounded-2xl bg-surface-container-lowest shadow-sm flex flex-col space-y-2.5">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-secondary flex-shrink-0" title="Unread"></span>
+<div class="w-5 h-5 rounded-md bg-secondary-container text-on-secondary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-[14px]">mic</span>
+</div>
+<span class="font-label-md text-label-md text-on-surface-variant font-semibold">Hard Fork • NYT</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">42m ago</span>
+</div>
+<div class="flex gap-3 items-center">
+<div class="flex-1 min-w-0">
+<h3 class="font-title-md text-title-md text-on-surface font-semibold leading-snug">
+              Inside the Hardware Sovereign Cloud Race and What Comes Next
+            </h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-2 mt-1">
+              Casey and Kevin dissect why datacenter geothermal agreements are the most valuable assets in venture capital this month.
+            </p>
+</div>
+<button aria-label="Play episode" class="w-12 h-12 flex-shrink-0 rounded-full bg-secondary text-on-secondary flex items-center justify-center shadow-md active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+</button>
+</div>
+<div class="flex items-center justify-between pt-1">
+<div class="flex items-center gap-2">
+<span class="px-2 py-0.5 rounded-md bg-secondary-container/40 text-secondary font-label-sm text-label-sm font-medium">Podcast</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">48 mins</span>
+</div>
+<div class="flex items-center gap-1">
+<button aria-label="Add to playback queue" class="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:text-on-surface hover:bg-surface-container active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[18px]">playlist_add</span>
+</button>
+<button aria-label="Share podcast episode" class="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:text-on-surface hover:bg-surface-container active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[18px]">share</span>
+</button>
+</div>
+</div>
+</article>
+<!-- Article Row 2 -->
+<article class="p-3.5 rounded-2xl bg-surface-container-lowest shadow-sm flex flex-col space-y-2.5">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<div class="w-5 h-5 rounded-md bg-surface-container-high flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[14px]">newspaper</span>
+</div>
+<span class="font-label-md text-label-md text-on-surface-variant font-semibold">Stratechery</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">2h ago</span>
+</div>
+<div class="flex gap-3">
+<div class="flex-1 min-w-0">
+<h3 class="font-title-md text-title-md text-on-surface font-semibold leading-snug line-clamp-2">
+              The Sovereign Stack: Re-evaluating Global Infrastructure Moats
+            </h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-2 mt-1">
+              Aggregation Theory applied to dedicated silicon foundry commitments, power allocations, and distributed edge endpoints.
+            </p>
+</div>
+<div class="w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 shadow-inner">
+<img class="w-full h-full object-cover" data-alt="Monochromatic architectural high contrast diagram illustration representing enterprise cloud infrastructure network graph, deep slate gray and clean off white accents" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCIJ_GeBP-Mp-lcbtnGKkdpXwycbeb4H4gxlspVLcZQh9kEQ4WSFizVhxNtPz-jD3_XDlQ1OYkqZvPrjckyZzLgn18aI_YEP_WuzVZM0OfUDAiIXtLTiOFO-q9v1mW0ZcU4DJTExlmnmhAF1dx5mwIHBC0WNSZqL_lHU5JGBr-vzNIFPqI202ZKbIdsvwG6KR3e9wBgbxRDORe83TiK4NT3ADrXLdtVGzXF-_2u_qjf6XNuKOoEUSFN">
+</div>
+</div>
+<div class="flex items-center justify-between pt-1">
+<div class="flex items-center gap-2">
+<span class="px-2 py-0.5 rounded-md bg-surface-container-low text-on-surface-variant font-label-sm text-label-sm">Analysis</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">8 min read</span>
+</div>
+<div class="flex items-center gap-1">
+<button aria-label="Listen with text to speech" class="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:text-secondary hover:bg-surface-container active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[18px]">volume_up</span>
+</button>
+<button aria-label="Bookmark article" class="w-8 h-8 flex items-center justify-center rounded-full text-on-surface-variant hover:text-on-surface hover:bg-surface-container active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[18px]">bookmark_border</span>
+</button>
+</div>
+</div>
+</article>
+</div>
+</section>
+</div>
+<script>
+  // Simple micro-interaction for regenerate icon rotation and click feedback
+  const regenBtn = document.getElementById('regen-btn');
+  if (regenBtn) {
+    regenBtn.addEventListener('click', () => {
+      regenBtn.classList.add('rotate-180');
+      setTimeout(() => {
+        regenBtn.classList.remove('rotate-180');
+      }, 500);
+    });
+  }
+</script></main><aside aria-label="Now Playing Bar" class="fixed bottom-[74px] inset-x-0 z-40 px-margin pointer-events-none"><div class="pointer-events-auto max-w-[560px] mx-auto bg-white/85 backdrop-blur-2xl rounded-full p-1.5 pl-2.5 pr-2 shadow-[0_4px_20px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.06] flex items-center justify-between gap-space-sm relative overflow-hidden"><div class="absolute bottom-0 inset-x-0 h-0.5 bg-surface-container-highest"><div class="h-full bg-secondary w-2/5 rounded-full"></div></div><div class="flex items-center gap-space-sm min-w-0 flex-1 py-0.5"><div class="w-9 h-9 rounded-lg bg-surface-container-high flex-shrink-0 flex items-center justify-center text-secondary shadow-inner"><span class="material-symbols-outlined text-[20px]">podcasts</span></div><div class="flex flex-col min-w-0 flex-1 pr-1"><span class="font-title-md text-title-md text-on-surface truncate leading-tight">Morning Synthesis: Global Markets</span><span class="font-label-sm text-label-sm text-on-surface-variant truncate">Briefing • 04:18 left</span></div></div><div class="flex items-center gap-0.5 flex-shrink-0"><button aria-label="Rewind 15 seconds" class="w-11 h-11 flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors"><span class="material-symbols-outlined text-[22px]">export_notes</span></button><button aria-label="Play or Pause" class="w-11 h-11 flex items-center justify-center bg-primary-container text-on-primary-fixed rounded-full hover:bg-primary-fixed active:scale-95 transition-all shadow-sm"><span class="material-symbols-outlined text-[22px]">pause</span></button></div></div></aside><nav class="fixed bottom-0 w-full z-50 pb-safe bg-white/80 backdrop-blur-2xl shadow-[0_-1px_12px_rgba(0,0,0,0.04)] ring-1 ring-black/[0.05]" data-active-classes="bg-primary-container text-on-primary-fixed font-title-md"><div class="flex justify-around items-center h-16 max-w-[560px] mx-auto px-space-sm"><a aria-current="page" class="flex flex-col items-center justify-center flex-1 h-12 rounded-full transition-all gap-0.5 bg-primary-container text-on-primary-fixed font-title-md" data-path="home" href="#"><div class="px-4 py-1 rounded-full flex items-center justify-center"><span class="material-symbols-outlined text-[22px]">newspaper</span></div><span class="font-label-sm text-label-sm">Home</span></a><a class="flex flex-col items-center justify-center flex-1 h-12 rounded-full text-on-surface-variant hover:text-on-surface transition-all gap-0.5" data-path="explore" href="#"><div class="px-4 py-1 rounded-full flex items-center justify-center"><span class="material-symbols-outlined text-[22px]">explore</span></div><span class="font-label-sm text-label-sm">Explore</span></a><a class="flex flex-col items-center justify-center flex-1 h-12 rounded-full text-on-surface-variant hover:text-on-surface transition-all gap-0.5" data-path="ask-ai" href="#"><div class="px-4 py-1 rounded-full flex items-center justify-center"><span class="material-symbols-outlined text-[22px]">auto_awesome</span></div><span class="font-label-sm text-label-sm">Ask AI</span></a><a class="flex flex-col items-center justify-center flex-1 h-12 rounded-full text-on-surface-variant hover:text-on-surface transition-all gap-0.5" data-path="library" href="#"><div class="px-4 py-1 rounded-full flex items-center justify-center"><span class="material-symbols-outlined text-[22px]">bookmarks</span></div><span class="font-label-sm text-label-sm">Library</span></a></div></nav>
+
+</body></html>

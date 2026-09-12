@@ -25,6 +25,9 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.size
+import ink.underflo.wristbrief.mobile.ui.AppIcon
+import ink.underflo.wristbrief.mobile.ui.AppIconKind
 
 /**
  * Native Compose renderer for ArticleDocument. No WebView: every block type is
@@ -57,7 +60,7 @@ fun ArticleDocumentRenderer(
                 is ArticleBlock.UnorderedList -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     block.items.forEach { spans ->
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text("•", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            AppIcon(AppIconKind.Bullet, Modifier.size(18.dp), MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(spans.toAnnotatedString(), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
                         }
                     }

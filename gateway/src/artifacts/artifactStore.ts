@@ -63,6 +63,9 @@ export interface ArtifactStore {
   getJobById(jobId: string): Promise<ArtifactJobRecord | null>;
   getJobByDedupeKey(dedupeKey: string): Promise<ArtifactJobRecord | null>;
   updateJobStatus(jobId: string, status: "queued" | "running" | "completed" | "failed", errorCode?: string): Promise<void>;
+  resetJobForRetry?(jobId: string): Promise<void>;
+  revokeUserAccess?(userId: string, artifactId: string): Promise<void>;
+  deleteArtifact?(artifactId: string): Promise<void>;
 }
 
 export class D1ArtifactStore implements ArtifactStore {
@@ -179,6 +182,20 @@ export class D1ArtifactStore implements ArtifactStore {
       .run();
   }
 
+  async revokeUserAccess(userId: string, artifactId: string): Promise<void> {
+    await this.db
+      .prepare("DELETE FROM user_artifact_access WHERE user_id = ? AND artifact_id = ?")
+      .bind(userId, artifactId)
+      .run();
+  }
+
+  async deleteArtifact(artifactId: string): Promise<void> {
+    await this.db.batch([
+      this.db.prepare("DELETE FROM user_artifact_access WHERE artifact_id = ?").bind(artifactId),
+      this.db.prepare("DELETE FROM transcript_artifacts WHERE id = ?").bind(artifactId)
+    ]);
+  }
+
   async createJob(job: Omit<ArtifactJobRecord, "createdAt" | "updatedAt">): Promise<ArtifactJobRecord> {
     const now = Date.now();
     await this.db
@@ -238,6 +255,13 @@ export class D1ArtifactStore implements ArtifactStore {
     await this.db
       .prepare("UPDATE artifact_jobs SET status = ?, error_code = coalesce(?, error_code), updated_at = ? WHERE id = ?")
       .bind(status, errorCode ?? null, now, jobId)
+      .run();
+  }
+
+  async resetJobForRetry(jobId: string): Promise<void> {
+    await this.db
+      .prepare("UPDATE artifact_jobs SET status = 'queued', error_code = NULL, attempt_count = attempt_count + 1, updated_at = ? WHERE id = ? AND status = 'failed'")
+      .bind(Date.now(), jobId)
       .run();
   }
 

@@ -31,13 +31,28 @@ class ArticleRepository(
         withContext(Dispatchers.IO) {
             if (url.isNullOrBlank()) return@withContext null
             val key = articleCacheKey(url)
-            readDiskCache(key)?.let { return@withContext it }
-            val raw = resolveRemote(url, rssContent, title, sourceName) ?: return@withContext null
-            decodeArticleDocument(raw)?.also { document ->
+            val localRssDocument = articleDocumentFromRss(url, rssContent, title, sourceName)
+            readDiskCache(key)?.let { cached ->
+                // A short document may be a previously cached summary. Do not
+                // let it hide a newly available full RSS body.
+                if (cached.isFullText() || localRssDocument == null) return@withContext cached
+            }
+
+            // Full RSS content is already on the device and does not require an
+            // account. It is the reliable offline/signed-out reader path.
+            val sessionToken = sessionTokenProvider()
+            if (sessionToken == null) return@withContext localRssDocument
+
+            val raw = resolveRemote(url, rssContent, title, sourceName)
+            val remoteDocument = raw?.let(::decodeArticleDocument)
+            val selectedDocument = remoteDocument?.takeIf { it.isFullText() }
+                ?: localRssDocument
+                ?: remoteDocument
+            selectedDocument?.also { document ->
                 runCatching {
                     val file = cacheFile(key)
                     file.parentFile?.mkdirs()
-                    file.writeText(raw)
+                    if (raw != null && remoteDocument == document) file.writeText(raw)
                 }
             }
         }
@@ -83,6 +98,8 @@ class ArticleRepository(
         }
         decodeArticleDocument(file.readText())
     }.getOrNull()
+
+    private fun ArticleDocument.isFullText(): Boolean = plainText().length >= 500
 
     companion object {
         private const val CACHE_TTL_MS = 24 * 60 * 60 * 1000L

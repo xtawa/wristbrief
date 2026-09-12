@@ -54,6 +54,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import ink.underflo.wristbrief.mobile.R
+import ink.underflo.wristbrief.mobile.ui.AppIcon
+import ink.underflo.wristbrief.mobile.ui.AppIconKind
 
 @Composable
 fun PodcastMiniPlayer(
@@ -62,6 +64,7 @@ fun PodcastMiniPlayer(
     onPlayPause: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    darkTheme: Boolean = isSystemInDarkTheme(),
 ) {
     val episode = state.currentEpisode ?: return
     if (!state.isVisible) return
@@ -70,7 +73,6 @@ fun PodcastMiniPlayer(
         (state.currentPositionMs.toFloat() / state.durationMs.toFloat()).coerceIn(0f, 1f)
     } else 0f
 
-    val darkTheme = isSystemInDarkTheme()
     val shape = RoundedCornerShape(GlassTokens.CardRadius)
     val shadowColor = if (darkTheme) GlassTokens.ShadowDark else GlassTokens.ShadowLight
 
@@ -150,9 +152,9 @@ fun PodcastMiniPlayer(
                             contentColor = GlassTokens.onControlSelected(darkTheme),
                         ),
                     ) {
-                        Text(
-                            text = if (state.isPlaying) "⏸" else "▶",
-                            style = MaterialTheme.typography.titleMedium,
+                        AppIcon(
+                            kind = if (state.isPlaying) AppIconKind.Pause else AppIconKind.Play,
+                            modifier = Modifier.size(22.dp),
                         )
                     }
                     val dismissDesc = stringResource(R.string.action_dismiss)
@@ -162,11 +164,7 @@ fun PodcastMiniPlayer(
                             .size(48.dp)
                             .semantics { contentDescription = dismissDesc },
                     ) {
-                        Text(
-                            text = "✕",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = GlassTokens.textSecondary(darkTheme),
-                        )
+                        AppIcon(AppIconKind.Close, Modifier.size(18.dp), GlassTokens.textSecondary(darkTheme))
                     }
                 }
             }
@@ -184,12 +182,12 @@ fun PodcastExpandedSheet(
     onSeekBy: (Long) -> Unit,
     onCycleSpeed: () -> Unit,
     onOpenTranscript: (() -> Unit)? = null,
+    darkTheme: Boolean = isSystemInDarkTheme(),
 ) {
     val episode = state.currentEpisode ?: return
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var isUserDraggingSlider by remember { mutableStateOf(false) }
     var draggingSliderValue by remember { mutableFloatStateOf(0f) }
-    val darkTheme = isSystemInDarkTheme()
 
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -229,9 +227,10 @@ fun PodcastExpandedSheet(
                         color = MaterialTheme.colorScheme.primaryContainer,
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Text(
-                                text = if (state.isPlaying) "🎙" else "📻",
-                                style = MaterialTheme.typography.headlineMedium,
+                            AppIcon(
+                                kind = if (state.isPlaying) AppIconKind.Microphone else AppIconKind.Radio,
+                                modifier = Modifier.size(34.dp),
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
                             )
                         }
                     }
@@ -361,9 +360,9 @@ fun PodcastExpandedSheet(
                         contentColor = MaterialTheme.colorScheme.onPrimary,
                     ),
                 ) {
-                    Text(
-                        text = if (state.isPlaying) "⏸" else "▶",
-                        style = MaterialTheme.typography.headlineMedium,
+                    AppIcon(
+                        kind = if (state.isPlaying) AppIconKind.Pause else AppIconKind.Play,
+                        modifier = Modifier.size(28.dp),
                     )
                 }
 

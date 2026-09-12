@@ -1,7 +1,6 @@
 package ink.underflo.wristbrief.mobile
 
-import android.content.Intent
-import android.net.Uri
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -28,7 +27,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -49,7 +47,6 @@ internal fun LibraryDestination(
     onPlayPodcast: (MobileFeedItem) -> Unit = {},
     darkTheme: Boolean = isSystemInDarkTheme(),
 ) {
-    val context = LocalContext.current
     var searchQuery by remember { mutableStateOf("") }
     var currentFilter by remember { mutableStateOf(LibraryFilter.All) }
     var sortNewestFirst by rememberSaveable { mutableStateOf(true) }
@@ -84,15 +81,6 @@ internal fun LibraryDestination(
             list
         } else {
             list.reversed()
-        }
-    }
-
-    fun openUrl(url: String?) {
-        if (!url.isNullOrBlank()) {
-            runCatching {
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                context.startActivity(intent)
-            }
         }
     }
 
@@ -173,7 +161,7 @@ internal fun LibraryDestination(
                 ) {
                     item {
                         NeutralFilterChip(
-                            label = stringResource(R.string.today_filter_all),
+                            label = stringResource(R.string.library_category_all),
                             selected = selectedCategory == null,
                             onClick = { selectedCategory = null },
                             darkTheme = darkTheme,
@@ -235,7 +223,11 @@ internal fun LibraryDestination(
                 val isSaved = inboxRepository.isSaved(item.id)
 
                 GlassSurface(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            if (item.audioUrl != null) onPlayPodcast(item) else onOpenArticle(item)
+                        },
                     strong = !isRead,
                     cornerRadius = GlassTokens.CardRadius,
                     darkTheme = darkTheme,

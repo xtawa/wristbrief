@@ -1,0 +1,274 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"><title>WristBrief</title><link href="https://fonts.googleapis.com" rel="preconnect"><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"><link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,300;400;500;600;700&amp;display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { colors: { "primary-container": "#C8E6FF", "surface-bright": "#f8f9fa", "tertiary": "#42474c", "tertiary-fixed": "#dfe3e8", "on-secondary-container": "#0d6d79", "on-tertiary-fixed-variant": "#42474c", "outline": "#73777F", "on-surface-variant": "#43474E", "semantic-warning": "#8C5000", "on-primary-container": "#b3deff", "glass-border": "rgba(0, 0, 0, 0.06)", "semantic-error": "#BA1A1A", "surface-dim": "#d9dadb", "secondary-fixed-dim": "#85d2e0", "surface-container": "#edeeef", "primary-fixed-dim": "#88ceff", "on-error-container": "#93000a", "on-surface": "#191c1d", "primary": "#004c6e", "secondary-container": "#9fecfa", "error": "#ba1a1a", "surface-container-low": "#f3f4f5", "surface-container-lowest": "#ffffff", "surface-container-highest": "#e1e3e4", "on-background": "#191c1d", "on-tertiary": "#ffffff", "error-container": "#ffdad6", "surface-tint": "#006590", "outline-variant": "rgba(0, 0, 0, 0.06)", "tertiary-container": "#5a5f63", "on-secondary-fixed-variant": "#004f58", "inverse-on-surface": "#f0f1f2", "surface": "#F8F9FA", "inverse-primary": "#88ceff", "on-secondary": "#ffffff", "on-tertiary-container": "#d5d9de", "surface-variant": "#e1e3e4", "secondary-fixed": "#a2effd", "on-primary": "#ffffff", "semantic-success": "#1B6C43", "glass-surface": "rgba(255, 255, 255, 0.78)", "background": "#f8f9fa", "surface-container-high": "#e7e8e9", "inverse-surface": "#2e3132", "tertiary-fixed-dim": "#c2c7cc", "on-primary-fixed": "#001e2e", "secondary": "#016874", "on-error": "#ffffff", "primary-fixed": "#c8e6ff", "on-primary-fixed-variant": "#004c6d", "on-secondary-fixed": "#001f24", "on-tertiary-fixed": "#171c20" }, borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, spacing: { "space-lg": "1.5rem", "space-xs": "0.25rem", "space-sm": "0.5rem", "margin-tablet": "2rem", "space-md": "1rem", "gutter": "1rem", "space-xl": "2rem", "gutter-tablet": "1.5rem", "margin": "1.25rem" }, fontFamily: { "display-lg": ["Roboto Flex"], "label-md": ["Roboto Flex"], "title-lg": ["Roboto Flex"], "label-lg": ["Roboto Flex"], "body-md": ["Roboto Flex"], "headline-lg": ["Roboto Flex"], "headline-lg-mobile": ["Roboto Flex"], "body-sm": ["Roboto Flex"], "display-lg-mobile": ["Roboto Flex"], "body-lg": ["Roboto Flex"], "label-sm": ["Roboto Flex"], "headline-md": ["Roboto Flex"], "title-md": ["Roboto Flex"] }, fontSize: { "display-lg": ["40px", { lineHeight: "48px", letterSpacing: "-0.02em", fontWeight: "700" }], "label-md": ["11px", { lineHeight: "16px", letterSpacing: "0.03em", fontWeight: "500" }], "title-lg": ["17px", { lineHeight: "24px", letterSpacing: "0em", fontWeight: "600" }], "label-lg": ["13px", { lineHeight: "18px", letterSpacing: "0.01em", fontWeight: "600" }], "body-md": ["14px", { lineHeight: "22px", letterSpacing: "0.01em", fontWeight: "400" }], "headline-lg": ["30px", { lineHeight: "38px", letterSpacing: "-0.01em", fontWeight: "700" }], "headline-lg-mobile": ["24px", { lineHeight: "30px", letterSpacing: "-0.01em", fontWeight: "700" }], "body-sm": ["12px", { lineHeight: "17px", letterSpacing: "0.02em", fontWeight: "400" }], "display-lg-mobile": ["30px", { lineHeight: "36px", letterSpacing: "-0.02em", fontWeight: "700" }], "body-lg": ["17px", { lineHeight: "26px", letterSpacing: "0.01em", fontWeight: "400" }], "label-sm": ["10px", { lineHeight: "14px", letterSpacing: "0.04em", fontWeight: "500" }], "headline-md": ["20px", { lineHeight: "26px", letterSpacing: "0em", fontWeight: "600" }], "title-md": ["15px", { lineHeight: "20px", letterSpacing: "0.01em", fontWeight: "600" }] } } } }</script><style>@layer base { html, body { width: 100vw; margin: 0; padding: 0; background-color: #F8F9FA; -webkit-tap-highlight-color: transparent; } body { overscroll-behavior-y: none; } .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); } .pt-safe { padding-top: env(safe-area-inset-top, 0px); } main > :first-child { margin-top: 0 !important; } main > :last-child { margin-bottom: 0 !important; } } ::-webkit-scrollbar { display: none; } .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; } [data-active="true"] .material-symbols-outlined { font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24; }</style><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  <style>
+h1, h2, h3, h4, h5, h6, [class*='font-headline'], [class*='font-title'], [class*='font-serif'], .font-serif, body, * {
+  font-family: 'Roboto Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+}
+</style></head><body class="bg-surface text-on-surface flex flex-col min-h-screen selection:bg-primary-fixed selection:text-on-primary-fixed"><header class="fixed top-0 w-full z-50 pt-safe bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="h-16 px-margin flex items-center justify-between"><div class="flex items-center gap-space-sm"><img alt="Brand logo. - Primary color: #2c3e50
+- Font: robotoFlex
+- Mode: dark
+- Roundness: rounded-md
+" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/AEtjO1UvrxCgwgf9RQICGw0ItihxRDoGY6tu-Ln-ADcWMXIx57QOT5PU_PnXLh32wlf7CLgWu-nQRuYyUgsFVe1JYS1TNIMdVwEQ2YMn2LCdzgXROTBolwKrWYK3X1IaTc6IOfqRnHqj9o2l-rujVTx21Q_HbapA3H9nJfGeUmxGrWQTu7YfxV3CufvOXkLQBRS8j-VgeSx0sweEmutan5OX2CGr-sXoRLI6tNXnEbvJaWMwiGkjhok5I-qFT9E"><div class="flex flex-col"><span class="font-label-sm text-label-sm text-secondary uppercase tracking-wider">WristBrief</span><h1 class="font-title-md text-title-md text-on-surface tracking-tight leading-none">Ask Ai</h1></div></div><div class="flex items-center gap-space-xs"><button aria-label="Notifications" class="w-11 h-11 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container active:bg-surface-container-high transition-colors"><span class="material-symbols-outlined text-[22px]">notifications</span></button><button aria-label="Profile Account" class="w-11 h-11 flex items-center justify-center rounded-full focus:outline-none focus:ring-2 focus:ring-primary/20"><img alt="Profile" class="w-8 h-8 rounded-full object-cover ring-1 ring-black/5" src="https://lh3.googleusercontent.com/aida/AEtjO1VA8P6zNVmYr5QNQSkPuVyXxiwjN8tAtXmyIa6O6TPFt87BMw0HzhgSwZvJzTe5zEi9zjfPemEHHWe6z130VTSmk7jeKzVHPUJbLco7xb8fW61GmIC3AJSBHrkKOJYNzW11-o1MlNbK7eWw64xZx9YwVeLEHsgIUGEz0ti2IEgLLG_0nu_iAfdwyWlUlzIyYMei2ajuM3CAUQMAqSsK3ytMYnjd-PX0PEvEkevcZyXA_peTnQNW0rBNPqI"></button></div></div></header><main class="flex-1 flex flex-col relative w-full pt-16 pb-40 bg-surface"><div class="flex flex-col w-full max-w-[640px] mx-auto px-margin pb-6 gap-space-md">
+<!-- Top Context Header & Grounding Badge -->
+<div class="flex flex-col gap-space-xs pt-2">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-xs">
+<span class="w-2 h-2 rounded-full bg-semantic-success animate-pulse"></span>
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Semantic Sync Active</span>
+</div>
+<div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-container-high text-on-surface text-label-sm font-label-sm shadow-sm">
+<span class="material-symbols-outlined text-[14px] text-secondary" style="font-variation-settings: 'FILL' 1;">verified</span>
+<span class="">Grounded in 24 sources</span>
+</div>
+</div>
+<!-- Source Scope Filter Chips -->
+<div class="flex items-center gap-2 overflow-x-auto py-1 scrollbar-none -mx-margin px-margin">
+<button class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-primary-container text-on-primary-fixed font-label-lg text-label-lg whitespace-nowrap shadow-sm">
+<span class="material-symbols-outlined text-[16px]">check</span>
+<span class="">All Sources (24)</span>
+</button>
+<button class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-surface-container text-on-surface-variant font-label-lg text-label-lg whitespace-nowrap hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined text-[16px] text-secondary">wb_sunny</span>
+<span class="">Today's Brief</span>
+</button>
+<button class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-surface-container text-on-surface-variant font-label-lg text-label-lg whitespace-nowrap hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined text-[16px] text-outline">mark_email_unread</span>
+<span class="">Unread (14)</span>
+</button>
+<button class="flex items-center gap-1 px-3 py-1.5 rounded-full bg-surface-container-low text-on-surface-variant font-label-sm text-label-sm whitespace-nowrap">
+<span class="material-symbols-outlined text-[15px]">tune</span>
+<span class="">Scope</span>
+</button>
+</div>
+</div>
+<!-- User Query Bubble -->
+<div class="flex flex-col gap-1.5 items-end pl-8">
+<div class="bg-primary text-on-primary rounded-2xl rounded-tr-xs px-4 py-3 shadow-sm max-w-[90%]">
+<p class="font-body-md text-body-md text-on-primary leading-relaxed">
+        Compare today's key arguments on local AI models vs cloud multi-agent systems.
+      </p>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant pr-1">08:42 AM • Synced with morning feeds</span>
+</div>
+<!-- AI Executive Synthesis Container -->
+<div class="bg-surface-container-lowest rounded-2xl p-4 shadow-sm flex flex-col gap-space-md">
+<!-- Header Row -->
+<div class="flex items-center justify-between pb-1">
+<div class="flex items-center gap-2">
+<div class="w-7 h-7 rounded-lg bg-secondary-container flex items-center justify-center text-on-secondary-container">
+<span class="material-symbols-outlined text-[18px]">auto_awesome</span>
+</div>
+<div>
+<h2 class="font-title-md text-title-md text-on-surface">Executive Synthesis</h2>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Synthesized from 3 articles • 1 podcast snippet</span>
+</div>
+</div>
+<span class="px-2 py-0.5 rounded bg-surface-container text-on-surface-variant font-label-sm text-label-sm">High Confidence</span>
+</div>
+<!-- Editorial Synthesis Text -->
+<div class="font-body-md text-body-md text-on-surface leading-relaxed">
+      Today's technical discourse reflects a pivot from pure parameter scaling toward architectural divergence: edge-bound determinism against orchestrated cloud deliberation.
+    </div>
+<!-- Structured 3 Takeaway Cards -->
+<div class="flex flex-col gap-2.5">
+<!-- Point 1: NPU Silicon -->
+<div class="bg-surface-container-low rounded-xl p-3 flex flex-col gap-1">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-secondary text-[18px]">memory</span>
+<span class="font-label-lg text-label-lg text-on-surface">1. On-Device NPU Saturation</span>
+</div>
+<span class="font-label-sm text-label-sm text-secondary bg-surface-container px-2 py-0.5 rounded-full">Latent Space Ep. 48</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant leading-normal">
+          Sub-8B quantization techniques now achieve 45 tokens/sec locally on 35W silicon. The economic tipping point pushes personal contextual memory entirely to device flash, avoiding per-token cloud egress tariffs.
+        </p>
+</div>
+<!-- Point 2: Multi-agent Verification -->
+<div class="bg-surface-container-low rounded-xl p-3 flex flex-col gap-1">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-secondary text-[18px]">hub</span>
+<span class="font-label-lg text-label-lg text-on-surface">2. Multi-Agent Cross-Verification</span>
+</div>
+<span class="font-label-sm text-label-sm text-secondary bg-surface-container px-2 py-0.5 rounded-full">MIT Tech Review</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant leading-normal">
+          Distributed agent clusters running asynchronous critique loops exhibit a 34% drop in hallucinations for synthesis tasks, yet suffer from non-deterministic latency spikes unacceptable for interactive UI loops.
+        </p>
+</div>
+<!-- Point 3: Test-time Compute -->
+<div class="bg-surface-container-low rounded-xl p-3 flex flex-col gap-1">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-secondary text-[18px]">analytics</span>
+<span class="font-label-lg text-label-lg text-on-surface">3. Test-Time Compute Frontier</span>
+</div>
+<span class="font-label-sm text-label-sm text-secondary bg-surface-container px-2 py-0.5 rounded-full">Ars Technica</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant leading-normal">
+          Cloud clusters dominate reasoning via adaptive search trees during token generation. Local edge models remain fundamentally constrained to fixed compute passes, widening the complex-logic gap.
+        </p>
+</div>
+</div>
+<!-- Inline Citation Badges -->
+<div class="flex flex-col gap-2 pt-1">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Grounding References</span>
+<span class="font-label-sm text-label-sm text-secondary">Verified timestamps</span>
+</div>
+<div class="flex flex-wrap gap-2">
+<a class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high transition-colors text-on-surface font-label-md text-label-md shadow-xs" href="#">
+<span class="material-symbols-outlined text-[16px] text-secondary">article</span>
+<span class="font-medium">Ars Technica</span>
+<span class="text-on-surface-variant text-[10px]">• 4h ago</span>
+</a>
+<a class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high transition-colors text-on-surface font-label-md text-label-md shadow-xs" href="#">
+<span class="material-symbols-outlined text-[16px] text-secondary">graphic_eq</span>
+<span class="font-medium">Latent Space Ep. 48</span>
+<span class="text-on-surface-variant text-[10px]">• 21:04</span>
+</a>
+<a class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high transition-colors text-on-surface font-label-md text-label-md shadow-xs" href="#">
+<span class="material-symbols-outlined text-[16px] text-secondary">newspaper</span>
+<span class="font-medium">MIT Tech Review</span>
+<span class="text-on-surface-variant text-[10px]">• Today</span>
+</a>
+</div>
+</div>
+<!-- Editorial Micro Action Bar -->
+<div class="flex items-center justify-between pt-2 border-t-0 bg-surface-container-low rounded-xl px-3 py-2 mt-1">
+<div class="flex items-center gap-1">
+<button aria-label="Copy Brief" class="w-9 h-9 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container active:scale-95 transition-all" id="btn-copy">
+<span class="material-symbols-outlined text-[19px]">content_copy</span>
+</button>
+<button aria-label="Regenerate" class="w-9 h-9 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[19px]">refresh</span>
+</button>
+<button aria-label="Save to Notes" class="w-9 h-9 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container active:scale-95 transition-all" id="btn-save">
+<span class="material-symbols-outlined text-[19px]">bookmark_add</span>
+</button>
+</div>
+<button class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary-container text-on-primary-fixed font-label-md text-label-md shadow-xs hover:bg-primary-fixed transition-colors">
+<span class="">Open 3 Sources</span>
+<span class="material-symbols-outlined text-[16px]">open_in_new</span>
+</button>
+</div>
+</div>
+<!-- Visual Evidence Micro-Gallery -->
+<div class="grid grid-cols-2 gap-space-sm pt-1">
+<div class="bg-surface-container-lowest rounded-xl p-3 flex flex-col gap-2 shadow-xs">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-on-surface-variant">Silicon Comparison</span>
+<span class="material-symbols-outlined text-secondary text-[16px]">speed</span>
+</div>
+<div class="w-full h-24 rounded-lg overflow-hidden relative">
+<img class="w-full h-full object-cover" data-alt="Close up architectural macro shot of modern high-performance semiconductor NPU die layout with glowing cyan and platinum circuit pathways under neutral studio editorial lighting, crisp details." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBKZXaN-G-sYlHUH97JHtQcr48eyV6PJGXpR20B5Jv1Ah9bHAaQfrnJzekyOGgxCUvJ1Xy9HbJljkPfXCom_5XJ3-BMjncP5kNBy7VXZRxi4v05CNUcaqEuECDziFpK1FPyk9p0c4tv4QnZMuZbof-hggcqGNTnkR7C8rWNZReHP8DSEVnEPKtmmfh3Z4IeCuNc-vZX1tv4XxIxk__6u3-IGBmpTbjlc9BM-pPrJq-61YWH-m3pecJD">
+</div>
+<span class="font-label-md text-label-md text-on-surface truncate">On-chip L3 Cache Benchmarks</span>
+</div>
+<div class="bg-surface-container-lowest rounded-xl p-3 flex flex-col gap-2 shadow-xs">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-on-surface-variant">Latency Graph</span>
+<span class="material-symbols-outlined text-secondary text-[16px]">show_chart</span>
+</div>
+<div class="w-full h-24 rounded-lg overflow-hidden relative">
+<img class="w-full h-full object-cover" data-alt="Minimalist clean data visualization graphic displaying diverging curve lines in teal and charcoal on warm off-white canvas with precise typographic ticks and soft ambient lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB13g7tFOW8Gykrfyb2EZ8dEb4IcIOIPM0EVQUBajiul36zLR5J1_oluBJ7tcHSAQ2dxcufx2A_171GidzdrTgcy0AOYNkWVxChOC9mKWSPYnYUNYbTX_VQxoTqHi8KBN9m1Xa7C9L3_DRoThcj9UVjXLhbU0bsurooXwhOl660TAfqbpboytDX8T9HqyDfhVnsR3xUcAb2FT3OwC4Kx61rMHHDZ08uzsLom0C3tkn_IVV3OtDVZ8B4">
+</div>
+<span class="font-label-md text-label-md text-on-surface truncate">Inference Cost vs Complexity</span>
+</div>
+</div>
+<!-- Suggested Follow-Up Prompts -->
+<div class="flex flex-col gap-2 pt-1">
+<div class="flex items-center gap-1.5 text-on-surface-variant px-1">
+<span class="material-symbols-outlined text-[16px]">chat_bubble_outline</span>
+<span class="font-label-sm text-label-sm uppercase tracking-wider">Suggested Exploration</span>
+</div>
+<div class="flex flex-col gap-1.5">
+<button class="w-full text-left px-3.5 py-2.5 rounded-xl bg-surface-container-lowest hover:bg-surface-container text-on-surface font-body-sm text-body-sm shadow-xs flex items-center justify-between transition-colors group">
+<span class="truncate">“What is the hardware requirement for Latent Space's setup?”</span>
+<span class="material-symbols-outlined text-outline group-hover:text-primary text-[18px]">north_east</span>
+</button>
+<button class="w-full text-left px-3.5 py-2.5 rounded-xl bg-surface-container-lowest hover:bg-surface-container text-on-surface font-body-sm text-body-sm shadow-xs flex items-center justify-between transition-colors group">
+<span class="truncate">“Synthesize the opposing view from Anthropic's paper.”</span>
+<span class="material-symbols-outlined text-outline group-hover:text-primary text-[18px]">north_east</span>
+</button>
+</div>
+</div>
+<!-- Docked Query Composer Bar -->
+<div class="sticky bottom-2 z-30 pt-2">
+<div class="bg-surface-container-lowest/95 backdrop-blur-xl rounded-full p-1.5 pl-4 shadow-md flex items-center justify-between gap-2">
+<div class="flex items-center gap-2 flex-1 min-w-0">
+<span class="material-symbols-outlined text-secondary text-[20px] flex-shrink-0">spark</span>
+<input class="w-full bg-transparent text-on-surface font-body-md text-body-md placeholder:text-outline focus:outline-none min-w-0" id="query-input" placeholder="Ask your library..." type="text">
+</div>
+<div class="flex items-center gap-1 flex-shrink-0">
+<button aria-label="Voice prompt" class="w-10 h-10 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container active:scale-95 transition-all" id="mic-btn">
+<span class="material-symbols-outlined text-[20px]">mic</span>
+</button>
+<button aria-label="Send Query" class="w-10 h-10 flex items-center justify-center rounded-full bg-primary text-on-primary hover:bg-surface-tint active:scale-95 transition-all shadow-sm" id="send-btn">
+<span class="material-symbols-outlined text-[18px]">arrow_upward</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<script>
+  (function() {
+    const copyBtn = document.getElementById('btn-copy');
+    const saveBtn = document.getElementById('btn-save');
+    const micBtn = document.getElementById('mic-btn');
+    const sendBtn = document.getElementById('send-btn');
+    const queryInput = document.getElementById('query-input');
+
+    if (copyBtn) {
+      copyBtn.addEventListener('click', () => {
+        const icon = copyBtn.querySelector('.material-symbols-outlined');
+        if (icon) {
+          icon.textContent = 'check';
+          setTimeout(() => icon.textContent = 'content_copy', 1600);
+        }
+      });
+    }
+
+    if (saveBtn) {
+      saveBtn.addEventListener('click', () => {
+        const icon = saveBtn.querySelector('.material-symbols-outlined');
+        if (icon) {
+          icon.textContent = 'bookmark';
+          icon.style.fontVariationSettings = "'FILL' 1";
+          setTimeout(() => {
+            icon.textContent = 'bookmark_added';
+          }, 600);
+        }
+      });
+    }
+
+    if (micBtn) {
+      micBtn.addEventListener('click', () => {
+        micBtn.classList.toggle('text-semantic-error');
+        micBtn.classList.toggle('animate-pulse');
+      });
+    }
+
+    if (sendBtn && queryInput) {
+      sendBtn.addEventListener('click', () => {
+        if (queryInput.value.trim().length > 0) {
+          queryInput.value = '';
+          sendBtn.classList.add('scale-90');
+          setTimeout(() => sendBtn.classList.remove('scale-90'), 150);
+        }
+      });
+      queryInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          sendBtn.click();
+        }
+      });
+    }
+  })();
+</script></main><aside aria-label="Now Playing Bar" class="fixed bottom-[74px] inset-x-0 z-40 px-margin pointer-events-none"><div class="pointer-events-auto max-w-[560px] mx-auto bg-white/85 backdrop-blur-2xl rounded-full p-1.5 pl-2.5 pr-2 shadow-[0_4px_20px_rgba(0,0,0,0.06)] ring-1 ring-black/[0.06] flex items-center justify-between gap-space-sm relative overflow-hidden"><div class="absolute bottom-0 inset-x-0 h-0.5 bg-surface-container-highest"><div class="h-full bg-secondary w-2/5 rounded-full"></div></div><div class="flex items-center gap-space-sm min-w-0 flex-1 py-0.5"><div class="w-9 h-9 rounded-lg bg-surface-container-high flex-shrink-0 flex items-center justify-center text-secondary shadow-inner"><span class="material-symbols-outlined text-[20px]">podcasts</span></div><div class="flex flex-col min-w-0 flex-1 pr-1"><span class="font-title-md text-title-md text-on-surface truncate leading-tight">Morning Synthesis: Global Markets</span><span class="font-label-sm text-label-sm text-on-surface-variant truncate">Briefing • 04:18 left</span></div></div><div class="flex items-center gap-0.5 flex-shrink-0"><button aria-label="Rewind 15 seconds" class="w-11 h-11 flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors"><span class="material-symbols-outlined text-[22px]">export_notes</span></button><button aria-label="Play or Pause" class="w-11 h-11 flex items-center justify-center bg-primary-container text-on-primary-fixed rounded-full hover:bg-primary-fixed active:scale-95 transition-all shadow-sm"><span class="material-symbols-outlined text-[22px]">pause</span></button></div></div></aside><nav class="fixed bottom-0 w-full z-50 pb-safe bg-white/80 backdrop-blur-2xl shadow-[0_-1px_12px_rgba(0,0,0,0.04)] ring-1 ring-black/[0.05]" data-active-classes="bg-primary-container text-on-primary-fixed font-title-md"><div class="flex justify-around items-center h-16 max-w-[560px] mx-auto px-space-sm"><a class="flex flex-col items-center justify-center flex-1 h-12 rounded-full text-on-surface-variant hover:text-on-surface transition-all gap-0.5" data-path="home" href="#"><div class="px-4 py-1 rounded-full flex items-center justify-center"><span class="material-symbols-outlined text-[22px]">newspaper</span></div><span class="font-label-sm text-label-sm">Home</span></a><a class="flex flex-col items-center justify-center flex-1 h-12 rounded-full text-on-surface-variant hover:text-on-surface transition-all gap-0.5" data-path="explore" href="#"><div class="px-4 py-1 rounded-full flex items-center justify-center"><span class="material-symbols-outlined text-[22px]">explore</span></div><span class="font-label-sm text-label-sm">Explore</span></a><a aria-current="page" class="flex flex-col items-center justify-center flex-1 h-12 rounded-full transition-all gap-0.5 bg-primary-container text-on-primary-fixed font-title-md" data-path="ask-ai" href="#"><div class="px-4 py-1 rounded-full flex items-center justify-center"><span class="material-symbols-outlined text-[22px]">auto_awesome</span></div><span class="font-label-sm text-label-sm">Ask AI</span></a><a class="flex flex-col items-center justify-center flex-1 h-12 rounded-full text-on-surface-variant hover:text-on-surface transition-all gap-0.5" data-path="library" href="#"><div class="px-4 py-1 rounded-full flex items-center justify-center"><span class="material-symbols-outlined text-[22px]">bookmarks</span></div><span class="font-label-sm text-label-sm">Library</span></a></div></nav>
+
+</body></html>

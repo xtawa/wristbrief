@@ -1,5 +1,7 @@
 # Deployment
 
+For the complete step-by-step production procedure, use [`PRODUCTION_DEPLOYMENT_GUIDE.md`](./PRODUCTION_DEPLOYMENT_GUIDE.md). This file is retained as a concise reference; the production guide is the single operational entry point.
+
 WristBrief currently supports a credential-free CI foundation. Do not treat passing fake tests as proof that Google Play, Google Cloud or Cloudflare production integration is deployed.
 
 ## Gateway deployment inputs

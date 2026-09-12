@@ -1,9 +1,11 @@
 package ink.underflo.wristbrief.mobile.articles
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import ink.underflo.wristbrief.mobile.ArticleContentSanitizer
 
 class ArticleDocumentTest {
     @Test
@@ -69,5 +71,26 @@ class ArticleDocumentTest {
         assertNull(decodeArticleDocument("not json"))
         assertNull(decodeArticleDocument("""{"document":{"title":"x","blocks":null}}"""))
         assertNull(decodeArticleDocument("""{"document":{"title":"x","blocks":[{"type":"unknown_thing"}]}}"""))
+    }
+
+    @Test
+    fun buildsFullTextDocumentFromLongRssContent() {
+        val content = "<p>" + "A useful paragraph. ".repeat(40) + "</p>"
+
+        val document = articleDocumentFromRss(
+            canonicalUrl = "https://example.com/story",
+            rssContent = content,
+            title = "Story",
+            sourceName = "Example",
+        )
+
+        assertNotNull(document)
+        assertEquals("Story", document!!.title)
+        assertEquals("Example", document.sourceName)
+        assertTrue(document.plainText().length >= 500)
+        assertEquals(
+            ArticleContentSanitizer.sanitize(content).paragraphs.size,
+            document.blocks.size,
+        )
     }
 }

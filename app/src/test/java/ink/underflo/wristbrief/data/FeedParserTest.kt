@@ -119,6 +119,25 @@ class FeedParserTest {
     }
 
     @Test
+    fun keepsNamespacedFullContentInsteadOfShortSummary() {
+        val fullContent = "<p>" + "Full article body ".repeat(80) + "</p>"
+        val xml = """
+            <rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+              <channel><item>
+                <title>Long article</title>
+                <link>https://example.com/long</link>
+                <description>Short summary.</description>
+                <content:encoded><![CDATA[$fullContent]]></content:encoded>
+              </item></channel>
+            </rss>
+        """.trimIndent()
+
+        val item = subject.parse(parserFor(xml)).single()
+
+        assertEquals(fullContent, item.description)
+    }
+
+    @Test
     fun ignoresEntriesWithoutTitles() {
         val xml = """
             <rss version="2.0">

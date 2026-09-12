@@ -98,14 +98,21 @@ fun BriefGlassCard(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 points.forEach { point ->
-                    Text(
-                        text = "• $point",
-                        color = WearGlassTokens.TextPrimary,
-                        fontSize = 14.sp,
-                        lineHeight = 18.sp,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
+                        WearIconBullet(
+                            tint = WearGlassTokens.TextSecondary,
+                            modifier = Modifier.size(12.dp),
+                        )
+                        Text(
+                            text = point,
+                            color = WearGlassTokens.TextPrimary,
+                            fontSize = 14.sp,
+                            lineHeight = 18.sp,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                 }
             }
 
@@ -240,6 +247,13 @@ fun WearIconPause(tint: Color = WearGlassTokens.TextPrimary, modifier: Modifier 
 }
 
 @Composable
+fun WearIconBullet(tint: Color = WearGlassTokens.TextPrimary, modifier: Modifier = Modifier) {
+    Canvas(modifier.size(12.dp)) {
+        drawCircle(tint, radius = size.minDimension * 0.22f)
+    }
+}
+
+@Composable
 fun WearIconBook(tint: Color = WearGlassTokens.TextPrimary, modifier: Modifier = Modifier) {
     Canvas(modifier.size(20.dp)) {
         val stroke = 1.8.dp.toPx()
@@ -300,4 +314,3 @@ fun WearIconBack(tint: Color = WearGlassTokens.TextPrimary, modifier: Modifier =
         drawPath(path, tint, style = Stroke(stroke))
     }
 }
-

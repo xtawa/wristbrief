@@ -54,8 +54,15 @@ class MobileFeedParser {
                         "title" -> if (inItem) {
                             title = parser.nextText().trim().ifBlank { null }
                         }
-                        "description", "summary", "content", "content:encoded" -> if (inItem) {
-                            description = parser.nextText().trim().ifBlank { description }
+                        "description", "summary", "content", "encoded", "content:encoded" -> if (inItem) {
+                            // XmlPullParser exposes a namespaced content:encoded
+                            // element as the local name "encoded" when namespace
+                            // processing is enabled. Keep the richest field so
+                            // a short summary cannot overwrite full content.
+                            val candidate = parser.nextText().trim()
+                            if (candidate.isNotBlank() && candidate.length > (description?.length ?: 0)) {
+                                description = candidate
+                            }
                         }
                         "pubdate", "published", "updated" -> if (inItem) {
                             published = parser.nextText().trim().ifBlank { null }

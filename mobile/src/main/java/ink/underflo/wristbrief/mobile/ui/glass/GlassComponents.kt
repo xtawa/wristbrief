@@ -8,7 +8,9 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -33,6 +35,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import ink.underflo.wristbrief.mobile.ui.AppIcon
+import ink.underflo.wristbrief.mobile.ui.AppIconKind
 
 /**
  * Reusable Liquid Glass primitives for Android Phone companion specified in uidocs/PHONE_LIQUID_GLASS_SPEC.md.
@@ -72,6 +76,53 @@ fun GlassSurface(
             ),
     ) {
         content()
+    }
+}
+
+@Composable
+fun GlassHeader(
+    title: String,
+    subtitle: String? = null,
+    modifier: Modifier = Modifier,
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    navigationIcon: (@Composable () -> Unit)? = null,
+    actions: (@Composable RowScope.() -> Unit)? = null,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = GlassTokens.surfaceGlassStrong(darkTheme),
+        shadowElevation = 4.dp,
+        tonalElevation = 1.dp,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            navigationIcon?.invoke()
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = GlassTokens.textPrimary(darkTheme),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (subtitle != null) {
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = GlassTokens.textSecondary(darkTheme),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            actions?.invoke(this)
+        }
     }
 }
 
@@ -161,11 +212,7 @@ fun DailyBriefCard(
                     .semantics { role = Role.Button },
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    text = "▶",
-                    color = GlassTokens.onControlSelected(darkTheme),
-                    style = MaterialTheme.typography.titleMedium,
-                )
+                AppIcon(AppIconKind.Play, Modifier.size(22.dp), GlassTokens.onControlSelected(darkTheme))
             }
         }
     }
@@ -260,6 +307,8 @@ fun GlassBottomBar(
 
                 Box(
                     modifier = Modifier
+                        .weight(1f)
+                        .defaultMinSize(minHeight = 56.dp)
                         .clip(RoundedCornerShape(GlassTokens.ControlRadius))
                         .background(
                             if (selected) GlassTokens.controlSelected(darkTheme)
@@ -320,11 +369,7 @@ fun MiniPlayerGlass(
                 color = if (darkTheme) Color(0xFF2A2E35) else Color(0xFFE4E7EB),
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        text = "♪",
-                        color = GlassTokens.textSecondary(darkTheme),
-                        style = MaterialTheme.typography.titleMedium,
-                    )
+                    AppIcon(AppIconKind.Audio, Modifier.size(20.dp), GlassTokens.textSecondary(darkTheme))
                 }
             }
 
@@ -359,10 +404,10 @@ fun MiniPlayerGlass(
                     .semantics { role = Role.Button },
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    text = if (isPlaying) "❚❚" else "▶",
-                    color = GlassTokens.onControlSelected(darkTheme),
-                    style = MaterialTheme.typography.labelSmall,
+                AppIcon(
+                    kind = if (isPlaying) AppIconKind.Pause else AppIconKind.Play,
+                    modifier = Modifier.size(18.dp),
+                    tint = GlassTokens.onControlSelected(darkTheme),
                 )
             }
 
@@ -376,13 +421,8 @@ fun MiniPlayerGlass(
                     .semantics { role = Role.Button },
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    text = "✕",
-                    color = GlassTokens.textSecondary(darkTheme),
-                    style = MaterialTheme.typography.bodySmall,
-                )
+                AppIcon(AppIconKind.Close, Modifier.size(18.dp), GlassTokens.textSecondary(darkTheme))
             }
         }
     }
 }
-

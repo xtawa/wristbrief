@@ -35,6 +35,15 @@ export class D1QuotaLedgerStore implements QuotaLedgerStore {
   ): Promise<CreditTransaction> {
     const existing = await this.findByReference(userId, operationType, referenceId);
     if (existing) {
+      if (existing.status === "RELEASED") {
+        const now = Date.now();
+        await this.db
+          .prepare("UPDATE credit_transactions SET status = 'RESERVED', committed_at = NULL, created_at = ? WHERE id = ? AND status = 'RELEASED'")
+          .bind(now, existing.id)
+          .run();
+        const reactivated = await this.findByReference(userId, operationType, referenceId);
+        if (reactivated?.status === "RESERVED") return reactivated;
+      }
       return existing;
     }
 

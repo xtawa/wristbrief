@@ -7,7 +7,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -23,8 +22,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -44,14 +43,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import ink.underflo.wristbrief.mobile.ui.glass.GlassTokens
+import ink.underflo.wristbrief.mobile.ui.AppIcon
+import ink.underflo.wristbrief.mobile.ui.AppIconKind
 import kotlinx.coroutines.launch
 
 internal class OnboardingPreferences(context: Context) {
@@ -83,32 +81,50 @@ internal fun WristBriefOnboarding(
     itemCount: Int = 0,
     onAddSampleFeed: (suspend (SampleFeed) -> Unit)? = null,
     onComplete: (OnboardingAction) -> Unit,
+    darkTheme: Boolean = isSystemInDarkTheme(),
 ) {
     var pageIndex by rememberSaveable { mutableStateOf(0) }
     val page = OnboardingPage.entries[pageIndex]
     val scope = rememberCoroutineScope()
     var addedSampleIds by remember { mutableStateOf(setOf<String>()) }
+    var addingSampleIds by remember { mutableStateOf(setOf<String>()) }
     var selectedInterests by remember { mutableStateOf(setOf("Technology", "News")) }
-    val darkTheme = isSystemInDarkTheme()
-
     Surface(Modifier.fillMaxSize(), color = GlassTokens.canvas(darkTheme)) {
         Column(
-            Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 20.dp),
+            Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    stringResource(R.string.app_name),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = GlassTokens.textPrimary(darkTheme),
-                )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        stringResource(R.string.app_name),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = GlassTokens.textPrimary(darkTheme),
+                    )
+                    Text(
+                        "${pageIndex + 1} / ${OnboardingPage.entries.size}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = GlassTokens.textSecondary(darkTheme),
+                    )
+                }
                 if (page != OnboardingPage.Ready) {
                     TextButton(onClick = { onComplete(OnboardingAction.Explore) }) {
                         Text(stringResource(R.string.oobe_skip), color = GlassTokens.textSecondary(darkTheme))
                     }
                 }
             }
+            Spacer(Modifier.height(12.dp))
+            androidx.compose.material3.LinearProgressIndicator(
+                progress = { (pageIndex + 1).toFloat() / OnboardingPage.entries.size.toFloat() },
+                modifier = Modifier.fillMaxWidth().height(4.dp),
+                color = GlassTokens.controlSelected(darkTheme),
+                trackColor = GlassTokens.hairline(darkTheme),
+            )
             AnimatedContent(
                 targetState = page,
                 transitionSpec = { fadeIn(tween(320)) togetherWith fadeOut(tween(180)) },
@@ -121,10 +137,11 @@ internal fun WristBriefOnboarding(
                     verticalArrangement = Arrangement.Center,
                 ) {
                     OnboardingArtwork(current, darkTheme)
-                    Spacer(Modifier.height(32.dp))
+                    Spacer(Modifier.height(24.dp))
                     Text(
                         stringResource(current.title),
-                        style = MaterialTheme.typography.headlineLarge,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.SemiBold,
                         textAlign = TextAlign.Center,
                         color = GlassTokens.textPrimary(darkTheme),
                     )
@@ -175,17 +192,35 @@ internal fun WristBriefOnboarding(
                                 Spacer(Modifier.height(8.dp))
                                 SampleFeeds.curatedFeeds.forEach { sample ->
                                     val isAdded = sample.id in addedSampleIds
+                                    val isAdding = sample.id in addingSampleIds
                                     OutlinedButton(
                                         onClick = {
                                             scope.launch {
-                                                onAddSampleFeed(sample)
-                                                addedSampleIds = addedSampleIds + sample.id
+                                                addingSampleIds = addingSampleIds + sample.id
+                                                try {
+                                                    onAddSampleFeed(sample)
+                                                    addedSampleIds = addedSampleIds + sample.id
+                                                } finally {
+                                                    addingSampleIds = addingSampleIds - sample.id
+                                                }
                                             }
                                         },
                                         modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                                        enabled = !isAdded,
+                                        enabled = !isAdded && !isAdding,
                                     ) {
-                                        Text(if (isAdded) "✓ ${sample.title}" else "+ ${sample.title}")
+                                        if (isAdding) {
+                                            androidx.compose.material3.CircularProgressIndicator(
+                                                modifier = Modifier.size(18.dp),
+                                                strokeWidth = 2.dp,
+                                            )
+                                        } else {
+                                            AppIcon(
+                                                kind = if (isAdded) AppIconKind.Check else AppIconKind.Add,
+                                                modifier = Modifier.size(18.dp),
+                                            )
+                                        }
+                                        Spacer(Modifier.size(8.dp))
+                                        Text(sample.title)
                                     }
                                 }
                             }
@@ -200,10 +235,17 @@ internal fun WristBriefOnboarding(
                                     .border(1.dp, GlassTokens.hairline(darkTheme), RoundedCornerShape(GlassTokens.CardRadius))
                                     .padding(16.dp),
                             ) {
-                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Text("• Focused daily briefs synthesized calmly", style = MaterialTheme.typography.bodyMedium, color = GlassTokens.textPrimary(darkTheme))
-                                    Text("• Word-level podcast transcripts with audio seek", style = MaterialTheme.typography.bodyMedium, color = GlassTokens.textPrimary(darkTheme))
-                                    Text("• Strictly follows your feeds — zero algorithmic spam", style = MaterialTheme.typography.bodyMedium, color = GlassTokens.textPrimary(darkTheme))
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    listOf(
+                                        stringResource(R.string.oobe_feature_briefs),
+                                        stringResource(R.string.oobe_feature_transcripts),
+                                        stringResource(R.string.oobe_feature_sources),
+                                    ).forEach { feature ->
+                                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
+                                            AppIcon(AppIconKind.Bullet, Modifier.size(18.dp), GlassTokens.textPrimary(darkTheme))
+                                            Text(feature, style = MaterialTheme.typography.bodyMedium, color = GlassTokens.textPrimary(darkTheme))
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -234,25 +276,40 @@ internal fun WristBriefOnboarding(
                     }
                 }
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (pageIndex > 0 && page != OnboardingPage.Ready) {
-                    TextButton(onClick = { pageIndex-- }) { Text(stringResource(R.string.oobe_back)) }
-                }
-                Row(Modifier.weight(1f), horizontalArrangement = Arrangement.Center) {
-                    OnboardingPage.entries.forEachIndexed { index, _ ->
-                        Box(
-                            Modifier
-                                .padding(4.dp)
-                                .size(if (index == pageIndex) 22.dp else 8.dp, 8.dp)
-                                .background(
-                                    if (index == pageIndex) GlassTokens.controlSelected(darkTheme) else GlassTokens.hairline(darkTheme),
-                                    CircleShape,
-                                )
-                        )
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = GlassTokens.surfaceGlassStrong(darkTheme),
+                shape = RoundedCornerShape(20.dp),
+                tonalElevation = 2.dp,
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (pageIndex > 0 && page != OnboardingPage.Ready) {
+                        TextButton(onClick = { pageIndex-- }) { Text(stringResource(R.string.oobe_back)) }
+                    } else {
+                        Spacer(Modifier.width(72.dp))
                     }
-                }
-                if (page != OnboardingPage.Ready) {
-                    Button(onClick = { pageIndex++ }) { Text(stringResource(R.string.oobe_next)) }
+                    Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        OnboardingPage.entries.forEachIndexed { index, _ ->
+                            Box(
+                                Modifier
+                                    .weight(1f)
+                                    .height(4.dp)
+                                    .background(
+                                        if (index <= pageIndex) GlassTokens.controlSelected(darkTheme) else GlassTokens.hairline(darkTheme),
+                                        RoundedCornerShape(4.dp),
+                                    )
+                            )
+                        }
+                    }
+                    if (page != OnboardingPage.Ready) {
+                        Button(onClick = { pageIndex++ }) { Text(stringResource(R.string.oobe_next)) }
+                    } else {
+                        Spacer(Modifier.width(72.dp))
+                    }
                 }
             }
         }
@@ -261,65 +318,27 @@ internal fun WristBriefOnboarding(
 
 @Composable
 private fun OnboardingArtwork(page: OnboardingPage, darkTheme: Boolean) {
-    val shadowColor = GlassTokens.shadow(darkTheme)
     Box(
         modifier = Modifier
-            .size(180.dp)
-            .shadow(
-                elevation = 6.dp,
-                shape = RoundedCornerShape(GlassTokens.HeroRadius),
-                ambientColor = shadowColor,
-                spotColor = shadowColor,
-            )
+            .size(76.dp)
             .border(
                 width = 1.dp,
                 color = GlassTokens.hairline(darkTheme),
-                shape = RoundedCornerShape(GlassTokens.HeroRadius),
+                shape = RoundedCornerShape(22.dp),
             )
             .background(
                 color = GlassTokens.surfaceGlass(darkTheme),
-                shape = RoundedCornerShape(GlassTokens.HeroRadius),
+                shape = RoundedCornerShape(22.dp),
             ),
         contentAlignment = Alignment.Center,
     ) {
-        Canvas(Modifier.size(120.dp)) {
-            val stroke = 2.dp.toPx()
-            val primaryColor = GlassTokens.textPrimary(darkTheme)
-            val secondaryColor = GlassTokens.textSecondary(darkTheme)
-            val hairlineColor = GlassTokens.hairline(darkTheme)
-
-            when (page) {
-                OnboardingPage.Welcome -> {
-                    drawCircle(hairlineColor, radius = size.minDimension * 0.42f, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
-                    drawCircle(secondaryColor.copy(alpha = 0.35f), radius = size.minDimension * 0.28f, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
-                    drawCircle(primaryColor, radius = 6.dp.toPx())
-                }
-                OnboardingPage.Interests -> {
-                    drawRoundRect(hairlineColor, topLeft = Offset(size.width * 0.15f, size.height * 0.22f), size = Size(size.width * 0.70f, 20.dp.toPx()), cornerRadius = androidx.compose.ui.geometry.CornerRadius(10.dp.toPx()))
-                    drawRoundRect(primaryColor.copy(alpha = 0.2f), topLeft = Offset(size.width * 0.25f, size.height * 0.44f), size = Size(size.width * 0.50f, 20.dp.toPx()), cornerRadius = androidx.compose.ui.geometry.CornerRadius(10.dp.toPx()))
-                    drawRoundRect(hairlineColor, topLeft = Offset(size.width * 0.18f, size.height * 0.66f), size = Size(size.width * 0.64f, 20.dp.toPx()), cornerRadius = androidx.compose.ui.geometry.CornerRadius(10.dp.toPx()))
-                }
-                OnboardingPage.Content -> {
-                    drawRoundRect(hairlineColor, topLeft = Offset(size.width * 0.22f, size.height * 0.18f), size = Size(size.width * 0.56f, size.height * 0.64f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(12.dp.toPx()), style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
-                    drawLine(secondaryColor, Offset(size.width * 0.32f, size.height * 0.34f), Offset(size.width * 0.68f, size.height * 0.34f), strokeWidth = stroke)
-                    drawLine(secondaryColor, Offset(size.width * 0.32f, size.height * 0.46f), Offset(size.width * 0.62f, size.height * 0.46f), strokeWidth = stroke)
-                    drawLine(secondaryColor, Offset(size.width * 0.32f, size.height * 0.58f), Offset(size.width * 0.52f, size.height * 0.58f), strokeWidth = stroke)
-                }
-                OnboardingPage.AiFeatures -> {
-                    val cx = center.x
-                    val cy = center.y
-                    drawLine(secondaryColor, Offset(cx - 24.dp.toPx(), cy), Offset(cx + 24.dp.toPx(), cy), strokeWidth = stroke)
-                    drawLine(secondaryColor, Offset(cx, cy - 24.dp.toPx()), Offset(cx, cy + 24.dp.toPx()), strokeWidth = stroke)
-                    drawCircle(primaryColor, radius = 5.dp.toPx(), center = center)
-                    drawCircle(hairlineColor, radius = 24.dp.toPx(), style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
-                }
-                OnboardingPage.Ready -> {
-                    drawCircle(primaryColor.copy(alpha = 0.10f), radius = size.minDimension * 0.38f)
-                    drawCircle(primaryColor, radius = size.minDimension * 0.38f, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
-                    drawLine(primaryColor, Offset(size.width * 0.36f, size.height * 0.50f), Offset(size.width * 0.47f, size.height * 0.62f), strokeWidth = 3.dp.toPx())
-                    drawLine(primaryColor, Offset(size.width * 0.47f, size.height * 0.62f), Offset(size.width * 0.66f, size.height * 0.40f), strokeWidth = 3.dp.toPx())
-                }
-            }
+        val kind = when (page) {
+            OnboardingPage.Welcome -> AppIconKind.Spark
+            OnboardingPage.Interests -> AppIconKind.Bookmark
+            OnboardingPage.Content -> AppIconKind.Add
+            OnboardingPage.AiFeatures -> AppIconKind.Spark
+            OnboardingPage.Ready -> AppIconKind.Check
         }
+        AppIcon(kind, Modifier.size(34.dp), GlassTokens.textPrimary(darkTheme))
     }
 }

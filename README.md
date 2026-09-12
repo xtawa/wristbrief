@@ -60,7 +60,7 @@ The first run opens the Cloudflare browser login when Wrangler is not authentica
 
 For Cloudflare Workers Builds, the `gateway/package.json` `deploy` script performs the same resource-aware Worker deploy followed by `ACCOUNT_DB` migrations. Set the Workers Build root directory to `gateway`; no VM, emulator, or real-device test is part of this deployment flow.
 
-For macOS/Linux, run the same script with PowerShell 7 (`pwsh`). The web-first deployment walkthrough, environment variable names, Google Play setup, custom domain setup, and current verification boundaries are documented in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+For macOS/Linux, run the same script with PowerShell 7 (`pwsh`). The complete production walkthrough for Cloudflare, OAuth, Google Play Billing, RTDN, Android properties, release checks, rollback, and current verification boundaries is documented in [`docs/PRODUCTION_DEPLOYMENT_GUIDE.md`](docs/PRODUCTION_DEPLOYMENT_GUIDE.md). The shorter deployment reference remains in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 Current limitation: the repository has the Queue producer binding but no transcript Queue consumer/audio worker. Deploying the Worker therefore does not make asynchronous transcript generation end-to-end complete.
 

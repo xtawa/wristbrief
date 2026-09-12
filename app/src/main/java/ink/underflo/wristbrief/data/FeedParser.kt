@@ -40,8 +40,11 @@ class FeedParser {
                         }
 
                         "title" -> if (inItem) title = parser.nextText().trim().ifBlank { null }
-                        "description", "summary", "content", "content:encoded" -> if (inItem) {
-                            description = parser.nextText().trim().ifBlank { description }
+                        "description", "summary", "content", "encoded", "content:encoded" -> if (inItem) {
+                            val candidate = parser.nextText().trim()
+                            if (candidate.isNotBlank() && candidate.length > (description?.length ?: 0)) {
+                                description = candidate
+                            }
                         }
 
                         "pubdate", "published", "updated" -> if (inItem) {

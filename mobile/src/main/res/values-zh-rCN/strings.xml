@@ -6,8 +6,16 @@
     <string name="nav_library">资料库</string>
     <string name="nav_now_playing">正在播放</string>
     <string name="nav_ai">问 AI</string>
+    <string name="nav_ai_unavailable">问 AI（未配置）</string>
     <string name="nav_membership">账户</string>
     <string name="nav_settings">设置</string>
+    <string name="explore_subtitle">发现适合安静阅读与收听的高信噪比内容源。</string>
+    <string name="explore_feed_podcast">播客 · %1$s</string>
+    <string name="explore_feed_rss">RSS · %1$s</string>
+    <string name="action_adding">正在添加</string>
+    <string name="action_subscribed">已订阅</string>
+    <string name="action_subscribe">订阅</string>
+    <string name="now_playing_empty">当前没有正在播放的播客。</string>
     <string name="oobe_skip">跳过</string>
     <string name="oobe_back">返回</string>
     <string name="oobe_next">继续</string>
@@ -24,6 +32,9 @@
     <string name="oobe_ai_body">将长文与播客转写自动提炼为结构化简报，按你的节奏高效获取重点。</string>
     <string name="oobe_ready_title">设置完成</string>
     <string name="oobe_ready_body">你的个性化收件箱与每日简报已就绪，立即开始浏览或阅读。</string>
+    <string name="oobe_feature_briefs">安静整理每日重点，保持高信息密度</string>
+    <string name="oobe_feature_transcripts">支持逐词播客转写与音频定位</string>
+    <string name="oobe_feature_sources">只关注你选择的订阅源，不引入算法噪音</string>
     <string name="oobe_sources_title">内容源由你决定</string>
     <string name="oobe_sources_body">添加 RSS 或播客地址，也可以通过 OPML 导入已有订阅。WristBrief 只会关注你亲自选择的来源。</string>
     <string name="oobe_devices_title">为每块屏幕而生</string>
@@ -78,6 +89,7 @@
     <string name="library_filter_saved">收藏</string>
     <string name="library_filter_articles">文章</string>
     <string name="library_filter_podcasts">播客</string>
+    <string name="library_category_all">全部来源</string>
     <string name="library_empty">没有匹配的文章或播客。</string>
     <string name="library_manage_sources">管理订阅源</string>
     <string name="settings_title">设置</string>
@@ -95,6 +107,8 @@
     <string name="article_original_link_title">原文网页链接</string>
     <string name="article_original_link_body">在浏览器中打开此文章，以查看原网页版式、多媒体内容或评论。</string>
     <string name="article_open_browser">在浏览器中打开</string>
+    <string name="article_loading">正在加载全文…</string>
+    <string name="article_reader_label">阅读器</string>
     <string name="podcast_player_title">正在播放</string>
     <string name="podcast_speed">倍速 %1$sx</string>
     <string name="podcast_play">播放</string>

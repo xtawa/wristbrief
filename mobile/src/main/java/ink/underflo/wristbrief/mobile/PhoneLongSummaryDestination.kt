@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -35,6 +36,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import ink.underflo.wristbrief.mobile.ui.AppIcon
+import ink.underflo.wristbrief.mobile.ui.AppIconKind
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -166,7 +169,7 @@ fun PhoneLongSummaryDestination(
                             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 current.bullets.forEach { bullet ->
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Text("•", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                        AppIcon(AppIconKind.Bullet, Modifier.size(16.dp), MaterialTheme.colorScheme.primary)
                                         Text(bullet, style = MaterialTheme.typography.bodyMedium)
                                     }
                                 }

@@ -22,8 +22,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,6 +35,8 @@ import ink.underflo.wristbrief.mobile.media.formatPlaybackTime
 import ink.underflo.wristbrief.mobile.ui.BackIconButton
 import ink.underflo.wristbrief.mobile.ui.MobileSpacing
 import ink.underflo.wristbrief.mobile.ui.TouchTargetTokens
+import ink.underflo.wristbrief.mobile.ui.glass.GlassHeader
+import ink.underflo.wristbrief.mobile.ui.glass.GlassTokens
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,28 +45,19 @@ fun TranscriptViewerDestination(
     onBack: () -> Unit,
     onSeekToMs: (Long) -> Unit,
     modifier: Modifier = Modifier,
+    darkTheme: Boolean = androidx.compose.foundation.isSystemInDarkTheme(),
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = stringResource(R.string.transcript_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                    )
-                },
-                navigationIcon = {
-                    BackIconButton(onClick = onBack)
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface,
-                ),
+            GlassHeader(
+                title = stringResource(R.string.transcript_title),
+                subtitle = stringResource(R.string.podcast_player_title),
+                darkTheme = darkTheme,
+                navigationIcon = { BackIconButton(onClick = onBack) },
             )
         },
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = GlassTokens.canvas(darkTheme),
     ) { innerPadding ->
         Box(
             modifier = Modifier

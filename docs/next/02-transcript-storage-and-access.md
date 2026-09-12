@@ -3,8 +3,9 @@
 ## 2026-09-12 当前状态
 
 - Content Code、artifact/job metadata、0/0.2/1.0 quota 逻辑、D1 表与 R2 binding 已有源码基础。
+- R2 storage adapter、配额 reserve/commit/release、失败任务重试和对象清理补偿已有源码与单元测试。
 - `TranscriptGatewayApi`、job polling、bounded response parsing、`TranscriptCache` 和 viewer/player wiring 已部分存在。
-- 实际 Queue consumer/audio fetch、生产对象存储读写，以及 quota/账户删除的生产端到端验证仍为 PENDING。
+- 实际 Queue consumer/audio fetch、生产 R2/D1 故障注入，以及 quota/账户删除的生产端到端验证仍为 PENDING。
 - 下方清单与验收标准保持有效；局部源码存在不表示工作项已经全部完成。
 
 ## 需要完成

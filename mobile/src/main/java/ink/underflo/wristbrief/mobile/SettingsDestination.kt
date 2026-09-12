@@ -2,6 +2,7 @@ package ink.underflo.wristbrief.mobile
 
 import androidx.compose.foundation.layout.Arrangement
 import ink.underflo.wristbrief.mobile.ui.BackIconButton
+import ink.underflo.wristbrief.mobile.ui.glass.GlassHeader
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -28,7 +29,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -45,6 +45,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 internal enum class SettingsTab { Sources, Preferences, Account, About }
@@ -59,6 +60,7 @@ internal fun SettingsDestination(
     appPreferences: AppPreferences? = null,
     onThemeChanged: (AppThemeMode) -> Unit = {},
     feedManager: MobileFeedManager,
+    darkTheme: Boolean = androidx.compose.foundation.isSystemInDarkTheme(),
 ) {
     val context = LocalContext.current
     val preferences = remember(context, appPreferences) {
@@ -102,12 +104,13 @@ internal fun SettingsDestination(
     }
 
     Scaffold(
+        containerColor = ink.underflo.wristbrief.mobile.ui.glass.GlassTokens.canvas(darkTheme),
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.settings_title)) },
-                navigationIcon = {
-                    BackIconButton(onClick = onBack)
-                },
+            GlassHeader(
+                title = stringResource(R.string.settings_title),
+                subtitle = stringResource(R.string.settings_sources_subtitle),
+                darkTheme = darkTheme,
+                navigationIcon = { BackIconButton(onClick = onBack) },
             )
         },
     ) { padding ->
@@ -126,22 +129,22 @@ internal fun SettingsDestination(
                     Tab(
                         selected = selectedTab == SettingsTab.Sources,
                         onClick = { selectedTab = SettingsTab.Sources },
-                        text = { Text(stringResource(R.string.settings_sources_title)) },
+                        text = { Text(stringResource(R.string.settings_sources_title), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
                     )
                     Tab(
                         selected = selectedTab == SettingsTab.Preferences,
                         onClick = { selectedTab = SettingsTab.Preferences },
-                        text = { Text(stringResource(R.string.settings_preferences_title)) },
+                        text = { Text(stringResource(R.string.settings_preferences_title), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
                     )
                     Tab(
                         selected = selectedTab == SettingsTab.Account,
                         onClick = { selectedTab = SettingsTab.Account },
-                        text = { Text(stringResource(R.string.settings_account_title)) },
+                        text = { Text(stringResource(R.string.settings_account_title), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
                     )
                     Tab(
                         selected = selectedTab == SettingsTab.About,
                         onClick = { selectedTab = SettingsTab.About },
-                        text = { Text(stringResource(R.string.settings_about_title)) },
+                        text = { Text(stringResource(R.string.settings_about_title), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
                     )
                 }
 

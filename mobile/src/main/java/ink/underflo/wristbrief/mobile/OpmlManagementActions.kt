@@ -6,6 +6,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.Alignment
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -28,6 +31,8 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import ink.underflo.wristbrief.mobile.ui.AppIcon
+import ink.underflo.wristbrief.mobile.ui.AppIconKind
 
 @Composable
 internal fun OpmlManagementActions(
@@ -42,6 +47,7 @@ internal fun OpmlManagementActions(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var urlInput by remember { mutableStateOf("") }
+    var urlInputError by remember { mutableStateOf(false) }
     var pendingPreview by remember { mutableStateOf<OpmlImportPreview?>(null) }
     val previewApi = remember(context) {
         HttpOpmlPreviewApi(BuildConfig.GATEWAY_BASE_URL) {
@@ -176,25 +182,42 @@ internal fun OpmlManagementActions(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !busy,
             ) {
-                Text(stringResource(R.string.opml_import_button))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    AppIcon(AppIconKind.Import, Modifier.size(18.dp))
+                    Text(stringResource(R.string.opml_import_button))
+                }
             }
 
             // URL import: the gateway fetches and previews the document (SSRF
             // policy server-side); the phone only shows the confirmation.
             OutlinedTextField(
                 value = urlInput,
-                onValueChange = { urlInput = it },
+                onValueChange = {
+                    urlInput = it
+                    urlInputError = false
+                },
                 label = { Text(stringResource(R.string.opml_import_from_url_hint)) },
                 singleLine = true,
                 enabled = !busy,
+                isError = urlInputError,
                 modifier = Modifier.fillMaxWidth(),
             )
             OutlinedButton(
                 onClick = {
                     val url = urlInput.trim()
-                    if (url.isEmpty()) return@OutlinedButton
+                    if (url.isEmpty()) {
+                        urlInputError = true
+                        onStatus(context.getString(R.string.opml_preview_error_invalid_url))
+                        return@OutlinedButton
+                    }
+                    urlInputError = false
+                    if (AccountSessionPreferences(context).read() == null) {
+                        onStatus(context.getString(R.string.opml_preview_error_unauthorized))
+                        return@OutlinedButton
+                    }
                     scope.launch {
                         onBusyChange(true)
+                        onStatus(context.getString(R.string.opml_importing))
                         when (val outcome = previewApi.preview(url)) {
                             is OpmlPreviewOutcome.Ready -> pendingPreview = outcome.preview
                             is OpmlPreviewOutcome.Error -> onStatus(context.getString(opmlPreviewErrorMessageRes(outcome.code)))
@@ -203,9 +226,16 @@ internal fun OpmlManagementActions(
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !busy && urlInput.isNotBlank(),
+                enabled = !busy,
             ) {
-                Text(stringResource(R.string.opml_preview_from_url))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (busy) {
+                        androidx.compose.material3.CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    } else {
+                        AppIcon(AppIconKind.Import, Modifier.size(18.dp))
+                    }
+                    Text(stringResource(R.string.opml_preview_from_url))
+                }
             }
 
             OutlinedButton(
@@ -213,7 +243,10 @@ internal fun OpmlManagementActions(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !busy,
             ) {
-                Text(stringResource(R.string.opml_export_button))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    AppIcon(AppIconKind.Export, Modifier.size(18.dp))
+                    Text(stringResource(R.string.opml_export_button))
+                }
             }
         }
     }

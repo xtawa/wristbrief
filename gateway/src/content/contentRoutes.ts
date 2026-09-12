@@ -3,6 +3,7 @@ import { D1ContentStore } from "./contentStore";
 
 export interface ContentRouteEnv {
   ACCOUNT_DB?: D1Database;
+  PUBLIC_REUSE_FEED_HOSTS?: string;
 }
 
 export async function handleContentResolve(
@@ -35,7 +36,7 @@ export async function handleContentResolve(
   }
 
   const store = new D1ContentStore(env.ACCOUNT_DB);
-  const resolver = new ContentResolver(store);
+  const resolver = new ContentResolver(store, { publicReuseHosts: parsePublicReuseHosts(env.PUBLIC_REUSE_FEED_HOSTS) });
   const result = await resolver.resolve(body);
 
   return {
@@ -49,6 +50,10 @@ export async function handleContentResolve(
       canonicalDurationMs: result.content.canonicalDurationMs
     }
   };
+}
+
+function parsePublicReuseHosts(raw: string | undefined): string[] {
+  return (raw ?? "").split(",").map((value) => value.trim()).filter(Boolean);
 }
 
 export async function handleContentGet(

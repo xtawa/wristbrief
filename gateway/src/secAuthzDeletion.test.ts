@@ -126,12 +126,16 @@ describe("SEC-01 & SEC-02: Object-level Authz and Share Policy", () => {
   it("protects private transcript artifacts: User B cannot read User A's private transcript", async () => {
     const db = createTestDatabase();
     const storage = new InMemoryTranscriptStorage();
-    const env = { ACCOUNT_DB: db, TRANSCRIPT_STORAGE: storage };
+    const env = {
+      ACCOUNT_DB: db,
+      TRANSCRIPT_STORAGE: storage,
+      PUBLIC_REUSE_FEED_HOSTS: "feed.example.com"
+    };
     const userA = "usr_alice";
     const userB = "usr_bob";
 
     const contentStore = new D1ContentStore(db);
-    const contentResolver = new ContentResolver(contentStore);
+    const contentResolver = new ContentResolver(contentStore, { publicReuseHosts: ["feed.example.com"] });
     const artifactStore = new D1ArtifactStore(db);
     const quotaStore = new D1QuotaLedgerStore(db);
     const service = new TranscriptService(contentResolver, artifactStore, quotaStore, env);
@@ -180,12 +184,16 @@ describe("SEC-01 & SEC-02: Object-level Authz and Share Policy", () => {
   it("allows different users to access PUBLIC_REUSE transcripts", async () => {
     const db = createTestDatabase();
     const storage = new InMemoryTranscriptStorage();
-    const env = { ACCOUNT_DB: db, TRANSCRIPT_STORAGE: storage };
+    const env = {
+      ACCOUNT_DB: db,
+      TRANSCRIPT_STORAGE: storage,
+      PUBLIC_REUSE_FEED_HOSTS: "feed.example.com"
+    };
     const userA = "usr_alice";
     const userB = "usr_bob";
 
     const contentStore = new D1ContentStore(db);
-    const contentResolver = new ContentResolver(contentStore);
+    const contentResolver = new ContentResolver(contentStore, { publicReuseHosts: ["feed.example.com"] });
     const artifactStore = new D1ArtifactStore(db);
     const quotaStore = new D1QuotaLedgerStore(db);
     const service = new TranscriptService(contentResolver, artifactStore, quotaStore, env);

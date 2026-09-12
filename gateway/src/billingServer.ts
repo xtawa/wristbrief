@@ -118,7 +118,9 @@ export function aggregateEntitlement(subscriptions: VerifiedPlaySubscription[]):
   const proSubs = subscriptions.filter((sub) => {
     if (sub.status === "active" || sub.status === "grace") return true;
     if (sub.status === "canceled") {
-      if (!sub.expiresAt) return true;
+      // A canceled subscription is entitled only until a verified expiry.
+      // Missing or malformed expiry data must fail closed.
+      if (!sub.expiresAt) return false;
       const expiry = Date.parse(sub.expiresAt);
       return !isNaN(expiry) && expiry > Date.now();
     }

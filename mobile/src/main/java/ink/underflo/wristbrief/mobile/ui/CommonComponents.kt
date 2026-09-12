@@ -248,11 +248,12 @@ fun ContentRow(
 
             if (isSaved) {
                 Spacer(Modifier.width(MobileSpacing.small))
-                Text(
-                    text = "★",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.tertiary,
-                    modifier = Modifier.semantics { contentDescription = "Saved" },
+                AppIcon(
+                    kind = AppIconKind.BookmarkFilled,
+                    modifier = Modifier
+                        .size(20.dp)
+                        .semantics { contentDescription = "Saved" },
+                    tint = MaterialTheme.colorScheme.tertiary,
                 )
             }
         }

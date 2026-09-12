@@ -47,7 +47,8 @@ describe("Play billing server foundation", () => {
   it("maps Play subscription states to server-owned entitlement", () => {
     expect(entitlementFor({ packageName, productId, status: "active" }).plan).toBe("PRO");
     expect(entitlementFor({ packageName, productId, status: "grace" }).plan).toBe("PRO");
-    expect(entitlementFor({ packageName, productId, status: "canceled" }).plan).toBe("PRO");
+    expect(entitlementFor({ packageName, productId, status: "canceled", expiresAt: "2026-10-01T00:00:00Z" }).plan).toBe("PRO");
+    expect(entitlementFor({ packageName, productId, status: "canceled" }).plan).toBe("FREE");
     expect(entitlementFor({ packageName, productId, status: "on_hold" }).plan).toBe("FREE");
     expect(entitlementFor({ packageName, productId, status: "expired" }).plan).toBe("FREE");
     expect(entitlementFor({ packageName, productId, status: "revoked" }).plan).toBe("FREE");

@@ -47,6 +47,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.runtime.CompositionLocalProvider
 import ink.underflo.wristbrief.mobile.ui.glass.GlassBottomBar
+import ink.underflo.wristbrief.mobile.ui.glass.GlassHeader
 import ink.underflo.wristbrief.mobile.ui.glass.GlassTokens
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -64,8 +65,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -78,7 +79,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -105,6 +105,8 @@ import ink.underflo.wristbrief.mobile.media.PodcastExpandedSheet
 import ink.underflo.wristbrief.mobile.media.PodcastMiniPlayer
 import ink.underflo.wristbrief.mobile.media.PodcastPlaybackRequest
 import ink.underflo.wristbrief.mobile.media.PodcastPlayerState
+import ink.underflo.wristbrief.mobile.ui.AppIcon
+import ink.underflo.wristbrief.mobile.ui.AppIconKind
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
@@ -131,6 +133,7 @@ private class MobileFeedListenerBindings : MobileFeedListener {
     var themeMode by remember { mutableStateOf(appPreferences.getThemeMode()) }
 
     WristBriefMobileTheme(themeMode = themeMode) {
+        val darkTheme = resolveDarkTheme(themeMode, isSystemInDarkTheme())
         val onboarding = remember(context) { OnboardingPreferences(context) }
         var onboardingComplete by rememberSaveable { mutableStateOf(onboarding.isComplete()) }
         var onboardingAction by rememberSaveable { mutableStateOf<String?>(null) }
@@ -218,6 +221,7 @@ private class MobileFeedListenerBindings : MobileFeedListener {
             WristBriefOnboarding(
                 feedCount = feedCount,
                 itemCount = itemCount,
+                darkTheme = darkTheme,
                 onAddSampleFeed = { sample ->
                     val result = feedManager.add(sample.url, sample.title, sample.category)
                     if (result is FeedMutationResult.Success) {
@@ -385,6 +389,7 @@ private class MobileFeedListenerBindings : MobileFeedListener {
                 onSeekToMs = { ms ->
                     playerController.seekTo(ms)
                 },
+                darkTheme = darkTheme,
             )
         } else if (selectedArticle != null) {
             ArticleDetailDestination(
@@ -410,6 +415,7 @@ private class MobileFeedListenerBindings : MobileFeedListener {
                 },
                 articleRepository = articleRepository,
                 articleImageLoader = articleImageLoader,
+                darkTheme = darkTheme,
             )
         } else if (showSettings) {
             SettingsDestination(
@@ -424,6 +430,7 @@ private class MobileFeedListenerBindings : MobileFeedListener {
                 appPreferences = appPreferences,
                 onThemeChanged = { themeMode = it },
                 feedManager = feedManager,
+                darkTheme = darkTheme,
             )
         } else {
             MobileShell(
@@ -448,13 +455,14 @@ private class MobileFeedListenerBindings : MobileFeedListener {
                 aiPrefilledTitle = aiPrefilledTitle,
                 aiPrefilledContent = aiPrefilledContent,
                 progressStore = sqlitePodcastStore,
-                darkTheme = resolveDarkTheme(themeMode, isSystemInDarkTheme()),
+                darkTheme = darkTheme,
             )
         }
 
         if (showExpandedPlayer) {
             PodcastExpandedSheet(
                 state = playerState,
+                darkTheme = darkTheme,
                 onDismissRequest = { showExpandedPlayer = false },
                 onPlayPause = {
                     if (playerState.isPlaying) playerController.pause()
@@ -521,26 +529,10 @@ private class MobileFeedListenerBindings : MobileFeedListener {
                 modifier = Modifier.weight(1f),
                 containerColor = GlassTokens.canvas(darkTheme),
                 topBar = {
-                    LargeTopAppBar(
-                        colors = TopAppBarDefaults.largeTopAppBarColors(
-                            containerColor = Color.Transparent,
-                            titleContentColor = GlassTokens.textPrimary(darkTheme),
-                        ),
-                        title = {
-                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text(
-                                    "WristBrief",
-                                    style = MaterialTheme.typography.headlineMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = GlassTokens.textPrimary(darkTheme),
-                                )
-                                Text(
-                                    destination.localizedLabel(),
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = GlassTokens.textSecondary(darkTheme),
-                                )
-                            }
-                        },
+                    GlassHeader(
+                        title = "WristBrief",
+                        subtitle = destination.localizedLabel(),
+                        darkTheme = darkTheme,
                         actions = {
                             val settingsDesc = stringResource(R.string.nav_settings)
                             androidx.compose.material3.IconButton(
@@ -557,6 +549,7 @@ private class MobileFeedListenerBindings : MobileFeedListener {
                         if (playerState.isVisible) {
                             PodcastMiniPlayer(
                                 state = playerState,
+                                darkTheme = darkTheme,
                                 onExpand = onExpandPlayer,
                                 onPlayPause = {
                                     if (playerState.isPlaying) playerController.pause()
@@ -617,9 +610,9 @@ private class MobileFeedListenerBindings : MobileFeedListener {
                                     onOpenSettings = onOpenSettings,
                                     onOpenArticle = onOpenArticle,
                                     onPlayPodcast = onPlayPodcast,
-                                    progressStore = progressStore,
-                                    darkTheme = darkTheme,
-                                )
+                progressStore = progressStore,
+                darkTheme = darkTheme,
+            )
                                 MobileDestination.Explore -> ExploreDestination(
                                     padding = PaddingValues(0.dp),
                                     feedManager = feedManager,
@@ -663,7 +656,10 @@ private fun ExploreDestination(
     darkTheme: Boolean,
 ) {
     val scope = rememberCoroutineScope()
-    var addedIds by remember { mutableStateOf(setOf<String>()) }
+    var addedIds by remember(feedManager) {
+        mutableStateOf(feedManager.feeds().map { it.id }.toSet())
+    }
+    var addingId by remember { mutableStateOf<String?>(null) }
 
     LazyColumn(
         modifier = Modifier
@@ -681,7 +677,7 @@ private fun ExploreDestination(
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "Discover high-signal sources curated for calm reading and listening.",
+                text = stringResource(R.string.explore_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
                 color = GlassTokens.textSecondary(darkTheme),
             )
@@ -723,7 +719,10 @@ private fun ExploreDestination(
                             color = GlassTokens.textSecondary(darkTheme),
                         )
                         Text(
-                            text = if (feed.isPodcast) "Podcast · ${feed.category}" else "RSS · ${feed.category}",
+                            text = stringResource(
+                                if (feed.isPodcast) R.string.explore_feed_podcast else R.string.explore_feed_rss,
+                                feed.category,
+                            ),
                             style = MaterialTheme.typography.labelSmall,
                             color = GlassTokens.textSecondary(darkTheme),
                         )
@@ -731,15 +730,32 @@ private fun ExploreDestination(
                     OutlinedButton(
                         onClick = {
                             scope.launch {
-                                val res = feedManager.add(feed.url, feed.title, feed.category)
-                                if (res is FeedMutationResult.Success) {
-                                    addedIds = addedIds + feed.id
+                                addingId = feed.id
+                                try {
+                                    val res = feedManager.add(feed.url, feed.title, feed.category)
+                                    if (res is FeedMutationResult.Success) {
+                                        addedIds = addedIds + feed.id
+                                    }
+                                } finally {
+                                    addingId = null
                                 }
                             }
                         },
-                        enabled = !isAdded,
+                        enabled = !isAdded && addingId == null,
                     ) {
-                        Text(if (isAdded) "✓ Subscribed" else "+ Subscribe")
+                        if (addingId == feed.id) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.size(6.dp))
+                            Text(stringResource(R.string.action_adding))
+                        } else if (isAdded) {
+                            AppIcon(AppIconKind.Check, Modifier.size(18.dp))
+                            Spacer(Modifier.size(6.dp))
+                            Text(stringResource(R.string.action_subscribed))
+                        } else {
+                            AppIcon(AppIconKind.Add, Modifier.size(18.dp))
+                            Spacer(Modifier.size(6.dp))
+                            Text(stringResource(R.string.action_subscribe))
+                        }
                     }
                 }
             }
@@ -774,7 +790,7 @@ private fun NowPlayingDestination(
             )
             Spacer(Modifier.height(12.dp))
             Text(
-                text = "No podcast episode is currently playing.",
+                text = stringResource(R.string.now_playing_empty),
                 style = MaterialTheme.typography.bodyLarge,
                 color = GlassTokens.textSecondary(darkTheme),
                 textAlign = TextAlign.Center,
@@ -832,7 +848,11 @@ private fun MobileDestination.localizedLabel(): String = stringResource(
         MobileDestination.Explore -> R.string.nav_explore
         MobileDestination.Library -> R.string.nav_library
         MobileDestination.NowPlaying -> R.string.nav_now_playing
-        MobileDestination.AiProvider -> R.string.nav_ai
+        MobileDestination.AiProvider -> if (BuildConfig.GATEWAY_BASE_URL.startsWith("https://", ignoreCase = true)) {
+            R.string.nav_ai
+        } else {
+            R.string.nav_ai_unavailable
+        }
     },
 )
 

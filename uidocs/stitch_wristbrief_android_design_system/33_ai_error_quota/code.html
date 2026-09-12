@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><title>WristBrief</title><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,100..1000&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base { html, body { width: 100vw; margin: 0; padding: 0; min-height: 100vh; } body { overscroll-behavior: none; } .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); } .pt-safe { padding-top: env(safe-area-inset-top, 0px); } main > :first-child { margin-top: 0 !important; } main > :last-child { margin-bottom: 0 !important; } } ::-webkit-scrollbar { display: none; }</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { colors: { "surface-container-low": "#1a1c1f", "inverse-on-surface": "#2f3034", "on-secondary-fixed-variant": "#004395", "surface-dim": "#111316", "on-secondary-fixed": "#001a42", "on-primary": "#203243", "inverse-primary": "#4e6073", "on-tertiary-fixed": "#00201d", "glass-border-dark": "rgba(255, 255, 255, 0.12)", "surface-container-highest": "#333538", "surface-container-lowest": "#0c0e11", "primary-fixed-dim": "#b5c8df", "on-surface": "#e2e2e6", "on-primary-container": "#96a9be", "semantic-error": "#DC2626", "on-background": "#e2e2e6", "surface-container-dark": "#1B1E22", "surface-container": "#1e2023", "on-surface-variant": "#c4c6cd", "surface-light": "#F8F9FA", "glass-border-light": "rgba(255, 255, 255, 0.60)", "on-primary-fixed-variant": "#36485b", "background": "#111316", "semantic-success": "#059669", "on-error-container": "#ffdad6", "tertiary-fixed": "#89f5e7", "primary": "#b5c8df", "tertiary": "#6bd8cb", "surface": "#111316", "surface-container-light": "#F0F2F5", "surface-bright": "#37393d", "on-tertiary-container": "#48b8ab", "outline": "#8e9197", "secondary-fixed": "#d8e2ff", "surface-variant": "#333538", "secondary-container": "#0566d9", "surface-tint": "#b5c8df", "surface-container-high": "#282a2d", "tertiary-fixed-dim": "#6bd8cb", "on-tertiary-fixed-variant": "#005049", "primary-container": "#2c3e50", "on-secondary-container": "#e6ecff", "outline-variant": "#43474c", "inverse-surface": "#e2e2e6", "error-container": "#93000a", "secondary": "#adc6ff", "on-primary-fixed": "#091d2e", "primary-fixed": "#d1e4fb", "error": "#ffb4ab", "on-error": "#690005", "on-tertiary": "#003732", "surface-dark": "#121417", "semantic-warning": "#D97706", "on-secondary": "#002e6a", "tertiary-container": "#00453f", "secondary-fixed-dim": "#adc6ff" }, borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, spacing: { "margin-tablet": "2rem", "gutter": "1rem", "gutter-tablet": "1.5rem", "space-xl": "2rem", "space-md": "1rem", "margin": "1.25rem", "space-lg": "1.5rem", "space-xs": "0.25rem", "space-sm": "0.5rem" }, fontFamily: { "label-lg": ["Roboto Flex"], "display-lg-mobile": ["Roboto Flex"], "label-md": ["Roboto Flex"], "body-md": ["Roboto Flex"], "headline-lg": ["Roboto Flex"], "headline-md": ["Roboto Flex"], "title-lg": ["Roboto Flex"], "label-sm": ["Roboto Flex"], "headline-lg-mobile": ["Roboto Flex"], "display-lg": ["Roboto Flex"], "body-lg": ["Roboto Flex"], "title-md": ["Roboto Flex"], "body-sm": ["Roboto Flex"] }, fontSize: { "label-lg": ["14px", { "lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600" }], "display-lg-mobile": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }], "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500" }], "body-md": ["15px", { "lineHeight": "24px", "letterSpacing": "0.01em", "fontWeight": "400" }], "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700" }], "headline-md": ["22px", { "lineHeight": "28px", "letterSpacing": "0em", "fontWeight": "600" }], "title-lg": ["18px", { "lineHeight": "24px", "letterSpacing": "0em", "fontWeight": "600" }], "label-sm": ["11px", { "lineHeight": "14px", "letterSpacing": "0.03em", "fontWeight": "500" }], "headline-lg-mobile": ["26px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700" }], "display-lg": ["44px", { "lineHeight": "52px", "letterSpacing": "-0.02em", "fontWeight": "700" }], "body-lg": ["18px", { "lineHeight": "28px", "letterSpacing": "0.01em", "fontWeight": "400" }], "title-md": ["16px", { "lineHeight": "22px", "letterSpacing": "0.01em", "fontWeight": "600" }], "body-sm": ["13px", { "lineHeight": "18px", "letterSpacing": "0.02em", "fontWeight": "400" }] } } } }</script><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-surface text-on-surface flex flex-col antialiased selection:bg-primary-container selection:text-primary"><header class="fixed top-0 w-full z-50 bg-surface/85 backdrop-blur-xl shadow-[0_1px_12px_rgba(0,0,0,0.25)]"><div class="w-full flex justify-between items-center px-margin pt-safe text-on-surface-variant text-label-sm font-label-sm"><span class="tracking-normal font-medium text-on-surface">9:41</span><div class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[16px] leading-none">signal_cellular_alt</span><span class="material-symbols-outlined text-[16px] leading-none">wifi</span><span class="material-symbols-outlined text-[18px] leading-none">battery_full</span></div></div><div class="h-16 px-margin flex items-center justify-between"><div class="flex items-center gap-space-sm"><img alt="Brand logo. - Primary color: #2c3e50
+- Font: robotoFlex
+- Mode: dark
+- Roundness: rounded-md
+" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/AEtjO1UvrxCgwgf9RQICGw0ItihxRDoGY6tu-Ln-ADcWMXIx57QOT5PU_PnXLh32wlf7CLgWu-nQRuYyUgsFVe1JYS1TNIMdVwEQ2YMn2LCdzgXROTBolwKrWYK3X1IaTc6IOfqRnHqj9o2l-rujVTx21Q_HbapA3H9nJfGeUmxGrWQTu7YfxV3CufvOXkLQBRS8j-VgeSx0sweEmutan5OX2CGr-sXoRLI6tNXnEbvJaWMwiGkjhok5I-qFT9E"/><div class="flex flex-col justify-center"><div class="flex items-center gap-1.5"><span class="text-title-md font-title-md tracking-tight text-on-surface leading-tight">WristBrief</span><span class="px-1.5 py-0.5 rounded-full bg-primary-container/60 text-tertiary text-[10px] font-medium tracking-wider uppercase">AI</span></div><span class="text-label-sm font-label-sm text-on-surface-variant line-clamp-1 leading-none">Home Feed</span></div></div><div class="flex items-center gap-1"><a class="w-11 h-11 rounded-full flex items-center justify-center p-0.5 transition-transform active:scale-95" data-path="settings" href="#"><img alt="Profile" class="w-8 h-8 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida/AEtjO1VA8P6zNVmYr5QNQSkPuVyXxiwjN8tAtXmyIa6O6TPFt87BMw0HzhgSwZvJzTe5zEi9zjfPemEHHWe6z130VTSmk7jeKzVHPUJbLco7xb8fW61GmIC3AJSBHrkKOJYNzW11-o1MlNbK7eWw64xZx9YwVeLEHsgIUGEz0ti2IEgLLG_0nu_iAfdwyWlUlzIyYMei2ajuM3CAUQMAqSsK3ytMYnjd-PX0PEvEkevcZyXA_peTnQNW0rBNPqI"/></a></div></div></header><main class="flex flex-col relative w-full pt-16 pb-36 bg-surface"><div class="flex flex-col w-full px-margin pb-10">
+<!-- Top Navigation & Context Bar -->
+<div class="flex items-center justify-between py-space-sm mb-space-md">
+<button aria-label="Go back" class="w-12 h-12 -ml-2 rounded-full flex items-center justify-center text-on-surface hover:bg-surface-container-high transition-colors active:scale-95" type="button">
+<span class="material-symbols-outlined text-[24px]">arrow_back</span>
+</button>
+<div class="flex flex-col items-center text-center">
+<span class="text-label-md font-label-md text-tertiary uppercase tracking-wider font-semibold">Ask AI Synthesis</span>
+<span class="text-title-md font-title-md text-on-surface">Quota &amp; Service Status</span>
+</div>
+<button aria-label="Quota information" class="w-12 h-12 -mr-2 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high transition-colors" type="button">
+<span class="material-symbols-outlined text-[20px]">help_outline</span>
+</button>
+</div>
+<!-- Editorial Warm Recovery Container -->
+<div class="relative overflow-hidden rounded-3xl bg-surface-container-low p-space-lg shadow-xl flex flex-col gap-space-lg mb-space-md">
+<!-- Ambient Warm Ray Glow -->
+<div class="absolute -top-16 -right-16 w-48 h-48 rounded-full bg-semantic-warning/15 blur-3xl pointer-events-none"></div>
+<div class="absolute -bottom-10 -left-10 w-40 h-40 rounded-full bg-primary/10 blur-2xl pointer-events-none"></div>
+<!-- Badge & Graphic Accent -->
+<div class="relative z-10 flex items-center justify-between">
+<div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-container-highest/70 backdrop-blur-md">
+<span class="material-symbols-outlined text-semantic-warning text-[18px]" style="font-variation-settings: 'FILL' 1;">hourglass_top</span>
+<span class="text-label-sm font-label-sm text-semantic-warning font-semibold tracking-wide">Cycle Limit Reached</span>
+</div>
+<span class="text-label-sm font-label-sm text-on-surface-variant">Cycle 18 · Free Tier</span>
+</div>
+<!-- Editorial Title & Warm Framing -->
+<div class="relative z-10 flex flex-col gap-1.5">
+<h1 class="text-headline-lg-mobile font-headline-lg-mobile text-on-surface tracking-tight">Monthly AI Quota Reached</h1>
+<p class="text-body-md font-body-md text-on-surface-variant leading-relaxed">
+        You've used all 300 deep briefing requests for this cycle. Resets automatically in <span class="text-on-surface font-semibold">12 days</span>.
+      </p>
+</div>
+<!-- Visual Quota Gauge Card -->
+<div class="relative z-10 rounded-2xl bg-surface-container-high/80 p-space-md flex flex-col gap-space-sm">
+<div class="flex items-center justify-between text-label-md font-label-md">
+<div class="flex items-center gap-1.5 text-on-surface">
+<span class="material-symbols-outlined text-tertiary text-[16px]">auto_awesome</span>
+<span class="font-semibold">Deep Synthesis Invocations</span>
+</div>
+<span class="text-semantic-warning font-semibold">300 / 300 Used</span>
+</div>
+<!-- Segmented Tactile Progress Bar -->
+<div class="w-full h-3 rounded-full bg-surface-container-highest overflow-hidden p-0.5 flex">
+<div class="h-full rounded-full bg-gradient-to-r from-tertiary via-primary to-semantic-warning transition-all duration-700 w-full"></div>
+</div>
+<div class="flex items-center justify-between text-label-sm font-label-sm text-on-surface-variant pt-0.5">
+<span>Resets at 12:00 AM on Nov 1</span>
+<span class="text-on-surface font-medium">100% capacity</span>
+</div>
+</div>
+<!-- Reassurance Callout: What Still Works -->
+<div class="relative z-10 flex items-start gap-3 rounded-2xl bg-surface-container/60 p-space-sm">
+<div class="w-9 h-9 rounded-full bg-primary-container/70 text-tertiary flex items-center justify-center shrink-0 mt-0.5">
+<span class="material-symbols-outlined text-[20px]">check_circle</span>
+</div>
+<p class="text-body-sm font-body-sm text-on-surface-variant leading-normal">
+        Standard RSS reading, article scraping, and podcast playback remain <span class="text-on-surface font-semibold">completely unlimited</span>.
+      </p>
+</div>
+<!-- Primary Recovery Action: Upgrade to Pro -->
+<div class="relative z-10 flex flex-col gap-space-xs pt-1">
+<button class="w-full h-13 py-3.5 px-space-md rounded-full bg-primary-container text-on-primary font-label-lg text-label-lg font-semibold flex items-center justify-center gap-2 shadow-lg hover:bg-primary transition-all active:scale-[0.98]" id="upgrade-pro-btn" type="button">
+<span class="material-symbols-outlined text-[20px] text-tertiary" style="font-variation-settings: 'FILL' 1;">bolt</span>
+<span class="text-primary-fixed">Upgrade to Pro for Unlimited</span>
+<span class="material-symbols-outlined text-[18px] text-primary-fixed ml-1">arrow_forward</span>
+</button>
+<span class="text-center text-label-sm font-label-sm text-on-surface-variant">Includes Claude 3.5 Sonnet &amp; GPT-4o synthesis</span>
+</div>
+</div>
+<!-- Fallback Option 2: Local On-Device AI Toggle Card -->
+<div class="rounded-3xl bg-surface-container p-space-md shadow-md flex flex-col gap-space-sm mb-space-md">
+<div class="flex items-start justify-between gap-space-sm">
+<div class="flex gap-3">
+<div class="w-10 h-10 rounded-2xl bg-surface-container-high flex items-center justify-center text-tertiary shrink-0">
+<span class="material-symbols-outlined text-[22px]">memory</span>
+</div>
+<div class="flex flex-col pr-1">
+<div class="flex items-center gap-2">
+<span class="text-title-md font-title-md text-on-surface">Use On-Device Fallback</span>
+<span class="px-2 py-0.5 rounded-full bg-tertiary-container/80 text-tertiary text-label-sm font-label-sm font-semibold">Offline</span>
+</div>
+<p class="text-body-sm font-body-sm text-on-surface-variant mt-1">
+            Switch to Gemini Nano on your silicon. Lighter, snappy bullet digests with zero cloud quota cost.
+          </p>
+</div>
+</div>
+<!-- Toggle Switch Control -->
+<label class="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+<input checked="" class="sr-only peer" id="nano-fallback-toggle" type="checkbox"/>
+<div class="w-12 h-7 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-surface peer-checked:bg-tertiary-container after:content-[''] after:absolute after:top-[3px] after:left-[3px] after:bg-on-surface after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+</label>
+</div>
+<!-- Micro Spec Strip -->
+<div class="flex items-center justify-between pt-2 px-1 text-label-sm font-label-sm text-on-surface-variant">
+<span class="flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-semantic-success"></span>
+        Model cached on device (1.4 GB)
+      </span>
+<span class="text-on-surface">~0.4s response latency</span>
+</div>
+</div>
+<!-- Secondary Actions & Account Link -->
+<div class="flex flex-col items-center gap-space-xs mt-space-sm">
+<button class="w-full h-12 rounded-2xl bg-surface-container-high/60 text-on-surface font-label-md text-label-md flex items-center justify-center gap-2 transition-colors hover:bg-surface-container-high active:scale-[0.99]" type="button">
+<span class="material-symbols-outlined text-[18px] text-on-surface-variant">manage_accounts</span>
+<span>Manage Account &amp; Quota Settings</span>
+</button>
+<p class="text-center text-label-sm font-label-sm text-on-surface-variant py-2">
+      Need temporary top-up? <a class="text-primary underline underline-offset-4 hover:text-on-surface font-semibold" href="#">Buy 50-brief micro pack</a>
+</p>
+</div>
+</div>
+<script>
+  // Micro-interaction for feedback
+  const toggle = document.getElementById('nano-fallback-toggle');
+  const upgradeBtn = document.getElementById('upgrade-pro-btn');
+
+  if (toggle) {
+    toggle.addEventListener('change', (e) => {
+      const isEnabled = e.target.checked;
+      const statusText = isEnabled ? "On-Device Gemini Nano active" : "Cloud only mode active";
+      console.log(`[WristBrief] Fallback state changed: ${statusText}`);
+    });
+  }
+
+  if (upgradeBtn) {
+    upgradeBtn.addEventListener('click', () => {
+      console.log("[WristBrief] Navigating to Pro Tier checkout sheet");
+    });
+  }
+</script></main><aside class="fixed bottom-20 inset-x-margin z-40 mb-2 pointer-events-auto"><div class="relative flex items-center justify-between px-space-md py-2.5 rounded-2xl bg-surface-container-high/90 backdrop-blur-xl shadow-[0_8px_24px_rgba(0,0,0,0.35)] overflow-hidden"><div class="flex items-center gap-space-sm min-w-0 pr-space-sm"><button class="w-11 h-11 rounded-full bg-primary-container text-tertiary flex items-center justify-center shrink-0 active:scale-95 transition-transform"><span class="material-symbols-outlined text-[24px]">play_arrow</span></button><div class="flex flex-col min-w-0"><span class="text-label-md font-label-md text-on-surface truncate">Morning Brief: Silicon Horizon</span><span class="text-label-sm font-label-sm text-on-surface-variant truncate">14 min left · Daily Digest</span></div></div><div class="flex items-center gap-space-xs shrink-0"><button class="w-11 h-11 flex items-center justify-center text-on-surface-variant hover:text-on-surface"><span class="material-symbols-outlined text-[20px]">apps</span></button><button class="w-11 h-11 flex items-center justify-center text-on-surface-variant hover:text-on-surface"><span class="material-symbols-outlined text-[20px]">close</span></button></div><div class="absolute bottom-0 inset-x-0 h-0.5 bg-surface-container-highest"><div class="h-full bg-tertiary w-2/5"></div></div></div></aside><nav class="fixed bottom-0 w-full z-50 pb-safe bg-surface-container-dark/85 backdrop-blur-xl shadow-[0_-2px_16px_rgba(0,0,0,0.35)]" data-active-classes="[&amp;&gt;div]:bg-primary-container [&amp;&gt;div]:text-tertiary text-on-surface font-semibold"><div class="flex justify-around items-center h-20 px-space-sm"><a aria-current="page" class="flex flex-col items-center justify-center w-20 h-16 transition-colors group [&amp;&gt;div]:bg-primary-container [&amp;&gt;div]:text-tertiary text-on-surface font-semibold" data-path="home-feed" href="#"><div class="w-16 h-8 rounded-full flex items-center justify-center transition-all group-active:scale-95"><span class="material-symbols-outlined text-[22px]">dashboard</span></div><span class="text-label-sm font-label-sm mt-1 leading-none tracking-tight">Home</span></a><a class="flex flex-col items-center justify-center w-20 h-16 text-on-surface-variant hover:text-on-surface transition-colors group" data-path="explore" href="#"><div class="w-16 h-8 rounded-full flex items-center justify-center transition-all group-active:scale-95"><span class="material-symbols-outlined text-[22px]">explore</span></div><span class="text-label-sm font-label-sm mt-1 leading-none tracking-tight">Explore</span></a><a class="flex flex-col items-center justify-center w-20 h-16 text-on-surface-variant hover:text-on-surface transition-colors group" data-path="ask-ai" href="#"><div class="w-16 h-8 rounded-full flex items-center justify-center transition-all group-active:scale-95"><span class="material-symbols-outlined text-[22px]">auto_awesome</span></div><span class="text-label-sm font-label-sm mt-1 leading-none tracking-tight">Ask AI</span></a><a class="flex flex-col items-center justify-center w-20 h-16 text-on-surface-variant hover:text-on-surface transition-colors group" data-path="library" href="#"><div class="w-16 h-8 rounded-full flex items-center justify-center transition-all group-active:scale-95"><span class="material-symbols-outlined text-[22px]">bookmarks</span></div><span class="text-label-sm font-label-sm mt-1 leading-none tracking-tight">Library</span></a></div></nav></body></html>

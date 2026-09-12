@@ -494,9 +494,9 @@ To prevent mistaking "code exists" or "local build passed" for true end-to-end p
 - **Product Outcome (partial source implementation)**:
   - **P1 — Authorization, Privacy & Cascade Deletion** ([`03-authz-privacy-deletion.md`](file:///g:/Projects/wristbrief/docs/next/03-authz-privacy-deletion.md)):
     - SSRF URL validation in content resolver rejects non-HTTPS and private/loopback addresses.
-    - `sharePolicy` enforcement is partial: transcript artifacts default to `PRIVATE_ACCOUNT` and avoid silent upgrade, but `PUBLIC_REUSE` can still be explicitly requested without a server-side source/domain/signed-URL eligibility policy; that conditional SEC-02 risk remains PENDING.
+    - `sharePolicy` enforcement now fails closed: client `PUBLIC_REUSE` requests are honored only for HTTPS feed hosts listed in `PUBLIC_REUSE_FEED_HOSTS`; empty or unlisted hosts resolve as `PRIVATE_ACCOUNT`.
     - Object-level authorization on transcript routes (`handleTranscriptStatus`, `handleTranscriptGet`): unauthorized access returns 404 to prevent resource probing.
-    - `failJob()` releases reserved quota credits on provider failure.
+    - `failJob()` releases reserved quota credits on provider failure; failed job creation, shared-cache authorization, artifact finalization, and creator retries have compensating paths and tests.
     - Scoped account deletion removes account-owned D1 migration-0008 rows, deletes private transcript objects when storage is configured, anonymizes retained public artifact creators, and preserves billing history. Mobile and Queue cleanup remains pending.
     - `InMemoryTranscriptStorage` and `R2TranscriptStorage` implementations created.
     - 5 dedicated security/authz/deletion tests in `secAuthzDeletion.test.ts`.
@@ -523,13 +523,13 @@ To prevent mistaking "code exists" or "local build passed" for true end-to-end p
     - Documentation records the current verification boundary; Android/CI/production reconciliation remains pending.
 - **Verification Level Summary**:
   - **L1 (Code Exists)**: ⚠️ PARTIAL — relevant source files exist, but Queue/audio worker and complete Cloud Sync lifecycle wiring are not implemented or verified.
-  - **L2 (Locally Tested)**: ⚠️ PARTIAL — verified in this review: Gateway 27 files / 173 tests, Gateway typecheck, and release guard. Mobile and Wear OS suites were not rerun and are not current evidence.
+  - **L2 (Locally Tested)**: ⚠️ PARTIAL — verified in this review: Gateway 40 files / 244 tests, Gateway typecheck, and release guard. Mobile and Wear OS suites were not rerun and are not current evidence.
   - **L3 (CI Verified)**: ⏳ PENDING — requires push to remote and GitHub Actions run on recorded commit SHA.
   - **L4 (Paired Verified)**: ⏳ PENDING — requires emulators/physical devices, Bluetooth pairing, rotary input, audio route transitions, Activity recreation. Out of scope for this pass.
   - **L5 (Production Configured)**: ⏳ PENDING — requires live Cloudflare D1/R2/Queue credentials, GCP OAuth, Play Console internal track, provider secrets. Out of scope for this pass.
 - **Evidence** (2026-09-12):
   - `gateway:npm run typecheck`: Passed (0 errors).
-  - `gateway:npm test`: 27/27 test files passed (173/173 tests, 100%).
+  - `gateway:npm test`: 40/40 test files passed (244/244 tests, 100%) in the Gateway hardening continuation.
   - `python scripts/release_guard.py`: Passed (Android security, cross-device packaging, string parity, and D1 migrations OK).
   - **PENDING**: Queue consumer/audio worker, Cloud Sync application lifecycle wiring, Android and Wear OS test/build verification, CI, and production D1/R2/Queue verification.
   - No physical-device, emulator, or VM validation was performed in this review pass.
@@ -539,7 +539,7 @@ To prevent mistaking "code exists" or "local build passed" for true end-to-end p
 
 # 2026-09-12 Review Pass factual status
 
-- Verified in the Gateway workspace: 27 test files / 173 tests, TypeScript typecheck, and `release_guard`.
-- Fixed in source: Transcript API client/server contract, default-private transcript sharing and access behavior, and Sync request parameter validation.
+- Verified in the Gateway workspace: TypeScript typecheck, release guard, and a full Gateway suite of 40 files / 244 tests.
+- Fixed in source: Transcript API client/server contract, server-enforced `PUBLIC_REUSE` feed-host allowlist, quota/job compensation and retry behavior, canceled-subscription fail-closed expiry handling, and Sync request parameter validation.
 - PENDING: Queue consumer and audio worker, Cloud Sync application wiring, Android and CI verification, and production D1/R2/Queue verification.
 - No physical device, emulator, or VM validation was performed in this pass.

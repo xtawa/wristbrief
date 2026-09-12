@@ -8,13 +8,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -36,6 +40,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import ink.underflo.wristbrief.mobile.ui.AppIcon
+import ink.underflo.wristbrief.mobile.ui.AppIconKind
 
 @Composable
 internal fun CategorizedFeedManagementDestination(
@@ -72,7 +78,12 @@ internal fun CategorizedFeedManagementDestination(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item { Text(stringResource(R.string.feed_management_title), style = MaterialTheme.typography.headlineMedium) }
-        item { Text(status, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        item {
+            Text(status, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (busy) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+        }
         item {
             Button(
                 onClick = {
@@ -80,7 +91,11 @@ internal fun CategorizedFeedManagementDestination(
                     showEditor = true
                 },
                 enabled = !busy,
-            ) { Text(stringResource(R.string.feed_management_add)) }
+            ) {
+                AppIcon(AppIconKind.Add, Modifier.size(18.dp))
+                androidx.compose.foundation.layout.Spacer(Modifier.size(8.dp))
+                Text(stringResource(R.string.feed_management_add))
+            }
         }
         item {
             OpmlManagementActions(
@@ -121,11 +136,10 @@ internal fun CategorizedFeedManagementDestination(
                                 Text(sample.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             if (isAdded) {
-                                Text(
-                                    "✓",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.Bold,
+                                AppIcon(
+                                    kind = AppIconKind.Check,
+                                    modifier = Modifier.size(22.dp),
+                                    tint = MaterialTheme.colorScheme.primary,
                                 )
                             } else {
                                 OutlinedButton(
@@ -145,7 +159,14 @@ internal fun CategorizedFeedManagementDestination(
                                     },
                                     enabled = !busy,
                                 ) {
-                                    Text(stringResource(R.string.sample_feeds_quick_add))
+                                    if (busy) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(18.dp),
+                                            strokeWidth = 2.dp,
+                                        )
+                                    } else {
+                                        Text(stringResource(R.string.sample_feeds_quick_add))
+                                    }
                                 }
                             }
                         }
@@ -323,7 +344,9 @@ private fun CategoryFeedEditorDialog(
         title = { Text(if (feed == null) stringResource(R.string.feed_dialog_add) else stringResource(R.string.feed_dialog_edit)) },
         text = {
             Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .imePadding(),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 OutlinedTextField(
@@ -386,6 +409,12 @@ private fun CategoryFeedEditorDialog(
                 onClick = { onSave(url, title, category, watchKeywords, sendToWatch) },
                 enabled = !busy && validation is FeedUrlValidationResult.Valid,
             ) {
+                if (busy) {
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                } else {
+                    AppIcon(AppIconKind.Check, Modifier.size(18.dp))
+                }
+                androidx.compose.foundation.layout.Spacer(Modifier.size(8.dp))
                 Text(if (busy) stringResource(R.string.feed_validating) else stringResource(R.string.feed_save))
             }
         },

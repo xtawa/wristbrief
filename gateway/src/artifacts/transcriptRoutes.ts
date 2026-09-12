@@ -10,6 +10,7 @@ export interface TranscriptRouteEnv extends TranscriptServiceEnv {
   ACCOUNT_DB?: D1Database;
   TRANSCRIPTS_BUCKET?: R2Bucket;
   TRANSCRIPT_STORAGE?: TranscriptStorage;
+  PUBLIC_REUSE_FEED_HOSTS?: string;
 }
 
 export async function handleTranscriptRequest(
@@ -48,7 +49,9 @@ export async function handleTranscriptRequest(
   }
 
   const contentStore = new D1ContentStore(env.ACCOUNT_DB);
-  const contentResolver = new ContentResolver(contentStore);
+  const contentResolver = new ContentResolver(contentStore, {
+    publicReuseHosts: (env.PUBLIC_REUSE_FEED_HOSTS ?? "").split(",").map((value) => value.trim()).filter(Boolean)
+  });
   const artifactStore = new D1ArtifactStore(env.ACCOUNT_DB);
   const quotaStore = new D1QuotaLedgerStore(env.ACCOUNT_DB);
 

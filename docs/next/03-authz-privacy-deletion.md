@@ -2,7 +2,7 @@
 
 ## 2026-09-12 当前状态
 
-SEC-01/03 及 SEC-02 的默认私有、对象级授权部分已经落地：D1 migration 0008 用户范围数据删除、已配置 transcript storage 时的私有对象清理、公开 artifact creator 脱敏，以及 legacy 已删除账户拒绝认证。移动端登出、删除和直接切换账户时的 transcript cache、Cloud Sync outbox、cursor/preferences 清理也已接线。`PUBLIC_REUSE` 仍可由请求输入显式触发；服务端来源、域名或签名 URL eligibility policy 尚未实现，因此 SEC-02 仍是条件性风险并保持 PENDING。
+SEC-01/03 及 SEC-02 的默认私有、对象级授权部分已经落地：D1 migration 0008 用户范围数据删除、已配置 transcript storage 时的私有对象清理、公开 artifact creator 脱敏，以及 legacy 已删除账户拒绝认证。移动端登出、删除和直接切换账户时的 transcript cache、Cloud Sync outbox、cursor/preferences 清理也已接线。`PUBLIC_REUSE` 现在必须命中服务端 `PUBLIC_REUSE_FEED_HOSTS` 中的 HTTPS feed hostname；未配置或未命中时一律降级为 `PRIVATE_ACCOUNT`。
 
 仍待完成：Queue consumer/audio worker、删除过程的事务化或非事务失败恢复，以及生产 D1/R2/Queue 与端到端验证。下列“已确认问题”保留为修复前的历史基线，不再代表当前未修复状态。
 

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -36,6 +37,8 @@ import androidx.compose.runtime.setValue
 import ink.underflo.wristbrief.mobile.media.PodcastProgressStore
 import ink.underflo.wristbrief.mobile.media.formatPlaybackTime
 import ink.underflo.wristbrief.mobile.ui.ErrorBanner
+import ink.underflo.wristbrief.mobile.ui.AppIcon
+import ink.underflo.wristbrief.mobile.ui.AppIconKind
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -112,6 +115,10 @@ internal fun TodayDestination(
     val summaryClient = remember { PhoneLongSummaryClient() }
 
     fun generateDailyBrief() {
+        if (!BuildConfig.GATEWAY_BASE_URL.startsWith("https://", ignoreCase = true)) {
+            briefErrorMessage = context.getString(R.string.ai_service_unavailable_body)
+            return
+        }
         if (session == null) {
             onOpenAskAi()
             return
@@ -412,7 +419,7 @@ internal fun TodayDestination(
                                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                     record.bullets.take(3).forEach { bullet ->
                                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                            Text("•", color = GlassTokens.textSecondary(darkTheme))
+                                            AppIcon(AppIconKind.Bullet, Modifier.size(14.dp), GlassTokens.textSecondary(darkTheme))
                                             Text(
                                                 bullet,
                                                 style = MaterialTheme.typography.bodySmall,
@@ -794,7 +801,7 @@ internal fun TodayDestination(
                         }
                         items(record.bullets) { bullet ->
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text("•", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                AppIcon(AppIconKind.Bullet, Modifier.size(16.dp), MaterialTheme.colorScheme.primary)
                                 Text(bullet, style = MaterialTheme.typography.bodySmall)
                             }
                         }

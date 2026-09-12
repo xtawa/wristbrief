@@ -74,4 +74,24 @@ class MobileFeedParserTest {
         assertEquals("A brief summary of atom post 1", entry.description)
         assertEquals("2026-09-08T18:30:02Z", entry.published)
     }
+
+    @Test
+    fun keepsNamespacedFullContentInsteadOfShortSummary() {
+        val fullContent = "<p>" + "Full article body ".repeat(80) + "</p>"
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+                <channel><item>
+                    <title>Long article</title>
+                    <link>https://example.com/long</link>
+                    <description>Short summary.</description>
+                    <content:encoded><![CDATA[$fullContent]]></content:encoded>
+                </item></channel>
+            </rss>
+        """.trimIndent()
+
+        val item = parser.parse(ByteArrayInputStream(xml.toByteArray())).single()
+
+        assertEquals(fullContent, item.description)
+    }
 }

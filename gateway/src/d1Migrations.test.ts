@@ -12,9 +12,9 @@ describe("D1 SQL Migrations Chain", () => {
       .filter((file) => file.endsWith(".sql"))
       .sort();
 
-    expect(migrationFiles.length).toBeGreaterThanOrEqual(10);
+    expect(migrationFiles.length).toBeGreaterThanOrEqual(11);
     expect(migrationFiles[0]).toBe("0001_membership.sql");
-    expect(migrationFiles[migrationFiles.length - 1]).toBe("0010_sync_integrity.sql");
+    expect(migrationFiles[migrationFiles.length - 1]).toBe("0011_article_content_cache.sql");
 
     const db = new DatabaseSync(":memory:");
 
@@ -59,6 +59,8 @@ describe("D1 SQL Migrations Chain", () => {
     expect(tableNames).toContain("password_reset_tokens");
     expect(tableNames).toContain("admin_audit_log");
     expect(tableNames).toContain("auth_rate_limits");
+    expect(tableNames).toContain("article_content_cache");
+    expect(tableNames).toContain("article_media_cache");
 
     // Migration 0009 rebuilds identities to allow provider IN ('google', 'email').
     const identityCols = db.prepare("PRAGMA table_info(identities)").all() as Array<{ name: string }>;

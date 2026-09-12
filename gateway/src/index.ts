@@ -56,6 +56,8 @@ import {
 } from "./emailAuth/emailAuthRoutes";
 import { handleAdminRoute, type AdminRoutesEnv } from "./admin/adminRoutes";
 import { previewOpmlUrl } from "./opml/opmlPreview";
+import { handleArticleResolve, handleArticleGet, type ArticleRouteEnv } from "./articles/articleRoutes";
+import { handleMediaGet } from "./articles/mediaProxy";
 
 interface Env
   extends ProviderEnv,
@@ -67,7 +69,8 @@ interface Env
     ContentRouteEnv,
     TranscriptRouteEnv,
     EmailAuthEnv,
-    AdminRoutesEnv {}
+    AdminRoutesEnv,
+    ArticleRouteEnv {}
 type SummaryRequest = { title?: string; content?: string };
 const DEFAULT_PROVIDER_ID = "openai-compatible";
 const MAX_REQUEST_BYTES = 64 * 1024;
@@ -265,6 +268,38 @@ export default {
         return respond(res.body, res.status);
       } catch {
         return respond({ error: "content_unavailable" }, 503);
+      }
+    }
+
+    if (request.method === "POST" && url.pathname === "/v1/articles/resolve") {
+      if (!user) return respond({ error: "unauthorized" }, 401);
+      const parsedBody = await readJsonBodyLimited<any>(request, MAX_REQUEST_BYTES);
+      if (parsedBody.error) return respond({ error: parsedBody.error }, parsedBody.error === "request_too_large" ? 413 : 400);
+      try {
+        return respondAuth(await handleArticleResolve(env, parsedBody.value));
+      } catch {
+        return respond({ error: "content_unavailable" }, 503);
+      }
+    }
+
+    if (request.method === "GET" && url.pathname.startsWith("/v1/articles/")) {
+      if (!user) return respond({ error: "unauthorized" }, 401);
+      const articleKey = url.pathname.slice("/v1/articles/".length);
+      try {
+        return respondAuth(await handleArticleGet(env, articleKey));
+      } catch {
+        return respond({ error: "content_unavailable" }, 503);
+      }
+    }
+
+    // Article images: opaque media ids, authenticated, full SSRF policy inside.
+    if (request.method === "GET" && url.pathname.startsWith("/v1/media/")) {
+      if (!user) return respond({ error: "unauthorized" }, 401);
+      const mediaId = url.pathname.slice("/v1/media/".length);
+      try {
+        return await handleMediaGet(request, env, mediaId);
+      } catch {
+        return respond({ error: "media_unavailable" }, 503);
       }
     }
 

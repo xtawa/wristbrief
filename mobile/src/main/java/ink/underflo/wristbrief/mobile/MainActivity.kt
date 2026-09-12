@@ -246,6 +246,31 @@ private class MobileFeedListenerBindings : MobileFeedListener {
             DefaultTranscriptRepository(transcriptCache, transcriptGateway)
         }
 
+        // Full-text reader: the media proxy is authenticated, so article images
+        // load through a dedicated Coil ImageLoader that attaches the session.
+        val articleRepository = remember(context, accountSessionPreferences) {
+            ink.underflo.wristbrief.mobile.articles.ArticleRepository(context, BuildConfig.GATEWAY_BASE_URL) {
+                accountSessionPreferences.read()?.sessionToken
+            }
+        }
+        val articleImageLoader = remember(context, accountSessionPreferences) {
+            val authedClient = okhttp3.OkHttpClient.Builder()
+                .addInterceptor { chain ->
+                    val token = accountSessionPreferences.read()?.sessionToken
+                    val request = if (token != null) {
+                        chain.request().newBuilder().header("Authorization", "Bearer $token").build()
+                    } else {
+                        chain.request()
+                    }
+                    chain.proceed(request)
+                }
+                .build()
+            coil.ImageLoader.Builder(context)
+                .okHttpClient(authedClient)
+                .crossfade(true)
+                .build()
+        }
+
         // Cloud sync triggers: app start and every return to the foreground.
         val lifecycleOwner = LocalLifecycleOwner.current
         LaunchedEffect(cloudSyncRuntime) {
@@ -381,6 +406,8 @@ private class MobileFeedListenerBindings : MobileFeedListener {
                         guid = item.id,
                     )
                 },
+                articleRepository = articleRepository,
+                articleImageLoader = articleImageLoader,
             )
         } else if (showSettings) {
             SettingsDestination(

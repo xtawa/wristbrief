@@ -355,4 +355,5 @@
     <string name="opml_preview_error_format">The document is not a valid OPML file.</string>
     <string name="opml_preview_error_unauthorized">Sign in to import from a link.</string>
     <string name="opml_preview_error_generic">Could not preview the document.</string>
+    <string name="article_image_unavailable">Image unavailable</string>
 </resources>

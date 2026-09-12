@@ -355,4 +355,5 @@
     <string name="opml_preview_error_format">该文档不是有效的 OPML 文件。</string>
     <string name="opml_preview_error_unauthorized">请登录后从链接导入。</string>
     <string name="opml_preview_error_generic">无法预览该文档。</string>
+    <string name="article_image_unavailable">图片不可用</string>
 </resources>

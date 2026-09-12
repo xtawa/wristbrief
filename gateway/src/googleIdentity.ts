@@ -65,7 +65,7 @@ export class GoogleOidcIdTokenVerifier implements GoogleIdTokenVerifier {
     private readonly expectedAudience: string,
     options: GoogleOidcIdTokenVerifierOptions = {}
   ) {
-    this.fetchImpl = options.fetchImpl ?? fetch;
+    this.fetchImpl = options.fetchImpl ?? fetch.bind(globalThis);
     this.now = options.now ?? Date.now;
   }
 
@@ -132,7 +132,7 @@ export class GoogleOidcIdTokenVerifier implements GoogleIdTokenVerifier {
     const response = await this.fetchImpl(GOOGLE_OIDC_JWKS_URL, {
       method: "GET",
       headers: { Accept: "application/json" },
-      redirect: "error"
+      redirect: "manual"
     });
     if (!response.ok) return null;
 

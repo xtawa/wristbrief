@@ -37,6 +37,12 @@
       },
       "PLAY_SUBSCRIPTION_PRODUCT_IDS": {
         "description": "Comma-separated Google Play subscription product IDs accepted by the gateway."
+      },
+      "RESEND_API_KEY": {
+        "description": "Resend API key used for sending verification and password reset emails. Keep it only in Cloudflare Worker secrets."
+      },
+      "RESEND_FROM_EMAIL": {
+        "description": "Optional sender address for Resend, e.g. 'WristBrief <auth@yourdomain.com>'. Defaults to 'WristBrief <onboarding@resend.dev>'."
       }
     }
   },

@@ -27,16 +27,64 @@ export class InMemoryEmailSender implements EmailSender {
  * means the user cannot receive the link — it never leaks the token.
  */
 export class NoopEmailSender implements EmailSender {
-  async send(): Promise<void> {}
+  async send(_email?: OutboundEmail): Promise<void> {}
+}
+
+export const DEFAULT_RESEND_FROM = "WristBrief <onboarding@resend.dev>";
+
+/**
+ * Production email sender using Resend (https://resend.com) HTTP API.
+ * Uses native fetch in Cloudflare Workers with zero external dependencies.
+ */
+export class ResendEmailSender implements EmailSender {
+  private readonly apiKey: string;
+  private readonly fromEmail: string;
+  private readonly fetchFn: typeof fetch;
+
+  constructor(apiKey: string, fromEmail?: string, fetchFn: typeof fetch = fetch) {
+    this.apiKey = apiKey;
+    this.fromEmail = fromEmail?.trim() ? fromEmail.trim() : DEFAULT_RESEND_FROM;
+    this.fetchFn = fetchFn;
+  }
+
+  async send(email: OutboundEmail): Promise<void> {
+    try {
+      const response = await this.fetchFn("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${this.apiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          from: this.fromEmail,
+          to: [email.to],
+          subject: email.subject,
+          text: email.text
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => "");
+        console.error(`Resend email delivery failed (${response.status}): ${errorText}`);
+      }
+    } catch (err) {
+      console.error("Resend email delivery network error:", err);
+    }
+  }
 }
 
 export type EmailSenderEnv = {
   EMAIL_SENDER?: EmailSender;
   EMAIL_SENDER_MODE?: string;
+  RESEND_API_KEY?: string;
+  RESEND_FROM_EMAIL?: string;
 };
 
 export function createConfiguredEmailSender(env: EmailSenderEnv): EmailSender {
   if (env.EMAIL_SENDER) return env.EMAIL_SENDER;
   if (env.EMAIL_SENDER_MODE === "test") return new InMemoryEmailSender();
+  if (env.RESEND_API_KEY) {
+    return new ResendEmailSender(env.RESEND_API_KEY, env.RESEND_FROM_EMAIL);
+  }
   return new NoopEmailSender();
 }

@@ -37,6 +37,44 @@ describe("GoogleOidcIdTokenVerifier", () => {
     expect(calls).toEqual(["https://www.googleapis.com/oauth2/v3/certs"]);
   });
 
+  it("binds the default fetch implementation to globalThis for Cloudflare Workers", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = function (this: typeof globalThis) {
+      if (this !== globalThis) throw new TypeError("Illegal invocation");
+      return Promise.resolve(new Response(JSON.stringify({ keys: [jwk] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=600" }
+      }));
+    } as typeof fetch;
+
+    try {
+      const verifier = new GoogleOidcIdTokenVerifier(clientId, { now });
+      await expect(verifier.verify(token)).resolves.toMatchObject({
+        subject: "123456789012345678901"
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("uses a Cloudflare Workers-compatible redirect mode for JWKS", async () => {
+    const redirectModes: string[] = [];
+    const fetchImpl = asFetch(async (...args: unknown[]) => {
+      const init = args[1] as { redirect?: string } | undefined;
+      redirectModes.push(init?.redirect ?? "");
+      return new Response(JSON.stringify({ keys: [jwk] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=600" }
+      });
+    });
+    const verifier = new GoogleOidcIdTokenVerifier(clientId, { fetchImpl, now });
+
+    await expect(verifier.verify(token)).resolves.toMatchObject({
+      subject: "123456789012345678901"
+    });
+    expect(redirectModes).toEqual(["manual"]);
+  });
+
   it("fails closed for wrong audience, nonce, expiry, or unverified email", async () => {
     const fetchImpl = fetchFake([]);
     await expect(new GoogleOidcIdTokenVerifier("other.apps.googleusercontent.com", { fetchImpl, now }).verify(token)).resolves.toBeNull();

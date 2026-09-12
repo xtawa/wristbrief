@@ -3,11 +3,14 @@ main = "src/index.ts"
 compatibility_date = "2026-02-01"
 keep_vars = true
 [vars]
-AI_MODEL = "gpt-5-mini"
-AI_BASE_URL = "https://api.openai.com/v1"
+AI_MODEL = "deepseek-flash"
+AI_BASE_URL = "https://api.deepseek.com"
 # Comma-separated HTTPS feed hostnames eligible for PUBLIC_REUSE transcripts.
 # Empty means all newly resolved content remains PRIVATE_ACCOUNT.
 PUBLIC_REUSE_FEED_HOSTS = ""
+# Optional sender for Resend emails (defaults to "WristBrief <onboarding@resend.dev>").
+# Set to your verified domain address once verified in Resend.
+# RESEND_FROM_EMAIL = "WristBrief <auth@yourdomain.com>"
 
 [[d1_databases]]
 binding = "ACCOUNT_DB"

@@ -318,4 +318,5 @@
     <string name="transcript_seek_to">跳转至 %1$s</string>
     <string name="sync_status_synced">云端同步已完成</string>
     <string name="sync_status_syncing">正在与云端同步…</string>
+    <string name="exit_hint_press_back_again">再按一次返回退出</string>
 </resources>

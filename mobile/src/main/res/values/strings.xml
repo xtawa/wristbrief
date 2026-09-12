@@ -318,4 +318,5 @@
     <string name="transcript_seek_to">Seek to %1$s</string>
     <string name="sync_status_synced">Cloud sync up to date</string>
     <string name="sync_status_syncing">Syncing with cloud…</string>
+    <string name="exit_hint_press_back_again">Press back again to exit</string>
 </resources>

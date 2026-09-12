@@ -16,6 +16,7 @@ import ink.underflo.wristbrief.mobile.artifacts.TranscriptCacheStore
 import ink.underflo.wristbrief.mobile.artifacts.TranscriptFetchResult
 import ink.underflo.wristbrief.mobile.artifacts.TranscriptViewerDestination
 import ink.underflo.wristbrief.mobile.media.PodcastProgressStore
+import ink.underflo.wristbrief.mobile.navigation.MobileBackHandler
 import ink.underflo.wristbrief.mobile.ui.glass.GlassSurface
 import androidx.compose.ui.text.style.TextAlign
 import android.content.Context
@@ -237,6 +238,28 @@ class MainActivity : ComponentActivity() {
                 )
             )
         }
+
+        // System back / gesture back is arbitrated by MobileBackPolicy; the snapshot
+        // below is derived from the same state that drives rendering (no duplicates).
+        // Back never touches the account session, the playback service, or the
+        // Wear sync paths — it only maps to the navigation states captured here.
+        var exitHintShownAtMs by remember { mutableStateOf<Long?>(null) }
+        MobileBackHandler(
+            hasActiveDialog = false, // destination-owned dialogs install their own inner BackHandler
+            expandedPlayerVisible = showExpandedPlayer,
+            transcriptViewerVisible = activeTranscriptState != null,
+            articleDetailVisible = selectedArticle != null,
+            settingsVisible = showSettings,
+            exitHintShownAtEpochMs = exitHintShownAtMs,
+            onExitHintChanged = { exitHintShownAtMs = it },
+            onDismissExpandedPlayer = { showExpandedPlayer = false },
+            onCloseTranscriptViewer = {
+                activeTranscriptRequest = null
+                activeTranscriptState = null
+            },
+            onCloseArticleDetail = { selectedArticle = null },
+            onCloseSettings = { showSettings = false },
+        )
 
         if (activeTranscriptState != null) {
             TranscriptViewerDestination(

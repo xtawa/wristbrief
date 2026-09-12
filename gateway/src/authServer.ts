@@ -177,6 +177,12 @@ export async function deleteAccount(
       await env.ACCOUNT_DB.prepare("DELETE FROM credit_transactions WHERE user_id = ? AND status = 'RESERVED'").bind(user.id).run();
       await env.ACCOUNT_DB.prepare("DELETE FROM transcript_artifacts WHERE created_by_user_id = ? AND share_policy = 'PRIVATE_ACCOUNT'").bind(user.id).run();
       await env.ACCOUNT_DB.prepare("UPDATE transcript_artifacts SET created_by_user_id = NULL WHERE created_by_user_id = ? AND share_policy = 'PUBLIC_REUSE'").bind(user.id).run();
+      // 0009 admin/email auth tables: roles, credentials, tokens, admin web sessions
+      await env.ACCOUNT_DB.prepare("DELETE FROM user_roles WHERE user_id = ?").bind(user.id).run();
+      await env.ACCOUNT_DB.prepare("DELETE FROM email_credentials WHERE user_id = ?").bind(user.id).run();
+      await env.ACCOUNT_DB.prepare("DELETE FROM email_verification_tokens WHERE credential_id NOT IN (SELECT id FROM email_credentials)").bind().run();
+      await env.ACCOUNT_DB.prepare("DELETE FROM password_reset_tokens WHERE credential_id NOT IN (SELECT id FROM email_credentials)").bind().run();
+      await env.ACCOUNT_DB.prepare("DELETE FROM admin_web_sessions WHERE user_id = ?").bind(user.id).run();
     }
     return { status: 204, body: {} };
   } catch {

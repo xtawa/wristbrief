@@ -28,7 +28,8 @@ function createTestDatabase(): D1Database {
     "0005_play_rtdn_dedup.sql",
     "0006_legacy_migration_grants.sql",
     "0007_play_purchase_entitlements.sql",
-    "0008_cloud_sync_and_content_registry.sql"
+    "0008_cloud_sync_and_content_registry.sql",
+    "0009_admin_and_email_auth.sql"
   ];
   for (const file of files) {
     const sql = readFileSync(join(migrationsDir, file), "utf-8");

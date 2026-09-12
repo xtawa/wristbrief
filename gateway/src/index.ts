@@ -44,6 +44,17 @@ import {
   handleTranscriptStatus,
   type TranscriptRouteEnv
 } from "./artifacts/transcriptRoutes";
+import {
+  handleEmailAuthRoute,
+  handleEmailVerifyConfirm,
+  handleLinkEmailIdentity,
+  handleLinkGoogleIdentity,
+  handleListIdentities,
+  handleUnlinkIdentity,
+  MAX_EMAIL_BODY_BYTES,
+  type EmailAuthEnv
+} from "./emailAuth/emailAuthRoutes";
+import { handleAdminRoute, type AdminRoutesEnv } from "./admin/adminRoutes";
 
 interface Env
   extends ProviderEnv,
@@ -53,7 +64,9 @@ interface Env
     AuthServerEnv,
     SyncRouteEnv,
     ContentRouteEnv,
-    TranscriptRouteEnv {}
+    TranscriptRouteEnv,
+    EmailAuthEnv,
+    AdminRoutesEnv {}
 type SummaryRequest = { title?: string; content?: string };
 const DEFAULT_PROVIDER_ID = "openai-compatible";
 const MAX_REQUEST_BYTES = 64 * 1024;
@@ -116,7 +129,63 @@ export default {
       }
     }
 
+    // Email/password authentication. These routes apply their own rate limits
+    // (route x IP prefix x normalized-email hash) inside the handlers.
+    if (request.method === "POST" && (url.pathname === "/v1/auth/email/register" || url.pathname === "/v1/auth/email/login" || url.pathname === "/v1/auth/email/verify/request" || url.pathname === "/v1/auth/email/verify/confirm" || url.pathname === "/v1/auth/email/password/forgot" || url.pathname === "/v1/auth/email/password/reset")) {
+      const parsedBody = await readJsonBodyLimited<unknown>(request, MAX_EMAIL_BODY_BYTES);
+      if (parsedBody.error) {
+        return respond({ error: parsedBody.error }, parsedBody.error === "request_too_large" ? 413 : 400);
+      }
+      const auth = await handleEmailAuthRoute(url.pathname, request, env, parsedBody.value);
+      return respondAuth(auth);
+    }
+
+    // Email verification links arrive as GET (from the email body).
+    if (request.method === "GET" && url.pathname === "/v1/auth/email/verify/confirm") {
+      return respondAuth(await handleEmailVerifyConfirm(request, env, null, url));
+    }
+
+    // Server-rendered /admin pages and /v1/admin API. Self-contained
+    // authorization (admin cookie session + CSRF); returns null for other paths.
+    const adminResponse = await handleAdminRoute(request, env, requestId);
+    if (adminResponse) return adminResponse;
+
     const user = await authenticateRequestUser(request, env);
+
+    // Identity linking: explicit, session-authenticated, and never auto-merged
+    // by matching email addresses between Google and email credentials.
+    if (request.method === "GET" && url.pathname === "/v1/account/identities") {
+      if (!user) return respond({ error: "unauthorized" }, 401);
+      return respondAuth(await handleListIdentities(user.id, env));
+    }
+
+    if (request.method === "POST" && url.pathname === "/v1/account/identities/email") {
+      if (!user) return respond({ error: "unauthorized" }, 401);
+      const parsedBody = await readJsonBodyLimited<unknown>(request, MAX_EMAIL_BODY_BYTES);
+      if (parsedBody.error) {
+        return respond({ error: parsedBody.error }, parsedBody.error === "request_too_large" ? 413 : 400);
+      }
+      return respondAuth(await handleLinkEmailIdentity(user.id, env, parsedBody.value));
+    }
+
+    if (request.method === "POST" && url.pathname === "/v1/account/identities/google") {
+      if (!user) return respond({ error: "unauthorized" }, 401);
+      const parsedBody = await readJsonBodyLimited<unknown>(request, MAX_EMAIL_BODY_BYTES);
+      if (parsedBody.error) {
+        return respond({ error: parsedBody.error }, parsedBody.error === "request_too_large" ? 413 : 400);
+      }
+      return respondAuth(await handleLinkGoogleIdentity(user.id, env, parsedBody.value));
+    }
+
+    if (request.method === "DELETE" && url.pathname.startsWith("/v1/account/identities/")) {
+      if (!user) return respond({ error: "unauthorized" }, 401);
+      const rest = url.pathname.slice("/v1/account/identities/".length);
+      const separator = rest.indexOf("/");
+      if (separator <= 0) return respond({ error: "not_found" }, 404);
+      const provider = rest.slice(0, separator);
+      const subject = decodeURIComponent(rest.slice(separator + 1));
+      return respondAuth(await handleUnlinkIdentity(user.id, env, provider, subject));
+    }
 
     if (
       (request.method === "POST" || request.method === "DELETE") &&

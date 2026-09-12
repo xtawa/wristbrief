@@ -7,12 +7,20 @@ import { verifyPassword } from "../emailAuth/passwordHasher";
 import { D1EmailCredentialStore } from "../emailAuth/emailCredentialStore";
 import { AUTH_RATE_LIMIT_RULES, createConfiguredRateLimiter, ipPrefixOf } from "../rateLimit";
 import { sha256Hex } from "../emailAuth/emailTokens";
+import {
+  deleteProviderConfig,
+  listProviderConfigs,
+  providerAdminPage,
+  providerHealthCheck,
+  upsertProviderConfig,
+  type ProviderAdminEnv
+} from "./providerAdmin";
 
 export type AdminRoutesEnv = {
   ACCOUNT_DB?: D1Database;
   ADMIN_RECOVERY_SECRET?: string;
   ADMIN_RECOVERY_OVERRIDE?: string;
-};
+} & ProviderAdminEnv;
 
 const CSRF_COOKIE_NAME = "wristbrief_admin_csrf";
 
@@ -68,6 +76,10 @@ export async function handleAdminRoute(request: Request, env: AdminRoutesEnv, re
            <p>Mode: <code>${mode}</code></p>
            <p><a href="/admin/settings">Manage settings</a></p>
          </div>
+         <div class="card">
+           <h2>AI providers</h2>
+           <p><a href="/admin/providers">Manage providers</a></p>
+         </div>
          <p><a href="/admin/audit">Audit log</a> · <button id="logout">Sign out</button></p>
          ${logoutScript()}`
       ),
@@ -103,9 +115,12 @@ export async function handleAdminRoute(request: Request, env: AdminRoutesEnv, re
     );
   }
 
-  if (request.method === "GET" && (path === "/admin/settings" || path === "/admin/audit")) {
+  if (request.method === "GET" && (path === "/admin/settings" || path === "/admin/audit" || path === "/admin/providers")) {
     const auth = await requireAdminUser(request, adminStore, sessions);
     if (!auth.ok) return redirect("/admin/login");
+    if (path === "/admin/providers") {
+      return htmlResponse(adminPage("AI providers", await providerAdminPage(env)), 200, requestId);
+    }
     if (path === "/admin/settings") {
       const mode = await adminStore.readRegistrationMode();
       return htmlResponse(
@@ -220,6 +235,50 @@ export async function handleAdminRoute(request: Request, env: AdminRoutesEnv, re
       requestId
     });
     return respond({ registrationMode: mode });
+  }
+
+  if (request.method === "GET" && path === "/v1/admin/providers") {
+    const auth = await requireAdminUser(request, adminStore, sessions);
+    if (!auth.ok) return respond({ error: auth.error }, auth.status);
+    const result = await listProviderConfigs(env);
+    return respond(result.body, result.status);
+  }
+
+  if (request.method === "POST" && path === "/v1/admin/providers") {
+    const auth = await requireAdminUser(request, adminStore, sessions);
+    if (!auth.ok) return respond({ error: auth.error }, auth.status);
+    if (!(await requireAdminCsrf(request, auth.session))) return respond({ error: "csrf_required" }, 403);
+    const body = await readJson(request);
+    const result = await upsertProviderConfig(env, body ?? {}, auth.userId, audit, requestId, true);
+    return respond(result.body, result.status);
+  }
+
+  if (request.method === "PATCH" && path.startsWith("/v1/admin/providers/")) {
+    const auth = await requireAdminUser(request, adminStore, sessions);
+    if (!auth.ok) return respond({ error: auth.error }, auth.status);
+    if (!(await requireAdminCsrf(request, auth.session))) return respond({ error: "csrf_required" }, 403);
+    const providerId = decodeURIComponent(path.slice("/v1/admin/providers/".length));
+    const body = await readJson(request);
+    const result = await upsertProviderConfig(env, { ...(body ?? {}), id: providerId }, auth.userId, audit, requestId, false);
+    return respond(result.body, result.status);
+  }
+
+  if (request.method === "DELETE" && path.startsWith("/v1/admin/providers/")) {
+    const auth = await requireAdminUser(request, adminStore, sessions);
+    if (!auth.ok) return respond({ error: auth.error }, auth.status);
+    if (!(await requireAdminCsrf(request, auth.session))) return respond({ error: "csrf_required" }, 403);
+    const providerId = decodeURIComponent(path.slice("/v1/admin/providers/".length));
+    const result = await deleteProviderConfig(env, providerId, auth.userId, audit, requestId);
+    return respond(result.body, result.status);
+  }
+
+  if (request.method === "POST" && path.startsWith("/v1/admin/providers/") && path.endsWith("/health-check")) {
+    const auth = await requireAdminUser(request, adminStore, sessions);
+    if (!auth.ok) return respond({ error: auth.error }, auth.status);
+    if (!(await requireAdminCsrf(request, auth.session))) return respond({ error: "csrf_required" }, 403);
+    const providerId = decodeURIComponent(path.slice("/v1/admin/providers/".length, -"/health-check".length));
+    const result = await providerHealthCheck(env, providerId);
+    return respond(result.body, result.status);
   }
 
   if (request.method === "GET" && path === "/v1/admin/audit") {

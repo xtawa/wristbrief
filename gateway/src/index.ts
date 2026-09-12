@@ -56,6 +56,7 @@ import {
 } from "./emailAuth/emailAuthRoutes";
 import { handleAdminRoute, type AdminRoutesEnv } from "./admin/adminRoutes";
 import { previewOpmlUrl } from "./opml/opmlPreview";
+import { createActiveProviderRegistry } from "./providerRegistryFactory";
 import { handleArticleResolve, handleArticleGet, type ArticleRouteEnv } from "./articles/articleRoutes";
 import { handleMediaGet } from "./articles/mediaProxy";
 
@@ -241,9 +242,10 @@ export default {
     if (request.method === "GET" && url.pathname === "/v1/providers") {
       if (!user) return respond({ error: "unauthorized" }, 401);
       try {
+        const registry = await createActiveProviderRegistry(env);
         return respond({
           selected: env.AI_PROVIDER?.trim() || DEFAULT_PROVIDER_ID,
-          providers: createProviderRegistry(env).list()
+          providers: registry.list()
         });
       } catch (error) {
         return providerFailure(error, respond);
@@ -385,7 +387,7 @@ export default {
     let primaryId: string;
     let model: string;
     try {
-      registry = createProviderRegistry(env);
+      registry = await createActiveProviderRegistry(env);
       primaryId = env.AI_PROVIDER?.trim() || DEFAULT_PROVIDER_ID;
       model = registry.require(primaryId).metadata.model;
     } catch (error) {

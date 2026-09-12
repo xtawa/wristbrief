@@ -37,7 +37,8 @@ type ProviderErrorCode =
   | "provider_error"
   | "provider_timeout"
   | "invalid_provider_response"
-  | "provider_not_configured";
+  | "provider_not_configured"
+  | "provider_circuit_open";
 
 export class ProviderError extends Error {
   constructor(

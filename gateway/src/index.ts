@@ -11,6 +11,7 @@ import {
   buildSummaryCacheKey,
   createSummaryCache,
   summarizeWithCache,
+  summarizeWithCacheAndLock,
   summaryCacheTtlSeconds,
   type SummaryCacheEnv
 } from "./summaryCache";
@@ -26,6 +27,7 @@ import {
   type BillingServerEnv
 } from "./billingServer";
 import {
+  deleteAccount,
   exchangeGoogleIdToken,
   issueLegacyMigrationGrant,
   type AuthResult,
@@ -100,6 +102,20 @@ export default {
 
     const user = await authenticateRequestUser(request, env);
 
+    if (
+      (request.method === "POST" || request.method === "DELETE") &&
+      (url.pathname === "/v1/auth/delete" || url.pathname === "/v1/account/delete")
+    ) {
+      if (!user) return respond({ error: "unauthorized" }, 401);
+      try {
+        const res = await deleteAccount(user, env);
+        if (res.status === 204) return empty(204, requestId);
+        return respond(res.body, res.status);
+      } catch {
+        return respond({ error: "auth_unavailable" }, 503);
+      }
+    }
+
     if (request.method === "POST" && url.pathname === "/v1/billing/rtdn") {
       try {
         return respondBilling(await processPlayRtdn(request, env));
@@ -148,14 +164,6 @@ export default {
     if (request.method !== "POST" || url.pathname !== "/v1/summary") return respond({ error: "not_found" }, 404);
     if (!user) return respond({ error: "unauthorized" }, 401);
 
-    const memberships = createMembershipService(env);
-    try {
-      const access = await memberships.canUseAi(user.id, "managed");
-      if (!access.allowed) return respond({ error: "quota_exceeded", quota: access.quota }, 429);
-    } catch {
-      return respond({ error: "membership_unavailable" }, 503);
-    }
-
     const parsedBody = await readJsonBodyLimited<SummaryRequest>(request, MAX_REQUEST_BYTES);
     if (parsedBody.error) return respond({ error: parsedBody.error }, parsedBody.error === "request_too_large" ? 413 : 400);
 
@@ -164,22 +172,67 @@ export default {
     if (!content) return respond({ error: "content_required" }, 400);
     if (content.length > MAX_CONTENT_CHARS) return respond({ error: "content_too_large" }, 413);
 
+    let registry: AiProviderRegistry;
+    let primaryId: string;
+    let model: string;
     try {
-      const registry = createProviderRegistry(env);
-      const primaryId = env.AI_PROVIDER?.trim() || DEFAULT_PROVIDER_ID;
-      const input = { title: body.title, content };
-      const cache = createSummaryCache(env);
-      const cacheKey = await buildSummaryCacheKey({
-        title: input.title,
-        content: input.content,
-        language: "auto"
-      });
-      const output = await summarizeWithCache(cache, cacheKey, summaryCacheTtlSeconds(env), () =>
+      registry = createProviderRegistry(env);
+      primaryId = env.AI_PROVIDER?.trim() || DEFAULT_PROVIDER_ID;
+      model = registry.require(primaryId).metadata.model;
+    } catch (error) {
+      if (error instanceof ProviderError) return providerFailure(error, respond);
+      return respond({ error: "provider_error" }, 502);
+    }
+
+    const memberships = createMembershipService(env);
+    const input = { title: body.title, content };
+    const cache = createSummaryCache(env);
+    const cacheKey = await buildSummaryCacheKey({
+      provider: primaryId,
+      model,
+      title: input.title,
+      content: input.content,
+      language: "auto"
+    });
+
+    if (cache) {
+      const cached = await cache.get(cacheKey);
+      if (cached) {
+        return respond(cached);
+      }
+    }
+
+    let quotaReserved = false;
+    try {
+      const reservation = await memberships.reserveAiQuota(user.id);
+      if (!reservation.allowed) {
+        return respond({ error: "quota_exceeded", quota: reservation.quota }, 429);
+      }
+      quotaReserved = true;
+    } catch {
+      return respond({ error: "membership_unavailable" }, 503);
+    }
+
+    try {
+      const result = await summarizeWithCacheAndLock(cache, cacheKey, summaryCacheTtlSeconds(env), () =>
         summarizeWithFallback(registry, primaryId, env.AI_FALLBACK_PROVIDER?.trim(), input)
       );
-      await memberships.recordAiUsage(user.id, "managed");
-      return respond(output);
+
+      if (result.cached) {
+        await memberships.releaseAiQuota(user.id);
+      } else {
+        await memberships.commitAiQuota(user.id);
+      }
+
+      return respond(result.output);
     } catch (error) {
+      if (quotaReserved) {
+        try {
+          await memberships.releaseAiQuota(user.id);
+        } catch {
+          // ignore cleanup errors so primary error is returned
+        }
+      }
       if (error instanceof ProviderError) return providerFailure(error, respond);
       return respond({ error: "membership_unavailable" }, 503);
     }

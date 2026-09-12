@@ -1,6 +1,8 @@
 package ink.underflo.wristbrief.mobile
 
 import android.app.Activity
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -10,7 +12,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
@@ -54,6 +58,7 @@ internal fun MembershipDestination(padding: PaddingValues) {
     var accountSession by remember { mutableStateOf(sessionPreferences.read()) }
     var accountBusy by remember { mutableStateOf(false) }
     var accountMessage by remember { mutableStateOf<String?>(null) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
     var membershipBusy by remember { mutableStateOf(false) }
     var serverSnapshot by remember { mutableStateOf<ServerMembershipSnapshot?>(null) }
     var snapshotLoading by remember { mutableStateOf(false) }
@@ -93,6 +98,36 @@ internal fun MembershipDestination(padding: PaddingValues) {
 
     LaunchedEffect(accountSession) {
         refreshServerSnapshot()
+    }
+
+    LaunchedEffect(billingState, accountSession) {
+        val ready = billingState as? BillingState.Ready ?: return@LaunchedEffect
+        if (accountSession == null) return@LaunchedEffect
+        val unacknowledged = ready.purchases.filter { !it.pending && !it.acknowledged }
+        if (unacknowledged.isEmpty()) return@LaunchedEffect
+
+        actionMessage = context.getString(R.string.membership_auto_acknowledging)
+        when (val result = membershipApi.restorePurchases(unacknowledged)) {
+            is MembershipRestoreResult.Success -> {
+                for (purchase in unacknowledged) {
+                    repository.acknowledgePurchase(purchase.purchaseToken) { _ -> }
+                }
+                actionMessage = context.getString(
+                    R.string.membership_verified_success,
+                    result.restoredCount,
+                    result.plan ?: "PRO",
+                )
+                refreshServerSnapshot()
+            }
+            MembershipRestoreResult.SignedOut -> {
+                sessionPreferences.clear()
+                accountSession = null
+                serverSnapshot = null
+            }
+            is MembershipRestoreResult.Failure -> {
+                // Pending purchases can be verified later or via manual restore
+            }
+        }
     }
 
     DisposableEffect(repository) {
@@ -247,26 +282,87 @@ internal fun MembershipDestination(padding: PaddingValues) {
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
                         )
 
-                        OutlinedButton(
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            OutlinedButton(
+                                modifier = Modifier.weight(1f),
+                                enabled = !accountBusy,
+                                onClick = {
+                                    scope.launch {
+                                        accountBusy = true
+                                        accountClient.signOut()
+                                        accountSession = null
+                                        serverSnapshot = null
+                                        accountMessage = context.getString(R.string.membership_signed_out_device)
+                                        accountBusy = false
+                                    }
+                                },
+                            ) {
+                                Text(
+                                    if (accountBusy) stringResource(R.string.membership_signing_out)
+                                    else stringResource(R.string.membership_sign_out),
+                                )
+                            }
+                            OutlinedButton(
+                                modifier = Modifier.weight(1f),
+                                enabled = !accountBusy,
+                                onClick = { showDeleteDialog = true },
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.error,
+                                ),
+                            ) {
+                                Text(stringResource(R.string.membership_delete_account))
+                            }
+                        }
+                    }
+                }
+            }
+            if (showDeleteDialog) {
+                AlertDialog(
+                    onDismissRequest = { if (!accountBusy) showDeleteDialog = false },
+                    title = { Text(stringResource(R.string.membership_delete_account_dialog_title)) },
+                    text = { Text(stringResource(R.string.membership_delete_account_dialog_body)) },
+                    confirmButton = {
+                        Button(
                             enabled = !accountBusy,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.error,
+                                contentColor = MaterialTheme.colorScheme.onError,
+                            ),
                             onClick = {
                                 scope.launch {
                                     accountBusy = true
-                                    accountClient.signOut()
-                                    accountSession = null
-                                    serverSnapshot = null
-                                    accountMessage = context.getString(R.string.membership_signed_out_device)
-                                    accountBusy = false
+                                    try {
+                                        accountClient.deleteAccount()
+                                        accountSession = null
+                                        serverSnapshot = null
+                                        accountMessage = context.getString(R.string.membership_account_deleted)
+                                    } catch (_: Exception) {
+                                        accountMessage = context.getString(R.string.membership_delete_failed)
+                                    } finally {
+                                        accountBusy = false
+                                        showDeleteDialog = false
+                                    }
                                 }
                             },
                         ) {
                             Text(
-                                if (accountBusy) stringResource(R.string.membership_signing_out)
-                                else stringResource(R.string.membership_sign_out),
+                                if (accountBusy) stringResource(R.string.membership_deleting_account)
+                                else stringResource(R.string.membership_delete_account_confirm),
                             )
                         }
-                    }
-                }
+                    },
+                    dismissButton = {
+                        TextButton(
+                            enabled = !accountBusy,
+                            onClick = { showDeleteDialog = false },
+                        ) {
+                            Text(stringResource(R.string.action_cancel))
+                        }
+                    },
+                )
             }
         }
 
@@ -350,12 +446,17 @@ internal fun MembershipDestination(padding: PaddingValues) {
                 )
             }
             is MembershipPresentation.Unavailable -> item {
+                val notConfigured = configuredBillingProductIds(BuildConfig.BILLING_SUBSCRIPTION_PRODUCT_IDS).isEmpty()
                 MembershipStatusCard(
-                    title = stringResource(R.string.plans_unavailable_title),
-                    description = stringResource(R.string.plans_unavailable_body),
+                    title = if (notConfigured) stringResource(R.string.membership_billing_not_configured_title)
+                    else stringResource(R.string.plans_unavailable_title),
+                    description = if (notConfigured) stringResource(R.string.membership_billing_not_configured_body)
+                    else stringResource(R.string.plans_unavailable_body),
                 )
-                OutlinedButton(onClick = repository::refresh) {
-                    Text(stringResource(R.string.membership_try_again))
+                if (!notConfigured) {
+                    OutlinedButton(onClick = repository::refresh) {
+                        Text(stringResource(R.string.membership_try_again))
+                    }
                 }
             }
             is MembershipPresentation.Error -> item {
@@ -452,6 +553,9 @@ internal fun MembershipDestination(padding: PaddingValues) {
                                 actionMessage = context.getString(R.string.membership_verifying)
                                 when (val result = membershipApi.restorePurchases(purchases)) {
                                     is MembershipRestoreResult.Success -> {
+                                        for (purchase in purchases.filter { !it.acknowledged && !it.pending }) {
+                                            repository.acknowledgePurchase(purchase.purchaseToken) { _ -> }
+                                        }
                                         actionMessage = context.getString(
                                             R.string.membership_verified_success,
                                             result.restoredCount,
@@ -489,6 +593,21 @@ internal fun MembershipDestination(padding: PaddingValues) {
                         enabled = !membershipBusy,
                     ) {
                         Text(stringResource(R.string.membership_refresh_play))
+                    }
+                }
+
+                item {
+                    OutlinedButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            val intent = Intent(
+                                Intent.ACTION_VIEW,
+                                Uri.parse("https://play.google.com/store/account/subscriptions")
+                            )
+                            runCatching { context.startActivity(intent) }
+                        },
+                    ) {
+                        Text(stringResource(R.string.membership_manage_subscriptions))
                     }
                 }
             }

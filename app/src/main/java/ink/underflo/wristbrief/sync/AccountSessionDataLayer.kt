@@ -57,6 +57,8 @@ internal class WearAccountSessionStore(context: Context) {
         return true
     }
 
+    fun currentUserId(): String? = preferences.getString("user_id", null)
+
     fun clear() {
         preferences.edit().clear().apply()
         WearAccountSessionRuntime.clear()
@@ -100,13 +102,26 @@ internal object WearAccountSessionMessageCodec {
 
 internal fun applyWearAccountSessionMessage(
     message: WearAccountSessionMessageCodec.Message?,
+    currentUserId: String? = null,
     now: Instant = Instant.now(),
     write: (WearAccountSession, Instant) -> Boolean,
     clear: () -> Unit,
+    onAccountPurge: () -> Unit = {},
 ) {
     when (message) {
-        is WearAccountSessionMessageCodec.Message.Set -> if (!write(message.session, now)) clear()
-        WearAccountSessionMessageCodec.Message.Clear, null -> clear()
+        is WearAccountSessionMessageCodec.Message.Set -> {
+            if (currentUserId != null && currentUserId != message.session.userId) {
+                onAccountPurge()
+            }
+            if (!write(message.session, now)) {
+                clear()
+                onAccountPurge()
+            }
+        }
+        WearAccountSessionMessageCodec.Message.Clear, null -> {
+            clear()
+            onAccountPurge()
+        }
     }
 }
 
@@ -116,10 +131,22 @@ class AccountSessionDataLayerService : WearableListenerService() {
             if (event.type != DataEvent.TYPE_CHANGED || event.dataItem.uri.path != PATH) return@forEach
             val payload = DataMapItem.fromDataItem(event.dataItem).dataMap.getByteArray(PAYLOAD_KEY) ?: return@forEach
             val store = WearAccountSessionStore(this)
+            val currentUserId = store.currentUserId()
             applyWearAccountSessionMessage(
                 message = WearAccountSessionMessageCodec.decode(payload),
+                currentUserId = currentUserId,
                 write = store::write,
                 clear = store::clear,
+                onAccountPurge = {
+                    WearItemStateClockStore(this).save(emptyList())
+                    val feedStore = ink.underflo.wristbrief.data.SharedPreferencesFeedStore(this)
+                    feedStore.saveSubscriptions(emptyList())
+                    feedStore.saveReadItemIds(emptySet())
+                    feedStore.saveSavedItemIds(emptySet())
+                    SharedPreferencesSyncOutboxStore(this).clear()
+                    ink.underflo.wristbrief.tile.requestLatestUnreadTileUpdate(this)
+                    ink.underflo.wristbrief.complication.requestUnreadComplicationUpdate(this)
+                },
             )
         }
     }

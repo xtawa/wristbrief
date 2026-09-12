@@ -17,6 +17,7 @@ export type GoogleIdentityRecord = {
 export interface AccountIdentityStore {
   resolveOrCreateGoogleIdentity(input: GoogleIdentityRecord): Promise<GoogleIdentityResolution>;
   linkGoogleIdentityToUser(input: GoogleIdentityRecord): Promise<GoogleIdentityResolution>;
+  deleteUser?(userId: string): Promise<void>;
 }
 
 export class AccountIdentityService {
@@ -66,6 +67,14 @@ export class InMemoryAccountIdentityStore implements AccountIdentityStore {
 
     this.identities.set(key, { ...input });
     return { userId: input.userId, created: true };
+  }
+
+  async deleteUser(userId: string): Promise<void> {
+    for (const [key, record] of Array.from(this.identities.entries())) {
+      if (record.userId === userId) {
+        this.identities.delete(key);
+      }
+    }
   }
 
   identityForGoogleSubject(providerSubject: string): GoogleIdentityRecord | undefined {

@@ -4,6 +4,7 @@ import {
   InMemorySummaryCache,
   buildSummaryCacheKey,
   summarizeWithCache,
+  summarizeWithCacheAndLock,
   summaryCacheTtlSeconds
 } from "./summaryCache";
 import { BRIEF_PROMPT_VERSION, BRIEF_SCHEMA_VERSION } from "./structuredBrief";
@@ -29,7 +30,7 @@ describe("summary cache", () => {
     const first = await buildSummaryCacheKey({ title: "  Title ", content: "line 1\r\nline   2", language: "AUTO" });
     const second = await buildSummaryCacheKey({ title: "Title", content: "line 1\nline 2", language: "auto" });
     expect(first).toBe(second);
-    expect(first).toMatch(/^summary:v1:[0-9a-f]{64}$/);
+    expect(first).toMatch(/^summary:v2:[0-9a-f]{64}$/);
     expect(first).not.toContain("line 1");
   });
 
@@ -39,6 +40,33 @@ describe("summary cache", () => {
     expect(await buildSummaryCacheKey({ ...base, language: "zh-CN" })).not.toBe(key);
     expect(await buildSummaryCacheKey({ ...base, promptVersion: "future-prompt" })).not.toBe(key);
     expect(await buildSummaryCacheKey({ ...base, schemaVersion: "future-schema" })).not.toBe(key);
+    expect(await buildSummaryCacheKey({ ...base, provider: "anthropic" })).not.toBe(key);
+    expect(await buildSummaryCacheKey({ ...base, model: "claude-3-5-sonnet" })).not.toBe(key);
+  });
+
+  it("locks concurrent in-flight requests to prevent provider stampede", async () => {
+    const cache = new InMemorySummaryCache();
+    let calls = 0;
+    let finishProducer: () => void;
+    const gate = new Promise<void>((resolve) => { finishProducer = resolve; });
+
+    const slowProducer = async () => {
+      calls += 1;
+      await gate;
+      return output;
+    };
+
+    const req1 = summarizeWithCacheAndLock(cache, "stampede-key", 60, slowProducer);
+    const req2 = summarizeWithCacheAndLock(cache, "stampede-key", 60, slowProducer);
+
+    finishProducer!();
+
+    const [res1, res2] = await Promise.all([req1, req2]);
+    expect(calls).toBe(1);
+    expect(res1.cached).toBe(false);
+    expect(res2.cached).toBe(true);
+    expect(res1.output).toEqual(output);
+    expect(res2.output).toEqual(output);
   });
 
   it("bypasses the producer on a cache hit", async () => {

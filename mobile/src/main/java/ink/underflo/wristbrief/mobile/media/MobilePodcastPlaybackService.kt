@@ -117,6 +117,9 @@ class MobilePodcastPlaybackService : MediaSessionService() {
             completed = completed,
         )
         progressStore.save(current)
+        runCatching {
+            ink.underflo.wristbrief.mobile.PhonePlaybackSyncManager(this).publishLocalProgress(current)
+        }
     }
 
     override fun onDestroy() {

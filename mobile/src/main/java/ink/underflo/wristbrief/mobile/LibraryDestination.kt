@@ -2,6 +2,7 @@ package ink.underflo.wristbrief.mobile
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -14,9 +15,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -35,6 +33,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import ink.underflo.wristbrief.mobile.ui.glass.GlassSurface
+import ink.underflo.wristbrief.mobile.ui.glass.GlassTokens
+import ink.underflo.wristbrief.mobile.ui.glass.NeutralFilterChip
 
 private enum class LibraryFilter { All, Unread, Saved, Articles, Podcasts }
 
@@ -46,6 +47,7 @@ internal fun LibraryDestination(
     onManageSources: () -> Unit,
     onOpenArticle: (MobileFeedItem) -> Unit = {},
     onPlayPodcast: (MobileFeedItem) -> Unit = {},
+    darkTheme: Boolean = isSystemInDarkTheme(),
 ) {
     val context = LocalContext.current
     var searchQuery by remember { mutableStateOf("") }
@@ -111,6 +113,7 @@ internal fun LibraryDestination(
                     text = stringResource(R.string.nav_library),
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
+                    color = GlassTokens.textPrimary(darkTheme),
                 )
                 TextButton(onClick = onManageSources) {
                     Text(stringResource(R.string.library_manage_sources))
@@ -152,10 +155,11 @@ internal fun LibraryDestination(
                         LibraryFilter.Articles -> stringResource(R.string.library_filter_articles)
                         LibraryFilter.Podcasts -> stringResource(R.string.library_filter_podcasts)
                     }
-                    FilterChip(
+                    NeutralFilterChip(
+                        label = label,
                         selected = currentFilter == filter,
                         onClick = { currentFilter = filter },
-                        label = { Text(label) },
+                        darkTheme = darkTheme,
                     )
                 }
             }
@@ -168,19 +172,21 @@ internal fun LibraryDestination(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     item {
-                        FilterChip(
+                        NeutralFilterChip(
+                            label = stringResource(R.string.today_filter_all),
                             selected = selectedCategory == null,
                             onClick = { selectedCategory = null },
-                            label = { Text(stringResource(R.string.today_filter_all)) },
+                            darkTheme = darkTheme,
                         )
                     }
                     items(categories) { cat ->
-                        FilterChip(
+                        NeutralFilterChip(
+                            label = cat,
                             selected = selectedCategory.equals(cat, ignoreCase = true),
                             onClick = {
                                 selectedCategory = if (selectedCategory.equals(cat, ignoreCase = true)) null else cat
                             },
-                            label = { Text(cat) },
+                            darkTheme = darkTheme,
                         )
                     }
                 }
@@ -189,10 +195,11 @@ internal fun LibraryDestination(
 
         if (filteredItems.isEmpty()) {
             item {
-                Card(
+                GlassSurface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.extraLarge,
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                    strong = false,
+                    cornerRadius = GlassTokens.CardRadius,
+                    darkTheme = darkTheme,
                 ) {
                     Column(
                         modifier = Modifier.padding(24.dp),
@@ -202,7 +209,7 @@ internal fun LibraryDestination(
                             Text(
                                 text = stringResource(R.string.library_no_search_results, searchQuery),
                                 style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = GlassTokens.textSecondary(darkTheme),
                             )
                             Button(onClick = { searchQuery = "" }) {
                                 Text(stringResource(R.string.library_clear_search))
@@ -211,7 +218,7 @@ internal fun LibraryDestination(
                             Text(
                                 text = stringResource(R.string.library_empty),
                                 style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = GlassTokens.textSecondary(darkTheme),
                             )
                             if (feedManager.feeds().isEmpty()) {
                                 Button(onClick = onManageSources) {
@@ -227,12 +234,11 @@ internal fun LibraryDestination(
                 val isRead = inboxRepository.isRead(item.id)
                 val isSaved = inboxRepository.isSaved(item.id)
 
-                Card(
+                GlassSurface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.extraLarge,
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (isRead) MaterialTheme.colorScheme.surfaceContainerLow else MaterialTheme.colorScheme.surfaceContainer,
-                    ),
+                    strong = !isRead,
+                    cornerRadius = GlassTokens.CardRadius,
+                    darkTheme = darkTheme,
                 ) {
                     Column(
                         modifier = Modifier.padding(18.dp),
@@ -242,11 +248,12 @@ internal fun LibraryDestination(
                             text = item.title,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = if (isRead) FontWeight.Normal else FontWeight.SemiBold,
+                            color = GlassTokens.textPrimary(darkTheme),
                         )
                         Text(
                             text = "${item.feedTitle}${item.published?.let { " · $it" }.orEmpty()}",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = GlassTokens.textSecondary(darkTheme),
                         )
                         item.description?.let { desc ->
                             val clean = ArticleContentSanitizer.sanitize(desc).plainText
@@ -256,7 +263,7 @@ internal fun LibraryDestination(
                                     style = MaterialTheme.typography.bodyMedium,
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    color = GlassTokens.textSecondary(darkTheme),
                                 )
                             }
                         }

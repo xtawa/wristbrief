@@ -68,4 +68,40 @@ class AccountAuthTest {
             accountPresentation(true, session),
         )
     }
+
+    @Test
+    fun sessionPreferencesAutoClearsAndNotifiesBridgeWhenExpired() {
+        val memoryStorage = object : AccountSessionStorage {
+            val map = mutableMapOf<String, String>()
+            override fun getString(key: String): String? = map[key]
+            override fun put(token: String, expiresAt: String, userId: String) {
+                map["token"] = token
+                map["expires_at"] = expiresAt
+                map["user_id"] = userId
+            }
+            override fun clear() { map.clear() }
+        }
+
+        var bridgeClearCalled = 0
+        val mockBridge = object : AccountSessionBridge {
+            override fun publish(session: AccountSession) {}
+            override fun clear() { bridgeClearCalled++ }
+        }
+
+        val preferences = AccountSessionPreferences(memoryStorage, mockBridge)
+        val validToken = "wbs_${"A".repeat(43)}"
+        val session = AccountSession(validToken, "2026-09-10T12:00:00Z", AccountUser("usr_test"))
+        preferences.write(session)
+
+        // Read before expiry -> returns session
+        val before = preferences.read(java.time.Instant.parse("2026-09-10T11:59:59Z"))
+        assertEquals(session, before)
+        assertEquals(0, bridgeClearCalled)
+
+        // Read at/after expiry -> auto-clears and notifies bridge
+        val after = preferences.read(java.time.Instant.parse("2026-09-10T12:00:01Z"))
+        assertNull(after)
+        assertEquals(1, bridgeClearCalled)
+        assertNull(memoryStorage.getString("token"))
+    }
 }

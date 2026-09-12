@@ -6,7 +6,7 @@ const MIN_KV_TTL_SECONDS = 60;
 const MAX_CACHE_TTL_SECONDS = 30 * 24 * 60 * 60;
 
 export type SummaryCacheEnv = {
-  SUMMARY_CACHE?: Pick<KVNamespace, "get" | "put">;
+  SUMMARY_CACHE?: Pick<KVNamespace, "get" | "put"> | SummaryCache;
   SUMMARY_CACHE_TTL_SECONDS?: string;
 };
 
@@ -16,6 +16,8 @@ export interface SummaryCache {
 }
 
 export type SummaryCacheKeyInput = {
+  provider?: string;
+  model?: string;
   title?: string;
   content: string;
   language: string;
@@ -25,6 +27,8 @@ export type SummaryCacheKeyInput = {
 
 export async function buildSummaryCacheKey(input: SummaryCacheKeyInput): Promise<string> {
   const normalized = JSON.stringify({
+    provider: (input.provider ?? "").trim().toLowerCase(),
+    model: (input.model ?? "").trim().toLowerCase(),
     title: normalizeText(input.title ?? ""),
     content: normalizeText(input.content),
     language: normalizeLanguage(input.language),
@@ -32,7 +36,7 @@ export async function buildSummaryCacheKey(input: SummaryCacheKeyInput): Promise
     schemaVersion: input.schemaVersion ?? BRIEF_SCHEMA_VERSION
   });
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(normalized));
-  return `summary:v1:${toHex(new Uint8Array(digest))}`;
+  return `summary:v2:${toHex(new Uint8Array(digest))}`;
 }
 
 export function summaryCacheTtlSeconds(env: SummaryCacheEnv): number {
@@ -42,7 +46,54 @@ export function summaryCacheTtlSeconds(env: SummaryCacheEnv): number {
 }
 
 export function createSummaryCache(env: SummaryCacheEnv): SummaryCache | null {
-  return env.SUMMARY_CACHE ? new KvSummaryCache(env.SUMMARY_CACHE) : null;
+  if (!env.SUMMARY_CACHE) return null;
+  if (env.SUMMARY_CACHE instanceof InMemorySummaryCache) return env.SUMMARY_CACHE;
+  return new KvSummaryCache(env.SUMMARY_CACHE as Pick<KVNamespace, "get" | "put">);
+}
+
+export type SummaryExecutionResult = {
+  output: SummaryOutput;
+  cached: boolean;
+};
+
+const inFlightRequests = new Map<string, Promise<SummaryOutput>>();
+
+export function clearInFlightRequestsForTesting(): void {
+  inFlightRequests.clear();
+}
+
+export async function summarizeWithCacheAndLock(
+  cache: SummaryCache | null,
+  key: string,
+  ttlSeconds: number,
+  producer: () => Promise<SummaryOutput>
+): Promise<SummaryExecutionResult> {
+  if (cache) {
+    const cached = await cache.get(key);
+    if (cached) return { output: cached, cached: true };
+  }
+
+  const inFlight = inFlightRequests.get(key);
+  if (inFlight) {
+    const output = await inFlight;
+    return { output, cached: true };
+  }
+
+  const promise = (async () => {
+    try {
+      const produced = await producer();
+      if (cache) {
+        await cache.put(key, produced, ttlSeconds);
+      }
+      return produced;
+    } finally {
+      inFlightRequests.delete(key);
+    }
+  })();
+
+  inFlightRequests.set(key, promise);
+  const output = await promise;
+  return { output, cached: false };
 }
 
 export async function summarizeWithCache(
@@ -51,12 +102,8 @@ export async function summarizeWithCache(
   ttlSeconds: number,
   producer: () => Promise<SummaryOutput>
 ): Promise<SummaryOutput> {
-  if (!cache) return producer();
-  const cached = await cache.get(key);
-  if (cached) return cached;
-  const produced = await producer();
-  await cache.put(key, produced, ttlSeconds);
-  return produced;
+  const result = await summarizeWithCacheAndLock(cache, key, ttlSeconds, producer);
+  return result.output;
 }
 
 export class KvSummaryCache implements SummaryCache {

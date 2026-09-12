@@ -23,6 +23,24 @@ class AiBriefWearUiTest {
     }
 
     @Test
+    fun gatewayConfiguration_usesWearAccountSessionRuntimeWhenTokenBlank() {
+        ink.underflo.wristbrief.sync.WearAccountSessionRuntime.clear()
+        assertFalse(isAiGatewayConfigured("https://gateway.example", ""))
+
+        ink.underflo.wristbrief.sync.WearAccountSessionRuntime.set(
+            ink.underflo.wristbrief.sync.WearAccountSession(
+                "wear-token",
+                java.time.Instant.now().plusSeconds(3600),
+                "usr_test"
+            )
+        )
+        assertTrue(isAiGatewayConfigured("https://gateway.example", ""))
+
+        ink.underflo.wristbrief.sync.WearAccountSessionRuntime.clear()
+        assertFalse(isAiGatewayConfigured("https://gateway.example", ""))
+    }
+
+    @Test
     fun loading_keepsOriginalReaderAvailable() {
         val presentation = AiBriefUiState.Loading.toWearPresentation(isGatewayConfigured = true)
 

@@ -1,4 +1,9 @@
-import type { BillingStateStore } from "./billingServer";
+import {
+  aggregateEntitlement,
+  type BillingStateStore,
+  type PlaySubscriptionStatus,
+  type VerifiedPlaySubscription
+} from "./billingServer";
 import type { Entitlement, MembershipStore } from "./membership";
 
 export type DurableMembershipEnv = {
@@ -56,6 +61,12 @@ export class D1MembershipStore implements MembershipStore {
     ).bind(userId, this.periodKey()).run();
     if ((result.meta.changes ?? 0) !== 1) throw new Error("managed_ai_quota_unavailable");
   }
+
+  async decrementManagedAiUsage(userId: string): Promise<void> {
+    await this.db.prepare(
+      "UPDATE managed_ai_usage SET used = MAX(0, used - 1), updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND period_key = ?"
+    ).bind(userId, this.periodKey()).run();
+  }
 }
 
 export class D1BillingStateStore implements BillingStateStore {
@@ -79,6 +90,32 @@ export class D1BillingStateStore implements BillingStateStore {
     if (owner === userId) return "bound";
     if (owner) return "conflict";
     throw new Error("purchase_binding_failed");
+  }
+
+  async recordSubscription(userId: string, tokenHash: string, subscription: VerifiedPlaySubscription): Promise<void> {
+    await this.db.prepare(
+      "UPDATE play_purchase_bindings SET product_id = ?, status = ?, expires_at = ?, updated_at = CURRENT_TIMESTAMP WHERE token_hash = ? AND user_id = ?"
+    ).bind(subscription.productId, subscription.status, subscription.expiresAt ?? null, tokenHash, userId).run();
+  }
+
+  async recomputeUserEntitlement(userId: string): Promise<Entitlement> {
+    const rows = await this.db.prepare(
+      "SELECT product_id, status, expires_at FROM play_purchase_bindings WHERE user_id = ?"
+    ).bind(userId).all<{ product_id?: string; status?: string; expires_at?: string | null }>();
+    const subscriptions: VerifiedPlaySubscription[] = (rows.results ?? []).map((row) => ({
+      packageName: "",
+      productId: row.product_id ?? "",
+      status: (row.status as PlaySubscriptionStatus) ?? "expired",
+      ...(row.expires_at ? { expiresAt: row.expires_at } : {})
+    }));
+    const entitlement = aggregateEntitlement(subscriptions);
+    await this.setBillingEntitlement(userId, entitlement);
+    return entitlement;
+  }
+
+  async deleteUserBindings(userId: string): Promise<void> {
+    await this.db.prepare("DELETE FROM play_purchase_bindings WHERE user_id = ?").bind(userId).run();
+    await this.db.prepare("DELETE FROM membership_entitlements WHERE user_id = ?").bind(userId).run();
   }
 
   async setBillingEntitlement(userId: string, entitlement: Entitlement): Promise<void> {

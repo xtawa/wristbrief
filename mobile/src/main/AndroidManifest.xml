@@ -24,5 +24,11 @@
                 <data android:scheme="wear" android:host="*" android:path="/wristbrief/item-state/v1/wear" />
             </intent-filter>
         </service>
+        <service android:name=".PlaybackDataLayerService" android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
+                <data android:scheme="wear" android:host="*" android:path="/wristbrief/playback/v1/wear" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>

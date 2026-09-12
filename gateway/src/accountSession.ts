@@ -21,6 +21,7 @@ export interface AccountSessionStore {
   createSession(record: AccountSessionRecord): Promise<void>;
   sessionForTokenHash(tokenHash: string): Promise<AccountSessionRecord | null>;
   revokeByTokenHash(tokenHash: string, revokedAt: string): Promise<boolean>;
+  revokeAllForUser?(userId: string, revokedAt: string): Promise<void>;
 }
 
 type AccountSessionServiceOptions = {
@@ -105,6 +106,14 @@ export class InMemoryAccountSessionStore implements AccountSessionStore {
     if (!record) return false;
     record.revokedAt = record.revokedAt ?? revokedAt;
     return true;
+  }
+
+  async revokeAllForUser(userId: string, revokedAt: string): Promise<void> {
+    for (const record of this.byHash.values()) {
+      if (record.userId === userId) {
+        record.revokedAt = record.revokedAt ?? revokedAt;
+      }
+    }
   }
 
   records(): AccountSessionRecord[] {

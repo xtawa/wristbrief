@@ -1,6 +1,10 @@
 package ink.underflo.wristbrief.mobile.media
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +19,9 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import ink.underflo.wristbrief.mobile.ui.glass.GlassTokens
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -62,14 +69,23 @@ fun PodcastMiniPlayer(
         (state.currentPositionMs.toFloat() / state.durationMs.toFloat()).coerceIn(0f, 1f)
     } else 0f
 
-    Surface(
+    val darkTheme = isSystemInDarkTheme()
+    val shape = RoundedCornerShape(GlassTokens.CardRadius)
+    val shadowColor = if (darkTheme) GlassTokens.ShadowDark else GlassTokens.ShadowLight
+
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = 6.dp,
-        shadowElevation = 8.dp,
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .shadow(
+                elevation = 8.dp,
+                shape = shape,
+                ambientColor = shadowColor,
+                spotColor = shadowColor,
+            )
+            .clip(shape)
+            .background(GlassTokens.surfaceGlassStrong(darkTheme))
+            .border(BorderStroke(1.dp, GlassTokens.hairline(darkTheme)), shape),
     ) {
         Column(
             modifier = Modifier
@@ -82,8 +98,8 @@ fun PodcastMiniPlayer(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(3.dp),
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                    color = GlassTokens.controlSelected(darkTheme),
+                    trackColor = GlassTokens.hairline(darkTheme),
                 )
             }
 
@@ -102,6 +118,7 @@ fun PodcastMiniPlayer(
                         text = episode.title,
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
+                        color = GlassTokens.textPrimary(darkTheme),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -111,7 +128,7 @@ fun PodcastMiniPlayer(
                             else formatPlaybackTime(state.currentPositionMs, state.durationMs)
                         },
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = GlassTokens.textSecondary(darkTheme),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -128,8 +145,8 @@ fun PodcastMiniPlayer(
                             .size(48.dp)
                             .semantics { contentDescription = playPauseDesc },
                         colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary,
+                            containerColor = GlassTokens.controlSelected(darkTheme),
+                            contentColor = GlassTokens.onControlSelected(darkTheme),
                         ),
                     ) {
                         Text(
@@ -147,7 +164,7 @@ fun PodcastMiniPlayer(
                         Text(
                             text = "✕",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = GlassTokens.textSecondary(darkTheme),
                         )
                     }
                 }
@@ -170,11 +187,13 @@ fun PodcastExpandedSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var isUserDraggingSlider by remember { mutableStateOf(false) }
     var draggingSliderValue by remember { mutableFloatStateOf(0f) }
+    val darkTheme = isSystemInDarkTheme()
 
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = RoundedCornerShape(topStart = GlassTokens.SheetRadius, topEnd = GlassTokens.SheetRadius),
+        containerColor = GlassTokens.surfaceGlassStrong(darkTheme),
     ) {
         Column(
             modifier = Modifier

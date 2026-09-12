@@ -2,6 +2,7 @@ package ink.underflo.wristbrief.mobile
 
 import android.app.Activity
 import android.content.Context
+import com.android.billingclient.api.AcknowledgePurchaseParams
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingClient.BillingResponseCode
 import com.android.billingclient.api.BillingClient.ProductType
@@ -87,6 +88,7 @@ interface BillingRepository {
     fun connect(onState: (BillingState) -> Unit)
     fun refresh()
     fun launchPurchase(activity: Activity, productId: String): BillingResult
+    fun acknowledgePurchase(purchaseToken: String, onComplete: (Boolean) -> Unit)
     fun close()
 }
 
@@ -111,6 +113,14 @@ class FakeBillingRepository(
             .setResponseCode(if (products.any { it.productId == productId }) BillingResponseCode.OK else BillingResponseCode.ITEM_UNAVAILABLE)
             .setDebugMessage(if (products.any { it.productId == productId }) "Fake purchase flow" else "Unknown fake product")
             .build()
+
+    override fun acknowledgePurchase(purchaseToken: String, onComplete: (Boolean) -> Unit) {
+        purchases = purchases.map {
+            if (it.purchaseToken == purchaseToken) it.copy(acknowledged = true) else it
+        }
+        publish()
+        onComplete(true)
+    }
 
     override fun close() {
         listener = null
@@ -230,6 +240,17 @@ class GooglePlayBillingRepository(
             activity,
             BillingFlowParams.newBuilder().setProductDetailsParamsList(listOf(detailParams)).build(),
         )
+    }
+
+    override fun acknowledgePurchase(purchaseToken: String, onComplete: (Boolean) -> Unit) {
+        val params = AcknowledgePurchaseParams.newBuilder()
+            .setPurchaseToken(purchaseToken)
+            .build()
+        billingClient.acknowledgePurchase(params) { billingResult ->
+            val ok = billingResult.responseCode == BillingResponseCode.OK
+            if (ok) refresh()
+            onComplete(ok)
+        }
     }
 
     override fun close() {

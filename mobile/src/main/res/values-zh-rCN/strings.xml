@@ -101,6 +101,8 @@
     <string name="daily_brief_unread_prompt">将你的 %1$d 篇未读文章整理为条理清晰的每日重点。</string>
     <string name="daily_brief_read_full">阅读完整简报</string>
     <string name="daily_brief_close">关闭</string>
+    <string name="daily_brief_meta_info">%1$d 篇文章 · 生成于 %2$s</string>
+    <string name="daily_brief_up_to_date">简报已包含最新未读文章，无需重新生成。</string>
     <string name="ai_prompt_summarize">总结核心观点</string>
     <string name="ai_prompt_takeaways">列出行动建议</string>
     <string name="ai_prompt_critique">哪些内容值得质疑</string>
@@ -282,4 +284,17 @@
     <string name="podcast_error_unsupported_format">您的设备不支持此音频格式。</string>
     <string name="podcast_listen_episode">收听本期单集</string>
     <string name="podcast_playing_episode">正在播放单集</string>
+
+    <!-- Batch 7 Entitlements & Account Lifecycle -->
+    <string name="membership_manage_subscriptions">管理 Google Play 订阅</string>
+    <string name="membership_delete_account">注销账户</string>
+    <string name="membership_deleting_account">正在注销账户…</string>
+    <string name="membership_delete_account_dialog_title">确定注销 WristBrief 账户？</string>
+    <string name="membership_delete_account_dialog_body">这将永久撤销登录凭据、解绑 Google 账户并清除服务端绑定的账户数据。此操作不可逆。</string>
+    <string name="membership_delete_account_confirm">确认注销</string>
+    <string name="membership_account_deleted">账户已成功注销。</string>
+    <string name="membership_delete_failed">注销账户失败，请稍后重试。</string>
+    <string name="membership_billing_not_configured_title">Google Play 结算未配置</string>
+    <string name="membership_billing_not_configured_body">当前版本未配置有效的 Google Play 订阅商品 ID。</string>
+    <string name="membership_auto_acknowledging">正在向 Google Play 确认购买…</string>
 </resources>

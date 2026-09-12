@@ -82,6 +82,33 @@ def require_no_embedded_server_bearer() -> None:
         fail("Wear build must not embed the legacy Gateway server bearer")
 
 
+def require_string_resource_parity(module: str) -> None:
+    en_path = Path(f"{module}/src/main/res/values/strings.xml")
+    zh_path = Path(f"{module}/src/main/res/values-zh-rCN/strings.xml")
+    if not en_path.is_file() or not zh_path.is_file():
+        fail(f"{module}: missing localized strings.xml files")
+    en_keys = {elem.attrib["name"] for elem in ET.parse(en_path).getroot().findall("string") if "name" in elem.attrib}
+    zh_keys = {elem.attrib["name"] for elem in ET.parse(zh_path).getroot().findall("string") if "name" in elem.attrib}
+    diff_en_zh = en_keys - zh_keys
+    diff_zh_en = zh_keys - en_keys
+    if diff_en_zh or diff_zh_en:
+        fail(f"{module} string parity failure: missing in zh: {diff_en_zh}, missing in en: {diff_zh_en}")
+
+
+def require_d1_migrations_valid() -> None:
+    import sqlite3
+    migrations = sorted(Path("gateway/migrations").glob("*.sql"))
+    if len(migrations) < 7:
+        fail("gateway/migrations: expected at least 7 SQL migration files")
+    con = sqlite3.connect(":memory:")
+    for migration in migrations:
+        try:
+            con.executescript(migration.read_text(encoding="utf-8"))
+        except Exception as exc:
+            fail(f"gateway/migrations/{migration.name} failed to execute on clean SQLite: {exc}")
+    con.close()
+
+
 def main() -> None:
     for manifest in (WEAR_MANIFEST, MOBILE_MANIFEST):
         if not Path(manifest).is_file():
@@ -91,8 +118,12 @@ def main() -> None:
     require_wear_standalone_declaration(WEAR_MANIFEST)
     require_cross_device_identity()
     require_no_embedded_server_bearer()
-    print("release-guard: Android security and cross-device packaging invariants OK")
+    require_string_resource_parity("mobile")
+    require_string_resource_parity("app")
+    require_d1_migrations_valid()
+    print("release-guard: Android security, cross-device packaging, string parity, and D1 migrations OK")
 
 
 if __name__ == "__main__":
     main()
+

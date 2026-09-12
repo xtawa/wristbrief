@@ -84,16 +84,24 @@ class PodcastPlaybackService : MediaSessionService() {
         val previous = progressStore.get(episodeId)
         if (!force && previous != null && !shouldCheckpoint(previous.positionMs, currentPosition)) return
 
+        val duration = player.duration.coerceAtLeast(0L)
         val current = PodcastEpisodeProgress(
             episodeId = episodeId,
             positionMs = currentPosition,
             playbackSpeed = player.playbackParameters.speed
                 .takeIf { speed -> speed in SUPPORTED_PLAYBACK_SPEEDS }
                 ?: 1f,
+            durationMs = duration,
+            isPlaying = player.isPlaying,
+            lastPlayedAtEpochMs = System.currentTimeMillis(),
+            completed = completed,
         )
         progressStore.save(current)
         if (shouldRequestContinueListeningTileUpdate(previous, current, force)) {
             requestContinueListeningTileUpdate(this)
+        }
+        runCatching {
+            ink.underflo.wristbrief.sync.WearPlaybackSyncManager(this).publishLocalProgress(current)
         }
     }
 

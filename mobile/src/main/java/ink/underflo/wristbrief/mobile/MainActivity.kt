@@ -19,9 +19,13 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.runtime.CompositionLocalProvider
+import ink.underflo.wristbrief.mobile.ui.glass.GlassBottomBar
+import ink.underflo.wristbrief.mobile.ui.glass.GlassTokens
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -224,6 +228,7 @@ class MainActivity : ComponentActivity() {
                 aiPrefilledTitle = aiPrefilledTitle,
                 aiPrefilledContent = aiPrefilledContent,
                 progressStore = sqlitePodcastStore,
+                darkTheme = resolveDarkTheme(themeMode, isSystemInDarkTheme()),
             )
         }
 
@@ -260,11 +265,15 @@ class MainActivity : ComponentActivity() {
     aiPrefilledTitle: String,
     aiPrefilledContent: String,
     progressStore: PodcastProgressStore? = null,
+    darkTheme: Boolean = isSystemInDarkTheme(),
 ) {
     BoxWithConstraints {
         val useRail = maxWidth >= 600.dp
         Row(Modifier.fillMaxSize()) {
-            if (useRail) NavigationRail(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
+            if (useRail) NavigationRail(
+                containerColor = GlassTokens.surfaceGlass(darkTheme),
+                contentColor = GlassTokens.textPrimary(darkTheme),
+            ) {
                 MobileDestination.entries.forEach { item ->
                     NavigationRailItem(
                         selected = item == destination,
@@ -276,12 +285,12 @@ class MainActivity : ComponentActivity() {
             }
             Scaffold(
                 modifier = Modifier.weight(1f),
-                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                containerColor = GlassTokens.canvas(darkTheme),
                 topBar = {
                     LargeTopAppBar(
                         colors = TopAppBarDefaults.largeTopAppBarColors(
                             containerColor = Color.Transparent,
-                            titleContentColor = MaterialTheme.colorScheme.onSurface,
+                            titleContentColor = GlassTokens.textPrimary(darkTheme),
                         ),
                         title = {
                             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -289,11 +298,12 @@ class MainActivity : ComponentActivity() {
                                     "WristBrief",
                                     style = MaterialTheme.typography.headlineMedium,
                                     fontWeight = FontWeight.SemiBold,
+                                    color = GlassTokens.textPrimary(darkTheme),
                                 )
                                 Text(
                                     destination.localizedLabel(),
                                     style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.primary,
+                                    color = GlassTokens.textSecondary(darkTheme),
                                 )
                             }
                         },
@@ -322,28 +332,22 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         if (!useRail) {
-                            NavigationBar(
-                                containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                                tonalElevation = 0.dp,
-                            ) {
-                                MobileDestination.entries.forEach { item ->
-                                    val selected = item == destination
-                                    NavigationBarItem(
-                                        selected = selected,
-                                        onClick = { select(item) },
-                                        icon = {
-                                            Surface(
-                                                shape = CircleShape,
-                                                color = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                                                contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                                            ) {
-                                                DestinationIcon(item, Modifier.padding(8.dp))
-                                            }
-                                        },
-                                        label = { Text(item.localizedLabel()) },
-                                    )
-                                }
-                            }
+                            val destinations = MobileDestination.entries
+                            val selectedIndex = destinations.indexOf(destination)
+                            GlassBottomBar(
+                                items = destinations.map { item ->
+                                    Pair(item.localizedLabel()) { selected ->
+                                        CompositionLocalProvider(
+                                            androidx.compose.material3.LocalContentColor provides if (selected) GlassTokens.onControlSelected(darkTheme) else GlassTokens.textSecondary(darkTheme),
+                                        ) {
+                                            DestinationIcon(item)
+                                        }
+                                    }
+                                },
+                                selectedIndex = selectedIndex,
+                                onSelect = { index -> select(destinations[index]) },
+                                darkTheme = darkTheme,
+                            )
                         }
                     }
                 },
@@ -381,6 +385,7 @@ class MainActivity : ComponentActivity() {
                                     onOpenArticle = onOpenArticle,
                                     onPlayPodcast = onPlayPodcast,
                                     progressStore = progressStore,
+                                    darkTheme = darkTheme,
                                 )
                                 MobileDestination.Library -> LibraryDestination(
                                     padding = PaddingValues(0.dp),
@@ -389,6 +394,7 @@ class MainActivity : ComponentActivity() {
                                     onManageSources = onOpenSettings,
                                     onOpenArticle = onOpenArticle,
                                     onPlayPodcast = onPlayPodcast,
+                                    darkTheme = darkTheme,
                                 )
                                 MobileDestination.AiProvider -> PhoneLongSummaryDestination(
                                     padding = PaddingValues(0.dp),

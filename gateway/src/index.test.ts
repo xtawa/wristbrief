@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import worker from "./index";
-import { BRIEF_PROMPT_VERSION, BRIEF_SCHEMA_VERSION } from "./structuredBrief";
+import { BRIEF_PROMPT_VERSION, BRIEF_SCHEMA_VERSION, type StructuredBrief } from "./structuredBrief";
+import { InMemoryMembershipStore } from "./membership";
+import { InMemorySummaryCache, buildSummaryCacheKey } from "./summaryCache";
 
 const env = {
   AI_API_KEY: "provider-secret",
@@ -9,7 +11,7 @@ const env = {
   AI_MODEL: "test-model"
 };
 
-const structured = {
+const structured: StructuredBrief = {
   tiny: "Tiny summary.",
   brief: "Three concise points.",
   long: "A longer phone-friendly explanation that preserves the useful context omitted from the watch brief.",
@@ -214,5 +216,91 @@ describe("WristBrief gateway", () => {
     expect(response.status).toBe(502);
     await expect(response.json()).resolves.toEqual({ error: "invalid_provider_response" });
     expect(upstreamFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("serves cache hits without reserving or deducting user quota", async () => {
+    const store = new InMemoryMembershipStore([
+      { userId: "legacy-user", plan: "PRO", managedAiLimit: 10, managedAiUsed: 2 }
+    ]);
+    const cache = new InMemorySummaryCache();
+    const cacheKey = await buildSummaryCacheKey({
+      provider: "openai-compatible",
+      model: "test-model",
+      title: "Test title",
+      content: "Cached content",
+      language: "auto"
+    });
+    const cachedBrief = { summary: structured.brief, model: "test-model", structured };
+    await cache.put(cacheKey, cachedBrief, 60);
+
+    const upstreamFetch = vi.fn();
+    vi.stubGlobal("fetch", upstreamFetch);
+
+    const response = await worker.fetch(summaryRequest("Cached content"), {
+      ...env,
+      MEMBERSHIP_STORE: store,
+      SUMMARY_CACHE: cache
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual(cachedBrief);
+    expect(upstreamFetch).not.toHaveBeenCalled();
+    // Quota remains untouched
+    expect((await store.getManagedAiQuota("legacy-user")).used).toBe(2);
+  });
+
+  it("refunds reserved quota when upstream provider fails", async () => {
+    const store = new InMemoryMembershipStore([
+      { userId: "legacy-user", plan: "PRO", managedAiLimit: 10, managedAiUsed: 3 }
+    ]);
+    const upstreamFetch = vi.fn(async () => new Response("error", { status: 500 }));
+    vi.stubGlobal("fetch", upstreamFetch);
+
+    const response = await worker.fetch(summaryRequest("hello"), {
+      ...env,
+      AI_PROVIDER_MAX_RETRIES: "0",
+      MEMBERSHIP_STORE: store
+    });
+
+    expect(response.status).toBe(502);
+    // Quota was reserved (+1 to 4) then refunded back to 3
+    expect((await store.getManagedAiQuota("legacy-user")).used).toBe(3);
+  });
+
+  it("prevents stampede on concurrent identical requests and charges quota only once", async () => {
+    const store = new InMemoryMembershipStore([
+      { userId: "legacy-user", plan: "PRO", managedAiLimit: 10, managedAiUsed: 0 }
+    ]);
+    const cache = new InMemorySummaryCache();
+
+    let calls = 0;
+    let finishProvider: () => void;
+    const gate = new Promise<void>((resolve) => { finishProvider = resolve; });
+
+    const upstreamFetch = vi.fn(async () => {
+      calls += 1;
+      await gate;
+      return openAiBody(structured);
+    });
+    vi.stubGlobal("fetch", upstreamFetch);
+
+    const config = {
+      ...env,
+      MEMBERSHIP_STORE: store,
+      SUMMARY_CACHE: cache
+    };
+
+    const req1 = worker.fetch(summaryRequest("Concurrent article"), config);
+    const req2 = worker.fetch(summaryRequest("Concurrent article"), config);
+
+    finishProvider!();
+
+    const [res1, res2] = await Promise.all([req1, req2]);
+    expect(res1.status).toBe(200);
+    expect(res2.status).toBe(200);
+    expect(calls).toBe(1);
+
+    // Only 1 quota used total because second request was coalesced and refunded
+    expect((await store.getManagedAiQuota("legacy-user")).used).toBe(1);
   });
 });

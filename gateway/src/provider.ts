@@ -7,7 +7,7 @@ import {
 
 export type SummaryInput = { title?: string; content: string };
 export type SummaryOutput = { summary: string; model: string; structured: StructuredBrief };
-export type ProviderMetadata = { id: string; model: string; api: "openai-compatible" | "gemini-native" };
+export type ProviderMetadata = { id: string; model: string; api: "openai-compatible" | "gemini-native" | "anthropic-native" };
 
 export interface AiProvider {
   readonly id: string;
@@ -28,6 +28,8 @@ export type ProviderEnv = {
   OPENROUTER_MODEL?: string;
   GEMINI_API_KEY?: string;
   GEMINI_MODEL?: string;
+  ANTHROPIC_API_KEY?: string;
+  ANTHROPIC_MODEL?: string;
 };
 
 type ProviderErrorCode =
@@ -59,6 +61,7 @@ const MAX_TIMEOUT_MS = 60_000;
 const MAX_RETRIES = 2;
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
+const ANTHROPIC_BASE_URL = "https://api.anthropic.com";
 
 abstract class StructuredProvider implements AiProvider {
   abstract readonly id: string;
@@ -145,6 +148,43 @@ export class GeminiProvider extends StructuredProvider {
   }
 }
 
+export class AnthropicProvider extends StructuredProvider {
+  readonly id = "anthropic";
+  readonly metadata: ProviderMetadata;
+  private readonly policy: RequestPolicy;
+
+  constructor(private readonly apiKey: string, private readonly model: string, env?: Pick<ProviderEnv, "AI_PROVIDER_TIMEOUT_MS" | "AI_PROVIDER_MAX_RETRIES">) {
+    super();
+    this.metadata = { id: this.id, model, api: "anthropic-native" };
+    this.policy = requestPolicy(env ?? {}, new Set(["api.anthropic.com"]));
+  }
+
+  async complete(system: string, user: string): Promise<string> {
+    const data = await fetchJson(
+      `${ANTHROPIC_BASE_URL}/v1/messages`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": this.apiKey,
+          "anthropic-version": "2023-06-01"
+        },
+        body: JSON.stringify({
+          model: this.model,
+          max_tokens: 1024,
+          temperature: 0.2,
+          system,
+          messages: [{ role: "user", content: user }]
+        })
+      },
+      this.policy
+    );
+    const content = readAnthropicContent(data);
+    if (!content) throw new ProviderError("invalid_provider_response");
+    return content;
+  }
+}
+
 export class AiProviderRegistry {
   private readonly providers = new Map<string, AiProvider>();
 
@@ -172,6 +212,9 @@ export function createProviderRegistry(env: ProviderEnv): AiProviderRegistry {
   }
   if (env.GEMINI_API_KEY?.trim() && env.GEMINI_MODEL?.trim()) {
     registry.register(new GeminiProvider(env.GEMINI_API_KEY.trim(), env.GEMINI_MODEL.trim(), env));
+  }
+  if (env.ANTHROPIC_API_KEY?.trim() && env.ANTHROPIC_MODEL?.trim()) {
+    registry.register(new AnthropicProvider(env.ANTHROPIC_API_KEY.trim(), env.ANTHROPIC_MODEL.trim(), env));
   }
   return registry;
 }
@@ -333,6 +376,18 @@ function readGeminiContent(data: unknown): string | null {
   const text = parts
     .map((part) => part && typeof part === "object" ? (part as { text?: unknown }).text : null)
     .filter((value): value is string => typeof value === "string")
+    .join("")
+    .trim();
+  return text || null;
+}
+
+function readAnthropicContent(data: unknown): string | null {
+  if (!data || typeof data !== "object") return null;
+  const content = (data as { content?: unknown }).content;
+  if (!Array.isArray(content) || content.length === 0) return null;
+  const text = content
+    .filter((part): part is { type: string; text: string } => Boolean(part && typeof part === "object" && (part as { type?: unknown }).type === "text" && typeof (part as { text?: unknown }).text === "string"))
+    .map((part) => part.text)
     .join("")
     .trim();
   return text || null;

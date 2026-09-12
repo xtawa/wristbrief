@@ -65,4 +65,23 @@ class BillingTest {
         assertEquals("No Play", (BillingState.Unavailable("No Play").toMembershipPresentation() as MembershipPresentation.Unavailable).message)
         assertEquals("Retry later", (BillingState.Error("Retry later").toMembershipPresentation() as MembershipPresentation.Error).message)
     }
+
+    @Test fun fakeBillingAcknowledgePurchaseUpdatesPurchaseStateAndNotifies() {
+        val purchase = BillingPurchase(listOf("pro_monthly"), "token-123", pending = false, acknowledged = false)
+        val repository = FakeBillingRepository(initialPurchases = listOf(purchase))
+        var latestState: BillingState? = null
+        repository.connect { latestState = it }
+
+        val initial = latestState as BillingState.Ready
+        assertFalse(initial.purchases.single().acknowledged)
+
+        var completed = false
+        repository.acknowledgePurchase("token-123") { success ->
+            completed = success
+        }
+
+        assertTrue(completed)
+        val updated = latestState as BillingState.Ready
+        assertTrue(updated.purchases.single().acknowledged)
+    }
 }

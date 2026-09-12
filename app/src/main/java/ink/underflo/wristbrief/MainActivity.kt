@@ -49,6 +49,34 @@ import ink.underflo.wristbrief.ui.toArticleDetailUi
 import ink.underflo.wristbrief.ui.WristBriefWearTheme
 import ink.underflo.wristbrief.ui.wearEmptyDetail
 import ink.underflo.wristbrief.ui.wearStatusLine
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
+import androidx.wear.compose.material3.Card
+import androidx.wear.compose.material3.CardDefaults
+import ink.underflo.wristbrief.ui.liquidglass.BriefGlassCard
+import ink.underflo.wristbrief.ui.liquidglass.LibraryPreviewRow
+import ink.underflo.wristbrief.ui.liquidglass.SecondaryEntryButton
+import ink.underflo.wristbrief.ui.liquidglass.SectionGap
+import ink.underflo.wristbrief.ui.liquidglass.WearGlassTokens
+import ink.underflo.wristbrief.ui.liquidglass.WearIconBack
+import ink.underflo.wristbrief.ui.liquidglass.WearIconBook
+import ink.underflo.wristbrief.ui.liquidglass.WearIconPause
+import ink.underflo.wristbrief.ui.liquidglass.WearIconPlay
+import ink.underflo.wristbrief.ui.liquidglass.WearIconSettings
+import ink.underflo.wristbrief.ui.liquidglass.WearIconWave
+import ink.underflo.wristbrief.ui.liquidglass.WearPageHeading
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -78,13 +106,19 @@ class MainActivity : ComponentActivity() {
         playbackConnection.connect()
     }
 
+    override fun onResume() {
+        super.onResume()
+        ink.underflo.wristbrief.tile.requestLatestUnreadTileUpdate(this)
+        ink.underflo.wristbrief.complication.requestUnreadComplicationUpdate(this)
+    }
+
     override fun onStop() {
         playbackConnection.disconnect()
         super.onStop()
     }
 }
 
-private enum class AppDestination { Inbox, Saved, Feeds, Article }
+private enum class AppDestination { Inbox, Saved, Feeds, Article, NowPlaying }
 
 @Composable
 private fun WristBriefApp(
@@ -103,6 +137,7 @@ private fun WristBriefApp(
     val inboxListState = rememberTransformingLazyColumnState()
     val savedListState = rememberTransformingLazyColumnState()
     val feedsListState = rememberTransformingLazyColumnState()
+    val nowPlayingListState = rememberTransformingLazyColumnState()
 
     fun openArticle(item: InboxItemUi, returnDestination: AppDestination) {
         selectedArticleId = item.id
@@ -119,7 +154,28 @@ private fun WristBriefApp(
                     onItemClick = { openArticle(it, AppDestination.Inbox) },
                     onRefresh = viewModel::refresh,
                     onOpenSaved = { destinationName = AppDestination.Saved.name },
-                    onOpenFeeds = { destinationName = AppDestination.Feeds.name }
+                    onOpenFeeds = { destinationName = AppDestination.Feeds.name },
+                    onOpenNowPlaying = { destinationName = AppDestination.NowPlaying.name },
+                    onPlayPodcast = { item ->
+                        val audioUrl = (state.items + state.savedItems).firstOrNull { it.id == item.id }?.let {
+                            it.toArticleDetailUi(false).audioUrl
+                        }
+                        if (audioUrl != null) {
+                            playbackConnection.play(
+                                PodcastPlaybackRequest(
+                                    id = item.id,
+                                    title = item.title,
+                                    audioUrl = audioUrl,
+                                )
+                            )
+                        }
+                    }
+                )
+
+                AppDestination.NowPlaying -> NowPlayingScreen(
+                    playbackConnection = playbackConnection,
+                    listState = nowPlayingListState,
+                    onBack = { destinationName = AppDestination.Inbox.name }
                 )
 
                 AppDestination.Saved -> SavedScreen(
@@ -193,60 +249,196 @@ internal fun InboxScreen(
     onItemClick: (InboxItemUi) -> Unit,
     onRefresh: () -> Unit,
     onOpenSaved: () -> Unit,
-    onOpenFeeds: () -> Unit
+    onOpenFeeds: () -> Unit,
+    onOpenNowPlaying: () -> Unit = {},
+    onPlayPodcast: (InboxItemUi) -> Unit = {},
+) {
+    ScreenScaffold(scrollState = listState) { contentPadding ->
+        TransformingLazyColumn(
+            state = listState,
+            contentPadding = contentPadding,
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .fillMaxSize()
+                .background(WearGlassTokens.Canvas),
+        ) {
+            // Stage 1 — Today's Brief (the opening viewport stays focused on the AI summary)
+            item {
+                WearPageHeading(
+                    eyebrow = stringResource(R.string.app_name),
+                    title = stringResource(R.string.wear_stage_todays_brief),
+                )
+            }
+
+            item {
+                val briefPoints = if (state.items.isNotEmpty()) {
+                    state.items.take(3).map { it.title }
+                } else {
+                    listOf(
+                        if (state.hasSubscriptions) stringResource(R.string.wear_status_no_briefs)
+                        else stringResource(R.string.wear_status_no_feeds),
+                    )
+                }
+                val firstAudio = state.items.firstOrNull { it.isPodcast }
+                BriefGlassCard(
+                    points = briefPoints,
+                    onListen = firstAudio?.let { audioItem -> { onPlayPodcast(audioItem) } },
+                    listenContentDescription = stringResource(R.string.wear_brief_listen),
+                )
+            }
+
+            item { SectionGap() }
+
+            // Stage 2 — Latest in Library (preview appears after scrolling down)
+            item {
+                WearPageHeading(
+                    eyebrow = null,
+                    title = stringResource(R.string.wear_stage_latest_library),
+                )
+            }
+
+            if (state.items.isEmpty()) {
+                item {
+                    val emptyDetail = when {
+                        state.errorMessage != null -> state.errorMessage
+                        state.hasSubscriptions -> stringResource(R.string.wear_empty_detail_refresh)
+                        else -> stringResource(R.string.wear_empty_detail_add)
+                    }
+                    LibraryPreviewRow(
+                        title = stringResource(R.string.wear_no_articles),
+                        meta = emptyDetail,
+                        onClick = onRefresh,
+                    )
+                }
+            } else {
+                state.items.take(2).forEach { item ->
+                    item {
+                        val kindAndSource = if (item.isPodcast) {
+                            stringResource(R.string.wear_podcast_prefix, item.source)
+                        } else {
+                            item.source
+                        }
+                        val meta = if (item.timeLabel.isNotBlank()) "$kindAndSource · ${item.timeLabel}" else kindAndSource
+                        LibraryPreviewRow(
+                            title = item.title,
+                            meta = meta,
+                            onClick = { onItemClick(item) },
+                        )
+                    }
+                }
+            }
+
+            item { SectionGap() }
+
+            // Stage 3 — More (navigation hub for secondary destinations)
+            item {
+                WearPageHeading(
+                    eyebrow = null,
+                    title = stringResource(R.string.wear_stage_more),
+                )
+            }
+
+            item {
+                SecondaryEntryButton(
+                    label = stringResource(R.string.wear_saved_count, state.savedItems.size),
+                    onClick = onOpenSaved,
+                ) {
+                    WearIconBook()
+                }
+            }
+
+            item {
+                SecondaryEntryButton(
+                    label = stringResource(R.string.wear_now_playing_title),
+                    onClick = onOpenNowPlaying,
+                ) {
+                    WearIconWave()
+                }
+            }
+
+            item {
+                SecondaryEntryButton(
+                    label = stringResource(R.string.wear_feeds_title),
+                    onClick = onOpenFeeds,
+                ) {
+                    WearIconSettings()
+                }
+            }
+
+            item {
+                SecondaryEntryButton(
+                    label = if (state.isLoading) stringResource(R.string.wear_status_refreshing) else stringResource(R.string.wear_action_refresh),
+                    onClick = onRefresh,
+                ) {
+                    WearIconPlay()
+                }
+            }
+
+            item { Spacer(Modifier.height(20.dp)) }
+        }
+    }
+}
+
+@Composable
+internal fun NowPlayingScreen(
+    playbackConnection: PodcastPlaybackConnection,
+    listState: TransformingLazyColumnState,
+    onBack: () -> Unit,
 ) {
     val transformationSpec = rememberTransformationSpec()
-    val statusLine = state.wearStatusLine()
+    val playbackState by playbackConnection.state.collectAsState()
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
         TransformingLazyColumn(
             state = listState,
             contentPadding = contentPadding,
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
+                .background(WearGlassTokens.Canvas),
         ) {
-            item { ListHeader { CompactText(stringResource(R.string.app_name), maxLines = 1) } }
-            if (statusLine.isNotBlank()) {
-                item { ListHeader { CompactText(statusLine, maxLines = 1) } }
+            item {
+                WearPageHeading(
+                    eyebrow = stringResource(R.string.app_name),
+                    title = stringResource(R.string.wear_now_playing_title),
+                )
             }
 
-            if (state.items.isEmpty()) {
-                item {
-                    val label = when {
-                        state.isLoading -> stringResource(R.string.wear_status_refreshing)
-                        state.hasSubscriptions -> stringResource(R.string.wear_status_no_briefs)
-                        else -> stringResource(R.string.wear_status_no_feeds)
-                    }
-                    val emptyDetail = when {
-                        state.errorMessage != null -> state.errorMessage
-                        state.hasSubscriptions -> stringResource(R.string.wear_empty_detail_refresh)
-                        else -> stringResource(R.string.wear_empty_detail_add)
-                    }
-                    Button(
-                        onClick = onRefresh,
-                        enabled = state.hasSubscriptions && !state.isLoading,
-                        label = { CompactText(label, maxLines = 1) },
-                        secondaryLabel = { CompactText(emptyDetail) },
-                        transformation = SurfaceTransformation(transformationSpec),
-                        modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
-                    )
-                }
-            } else {
-                items(count = state.items.size) { index ->
-                    val item = state.items[index]
-                    InboxItemCard(item, transformationSpec) { onItemClick(item) }
-                }
-                if (state.hasSubscriptions) {
-                    item {
-                        Button(
-                            onClick = onRefresh,
-                            enabled = !state.isLoading,
-                            label = { CompactText(if (state.isLoading) stringResource(R.string.wear_status_refreshing) else stringResource(R.string.wear_action_refresh), maxLines = 1) },
-                            secondaryLabel = if (state.errorMessage != null) {
-                                { CompactText(state.errorMessage) }
-                            } else null,
-                            transformation = SurfaceTransformation(transformationSpec),
-                            modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
+            item {
+                val shape = WearGlassTokens.MajorShape
+                Card(
+                    onClick = {},
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                        .border(1.dp, WearGlassTokens.Hairline, shape),
+                    shape = shape,
+                    colors = CardDefaults.cardColors(containerColor = WearGlassTokens.SurfaceSubtle),
+                    contentPadding = PaddingValues(14.dp),
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        WearIconWave(modifier = Modifier.size(28.dp))
+                        Text(
+                            text = playbackState.mediaId.orEmpty().ifBlank { stringResource(R.string.wear_default_source) },
+                            color = WearGlassTokens.TextPrimary,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = playbackState.progressLabel.ifBlank { "00:00 / 00:00" },
+                            color = WearGlassTokens.TextSecondary,
+                            fontSize = 13.sp,
+                        )
+                        Text(
+                            text = stringResource(R.string.wear_playing_speed, playbackState.playbackSpeed.toString()),
+                            color = WearGlassTokens.TextSecondary,
+                            fontSize = 12.sp,
                         )
                     }
                 }
@@ -254,22 +446,51 @@ internal fun InboxScreen(
 
             item {
                 Button(
-                    onClick = onOpenSaved,
-                    label = { CompactText(stringResource(R.string.wear_saved_count, state.savedItems.size), maxLines = 1) },
-                    secondaryLabel = { CompactText(stringResource(R.string.wear_saved_subtitle)) },
+                    onClick = playbackConnection::togglePlayPause,
+                    label = { CompactText(if (playbackState.isPlaying) stringResource(R.string.wear_pause) else stringResource(R.string.wear_play), maxLines = 1) },
                     transformation = SurfaceTransformation(transformationSpec),
-                    modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
+                    modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth(),
                 )
             }
+
             item {
                 Button(
-                    onClick = onOpenFeeds,
-                    label = { CompactText(stringResource(R.string.wear_feeds_title), maxLines = 1) },
-                    secondaryLabel = { CompactText(stringResource(R.string.wear_feeds_subtitle)) },
+                    onClick = { playbackConnection.seekBy(-15_000L) },
+                    label = { CompactText(stringResource(R.string.wear_back_15s), maxLines = 1) },
                     transformation = SurfaceTransformation(transformationSpec),
-                    modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
+                    modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth(),
                 )
             }
+
+            item {
+                Button(
+                    onClick = { playbackConnection.seekBy(30_000L) },
+                    label = { CompactText(stringResource(R.string.wear_forward_30s), maxLines = 1) },
+                    transformation = SurfaceTransformation(transformationSpec),
+                    modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth(),
+                )
+            }
+
+            item {
+                Button(
+                    onClick = playbackConnection::cyclePlaybackSpeed,
+                    label = { CompactText(stringResource(R.string.wear_speed_label, playbackState.playbackSpeed.toString()), maxLines = 1) },
+                    secondaryLabel = { CompactText(stringResource(R.string.wear_speed_sub)) },
+                    transformation = SurfaceTransformation(transformationSpec),
+                    modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth(),
+                )
+            }
+
+            item {
+                Button(
+                    onClick = onBack,
+                    label = { CompactText(stringResource(R.string.wear_back_to_inbox), maxLines = 1) },
+                    transformation = SurfaceTransformation(transformationSpec),
+                    modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth(),
+                )
+            }
+
+            item { Spacer(Modifier.height(20.dp)) }
         }
     }
 }
@@ -278,23 +499,53 @@ internal fun InboxScreen(
 private fun androidx.wear.compose.foundation.lazy.TransformingLazyColumnItemScope.InboxItemCard(
     item: InboxItemUi,
     transformationSpec: androidx.wear.compose.material3.lazy.TransformationSpec,
-    onClick: () -> Unit
+    onClick: () -> Unit,
 ) {
-    TitleCard(
+    val shape = WearGlassTokens.RowShape
+    val kindAndSource = if (item.isPodcast) stringResource(R.string.wear_podcast_prefix, item.source) else item.source
+    val readPrefix = if (item.isRead) "" else stringResource(R.string.wear_unread_prefix)
+    val savedPrefix = if (item.isSaved) stringResource(R.string.wear_saved_prefix) else ""
+    val subtitleText = "$savedPrefix$readPrefix$kindAndSource"
+
+    Card(
         onClick = onClick,
-        title = { CompactText(item.title) },
-        subtitle = {
-            val kindAndSource = if (item.isPodcast) stringResource(R.string.wear_podcast_prefix, item.source) else item.source
-            val readPrefix = if (item.isRead) "" else stringResource(R.string.wear_unread_prefix)
-            val savedPrefix = if (item.isSaved) stringResource(R.string.wear_saved_prefix) else ""
-            CompactText("$savedPrefix$readPrefix$kindAndSource", maxLines = 1)
-        },
-        time = if (item.timeLabel.isBlank()) null else {
-            { CompactText(item.timeLabel, maxLines = 1) }
-        },
-        transformation = SurfaceTransformation(transformationSpec),
-        modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
-    ) { CompactText(item.summary) }
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 5.dp)
+            .border(1.dp, WearGlassTokens.Hairline, shape),
+        shape = shape,
+        colors = CardDefaults.cardColors(
+            containerColor = WearGlassTokens.SurfaceSubtle,
+        ),
+        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = item.title,
+                color = WearGlassTokens.TextPrimary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = subtitleText,
+                color = WearGlassTokens.TextSecondary,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (item.summary.isNotBlank()) {
+                Text(
+                    text = item.summary,
+                    color = WearGlassTokens.TextSecondary,
+                    fontSize = 11.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -302,7 +553,7 @@ internal fun SavedScreen(
     items: List<InboxItemUi>,
     listState: TransformingLazyColumnState,
     onItemClick: (InboxItemUi) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
 ) {
     val transformationSpec = rememberTransformationSpec()
     ScreenScaffold(scrollState = listState) { contentPadding ->
@@ -310,9 +561,16 @@ internal fun SavedScreen(
             state = listState,
             contentPadding = contentPadding,
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
+                .background(WearGlassTokens.Canvas),
         ) {
-            item { ListHeader { CompactText(stringResource(R.string.wear_saved_title), maxLines = 1) } }
+            item {
+                WearPageHeading(
+                    eyebrow = null,
+                    title = stringResource(R.string.wear_saved_title),
+                )
+            }
             if (items.isEmpty()) {
                 item {
                     Button(
@@ -321,7 +579,7 @@ internal fun SavedScreen(
                         label = { CompactText(stringResource(R.string.wear_nothing_saved), maxLines = 1) },
                         secondaryLabel = { CompactText(stringResource(R.string.wear_save_hint)) },
                         transformation = SurfaceTransformation(transformationSpec),
-                        modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
+                        modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth(),
                     )
                 }
             } else {
@@ -335,9 +593,10 @@ internal fun SavedScreen(
                     onClick = onBack,
                     label = { CompactText(stringResource(R.string.wear_back_to_inbox), maxLines = 1) },
                     transformation = SurfaceTransformation(transformationSpec),
-                    modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
+                    modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth(),
                 )
             }
+            item { Spacer(Modifier.height(20.dp)) }
         }
     }
 }
@@ -397,7 +656,9 @@ internal fun ArticleDetailScreen(
             state = listState,
             contentPadding = contentPadding,
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
+                .background(WearGlassTokens.Canvas)
         ) {
             item { ListHeader { CompactText(article?.source ?: stringResource(R.string.app_name)) } }
             if (article?.isOffline == true || isOfflineFallback) {
@@ -550,6 +811,7 @@ internal fun ArticleDetailScreen(
                     modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                 )
             }
+            item { Spacer(Modifier.height(24.dp)) }
         }
     }
 }
@@ -569,7 +831,9 @@ internal fun FeedManagementScreen(
             state = listState,
             contentPadding = contentPadding,
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
+                .background(WearGlassTokens.Canvas)
         ) {
             item { ListHeader { CompactText(stringResource(R.string.wear_feeds_title), maxLines = 1) } }
             item {
@@ -624,6 +888,7 @@ internal fun FeedManagementScreen(
                     modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                 )
             }
+            item { Spacer(Modifier.height(24.dp)) }
         }
     }
 }

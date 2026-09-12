@@ -5,3 +5,9 @@ compatibility_date = "2026-02-01"
 [vars]
 AI_MODEL = "gpt-5-mini"
 AI_BASE_URL = "https://api.openai.com/v1"
+
+[[d1_databases]]
+binding = "ACCOUNT_DB"
+database_name = "wristbrief-account-db"
+database_id = "wristbrief-account-db-id"
+migrations_dir = "migrations"

@@ -38,32 +38,60 @@ sealed interface AccountAuthResult {
     data class Failure(val code: String) : AccountAuthResult
 }
 
-class AccountSessionPreferences(context: Context) {
-    private val preferences = context.getSharedPreferences("account_session", Context.MODE_PRIVATE)
+interface AccountSessionStorage {
+    fun getString(key: String): String?
+    fun put(token: String, expiresAt: String, userId: String)
+    fun clear()
+}
 
-    fun read(): AccountSession? {
-        val token = preferences.getString("token", null) ?: return null
-        val expiresAt = preferences.getString("expires_at", null) ?: return null
-        val userId = preferences.getString("user_id", null) ?: return null
-        return if (validSessionToken(token) && validOpaqueValue(userId, 128) && validOpaqueValue(expiresAt, 128)) {
-            AccountSession(token, expiresAt, AccountUser(userId))
-        } else {
+private class SharedPreferencesAccountSessionStorage(context: Context) : AccountSessionStorage {
+    private val preferences = context.getSharedPreferences("account_session", Context.MODE_PRIVATE)
+    override fun getString(key: String): String? = preferences.getString(key, null)
+    override fun put(token: String, expiresAt: String, userId: String) {
+        preferences.edit()
+            .putString("token", token)
+            .putString("expires_at", expiresAt)
+            .putString("user_id", userId)
+            .apply()
+    }
+    override fun clear() {
+        preferences.edit().clear().apply()
+    }
+}
+
+class AccountSessionPreferences internal constructor(
+    private val storage: AccountSessionStorage,
+    private val sessionBridge: AccountSessionBridge? = null,
+) {
+    constructor(context: Context, sessionBridge: AccountSessionBridge? = null) :
+        this(SharedPreferencesAccountSessionStorage(context), sessionBridge)
+
+    fun read(now: java.time.Instant = java.time.Instant.now()): AccountSession? {
+        val token = storage.getString("token") ?: return null
+        val expiresAt = storage.getString("expires_at") ?: return null
+        val userId = storage.getString("user_id") ?: return null
+        if (!validSessionToken(token) || !validOpaqueValue(userId, 128) || !validOpaqueValue(expiresAt, 128)) {
             clear()
-            null
+            return null
         }
+        val isExpired = runCatching {
+            java.time.Instant.parse(expiresAt) <= now
+        }.getOrDefault(false)
+        if (isExpired) {
+            clear()
+            return null
+        }
+        return AccountSession(token, expiresAt, AccountUser(userId))
     }
 
     fun write(session: AccountSession) {
         require(validSession(session))
-        preferences.edit()
-            .putString("token", session.sessionToken)
-            .putString("expires_at", session.expiresAt)
-            .putString("user_id", session.user.id)
-            .apply()
+        storage.put(session.sessionToken, session.expiresAt, session.user.id)
     }
 
     fun clear() {
-        preferences.edit().clear().apply()
+        storage.clear()
+        sessionBridge?.clear()
     }
 }
 
@@ -71,9 +99,9 @@ class GoogleAccountAuthClient(
     private val context: Context,
     private val httpClient: OkHttpClient = OkHttpClient(),
     private val credentialManager: CredentialManager = CredentialManager.create(context),
-    private val sessionPreferences: AccountSessionPreferences = AccountSessionPreferences(context),
-    private val migrationGrantPreferences: LegacyMigrationGrantPreferences = LegacyMigrationGrantPreferences(context),
     private val sessionBridge: AccountSessionBridge = GoogleWearAccountSessionBridge(context),
+    private val sessionPreferences: AccountSessionPreferences = AccountSessionPreferences(context, sessionBridge),
+    private val migrationGrantPreferences: LegacyMigrationGrantPreferences = LegacyMigrationGrantPreferences(context),
     private val webClientId: String = BuildConfig.GOOGLE_WEB_CLIENT_ID,
     private val gatewayBaseUrl: String = BuildConfig.GATEWAY_BASE_URL,
 ) {
@@ -142,6 +170,30 @@ class GoogleAccountAuthClient(
             credentialManager.clearCredentialState(ClearCredentialStateRequest())
         } catch (_: Exception) {
             // The WristBrief session is already cleared locally; Google chooser state is best-effort.
+        }
+        AccountAuthResult.SignedOut
+    }
+
+    suspend fun deleteAccount(): AccountAuthResult = withContext(Dispatchers.IO) {
+        val session = sessionPreferences.read()
+        val config = accountAuthConfig(webClientId, gatewayBaseUrl)
+        if (session != null && config != null) {
+            try {
+                val request = Request.Builder()
+                    .url(config.gatewayBaseUrl + "/v1/auth/delete")
+                    .post(ByteArray(0).toRequestBody(null))
+                    .header("Authorization", "Bearer ${session.sessionToken}")
+                    .build()
+                httpClient.newCall(request).execute().use { /* proceed with local deletion */ }
+            } catch (_: Exception) {
+            }
+        }
+        sessionPreferences.clear()
+        migrationGrantPreferences.clear()
+        sessionBridge.clear()
+        try {
+            credentialManager.clearCredentialState(ClearCredentialStateRequest())
+        } catch (_: Exception) {
         }
         AccountAuthResult.SignedOut
     }

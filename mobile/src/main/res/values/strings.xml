@@ -101,6 +101,8 @@
     <string name="daily_brief_unread_prompt">Summarize your %1$d unread articles into a calm, focused brief.</string>
     <string name="daily_brief_read_full">Read full brief</string>
     <string name="daily_brief_close">Close</string>
+    <string name="daily_brief_meta_info">%1$d articles · Generated at %2$s</string>
+    <string name="daily_brief_up_to_date">Brief is already up to date with current unread articles.</string>
     <string name="ai_prompt_summarize">Summarize core points</string>
     <string name="ai_prompt_takeaways">Actionable takeaways</string>
     <string name="ai_prompt_critique">What to question</string>
@@ -282,4 +284,17 @@
     <string name="podcast_error_unsupported_format">This audio format is not supported on your device.</string>
     <string name="podcast_listen_episode">Listen to episode</string>
     <string name="podcast_playing_episode">Now playing episode</string>
+
+    <!-- Batch 7 Entitlements & Account Lifecycle -->
+    <string name="membership_manage_subscriptions">Manage Google Play subscriptions</string>
+    <string name="membership_delete_account">Delete account</string>
+    <string name="membership_deleting_account">Deleting account…</string>
+    <string name="membership_delete_account_dialog_title">Delete WristBrief account?</string>
+    <string name="membership_delete_account_dialog_body">This will permanently revoke your session tokens, unlink your Google identity, and remove account data from the server. This cannot be undone.</string>
+    <string name="membership_delete_account_confirm">Delete account</string>
+    <string name="membership_account_deleted">Your account has been deleted.</string>
+    <string name="membership_delete_failed">Failed to delete account. Please try again.</string>
+    <string name="membership_billing_not_configured_title">Google Play Billing not configured</string>
+    <string name="membership_billing_not_configured_body">This build was compiled without active Google Play subscription product IDs.</string>
+    <string name="membership_auto_acknowledging">Acknowledging purchase with Google Play…</string>
 </resources>

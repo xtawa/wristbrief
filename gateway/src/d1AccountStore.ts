@@ -71,6 +71,11 @@ export class D1AccountIdentityStore implements AccountIdentityStore {
     if (row.status !== "active") throw new Error("account_disabled");
     return { userId: row.user_id, created: (results[1]?.meta?.changes ?? 0) > 0 };
   }
+
+  async deleteUser(userId: string): Promise<void> {
+    await this.db.prepare("DELETE FROM identities WHERE user_id = ?").bind(userId).run();
+    await this.db.prepare("UPDATE users SET status = 'deleted', updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(userId).run();
+  }
 }
 
 export class D1AccountSessionStore implements AccountSessionStore {
@@ -109,6 +114,12 @@ export class D1AccountSessionStore implements AccountSessionStore {
       "UPDATE sessions SET revoked_at = COALESCE(revoked_at, ?) WHERE token_hash = ?"
     ).bind(revokedAt, tokenHash).run();
     return (result.meta.changes ?? 0) > 0;
+  }
+
+  async revokeAllForUser(userId: string, revokedAt: string): Promise<void> {
+    await this.db.prepare(
+      "UPDATE sessions SET revoked_at = COALESCE(revoked_at, ?) WHERE user_id = ?"
+    ).bind(revokedAt, userId).run();
   }
 }
 

@@ -15,11 +15,16 @@ internal const val COMPLETION_RESTART_WINDOW_MS = 30_000L
 data class PodcastEpisodeProgress(
     val episodeId: String,
     val positionMs: Long,
-    val playbackSpeed: Float = 1f
+    val playbackSpeed: Float = 1f,
+    val durationMs: Long = 0L,
+    val isPlaying: Boolean = false,
+    val lastPlayedAtEpochMs: Long = System.currentTimeMillis(),
+    val completed: Boolean = false,
 ) {
     init {
         require(episodeId.isNotBlank()) { "Episode id is required" }
         require(positionMs >= 0L) { "Position cannot be negative" }
+        require(durationMs >= 0L) { "Duration cannot be negative" }
         require(playbackSpeed in SUPPORTED_PLAYBACK_SPEEDS) { "Unsupported playback speed" }
     }
 }
@@ -28,6 +33,7 @@ interface PodcastProgressStore {
     fun get(episodeId: String): PodcastEpisodeProgress?
     fun all(): List<PodcastEpisodeProgress>
     fun save(progress: PodcastEpisodeProgress)
+    fun delete(episodeId: String) {}
 }
 
 class SharedPreferencesPodcastProgressStore(context: Context) : PodcastProgressStore {
@@ -43,6 +49,13 @@ class SharedPreferencesPodcastProgressStore(context: Context) : PodcastProgressS
         val all = decodePodcastProgress(preferences.getString(PREFS_KEY, null).orEmpty()).toMutableMap()
         all[progress.episodeId] = progress
         preferences.edit().putString(PREFS_KEY, encodePodcastProgress(all.values)).apply()
+    }
+
+    override fun delete(episodeId: String) {
+        val all = decodePodcastProgress(preferences.getString(PREFS_KEY, null).orEmpty()).toMutableMap()
+        if (all.remove(episodeId) != null) {
+            preferences.edit().putString(PREFS_KEY, encodePodcastProgress(all.values)).apply()
+        }
     }
 }
 
@@ -91,6 +104,14 @@ internal fun encodePodcastProgress(items: Collection<PodcastEpisodeProgress>): S
         append(item.positionMs)
         append('\t')
         append(item.playbackSpeed)
+        append('\t')
+        append(item.durationMs)
+        append('\t')
+        append(item.isPlaying)
+        append('\t')
+        append(item.lastPlayedAtEpochMs)
+        append('\t')
+        append(item.completed)
     }
 }
 
@@ -101,13 +122,23 @@ internal fun decodePodcastProgress(encoded: String): Map<String, PodcastEpisodeP
 
     return lines.drop(1).mapNotNull { line ->
         val parts = line.split('\t')
-        if (parts.size != 3) return@mapNotNull null
+        if (parts.size < 3) return@mapNotNull null
         runCatching {
             val id = decodeField(parts[0])
+            val pos = parts[1].toLong()
+            val speed = parts[2].toFloat()
+            val duration = if (parts.size > 3) parts[3].toLong() else 0L
+            val isPlaying = if (parts.size > 4) parts[4].toBoolean() else false
+            val lastPlayed = if (parts.size > 5) parts[5].toLong() else 0L
+            val completed = if (parts.size > 6) parts[6].toBoolean() else false
             PodcastEpisodeProgress(
                 episodeId = id,
-                positionMs = parts[1].toLong(),
-                playbackSpeed = parts[2].toFloat()
+                positionMs = pos,
+                playbackSpeed = speed,
+                durationMs = duration,
+                isPlaying = isPlaying,
+                lastPlayedAtEpochMs = lastPlayed,
+                completed = completed,
             )
         }.getOrNull()
     }.associateBy { it.episodeId }

@@ -73,4 +73,12 @@
     <string name="wear_ai_content_still_available">原文与播客仍可使用</string>
     <string name="wear_ai_temporarily_unavailable">AI 暂时不可用</string>
     <string name="wear_ai_retry_hint">轻点重试；原文仍可阅读</string>
+    <string name="wear_stage_todays_brief">今日简报</string>
+    <string name="wear_stage_latest_library">最近内容</string>
+    <string name="wear_stage_more">更多</string>
+    <string name="wear_now_playing_title">正在播放</string>
+    <string name="wear_no_brief_points">暂无简报要点，请刷新获取。</string>
+    <string name="wear_brief_listen">收听今日简报</string>
+    <string name="wear_library_title">内容库</string>
+    <string name="wear_no_articles">暂无可用文章</string>
 </resources>

@@ -21,6 +21,9 @@ import {
   migrationGrantTtlSeconds,
   type MigrationGrantEnv
 } from "./migrationGrant";
+import type { AuthenticatedUser } from "./membership";
+import type { BillingStateStore } from "./billingServer";
+import { createConfiguredD1BillingStateStore } from "./d1MembershipStore";
 
 const MAX_GOOGLE_ID_TOKEN_LENGTH = 16_384;
 const MAX_MIGRATION_GRANT_LENGTH = 128;
@@ -30,6 +33,7 @@ export type AuthServerEnv = GoogleIdentityEnv & AccountPersistenceEnv & Migratio
   ACCOUNT_IDENTITY_STORE?: AccountIdentityStore;
   ACCOUNT_SESSION_STORE?: AccountSessionStore;
   ACCOUNT_SESSION_TTL_SECONDS?: string;
+  PLAY_BILLING_STATE_STORE?: BillingStateStore;
 };
 
 export type AuthResult = {
@@ -109,6 +113,40 @@ export async function exchangeGoogleIdToken(
   } catch (error) {
     if (error instanceof Error && error.message === "identity_conflict") return result(409, "identity_conflict");
     if (error instanceof Error && error.message === "account_disabled") return result(403, "account_disabled");
+    return result(503, "auth_unavailable");
+  }
+}
+
+export async function deleteAccount(
+  user: AuthenticatedUser,
+  env: AuthServerEnv
+): Promise<AuthResult> {
+  const configuredD1 = createConfiguredD1AccountStores(env);
+  const sessionStore = env.ACCOUNT_SESSION_STORE ?? configuredD1?.sessionStore;
+  const identityStore = env.ACCOUNT_IDENTITY_STORE ?? configuredD1?.identityStore;
+  if (!sessionStore && !identityStore && !env.ACCOUNT_DB) {
+    return result(503, "auth_not_configured");
+  }
+
+  try {
+    if (sessionStore?.revokeAllForUser) {
+      await sessionStore.revokeAllForUser(user.id, new Date().toISOString());
+    }
+    if (identityStore?.deleteUser) {
+      await identityStore.deleteUser(user.id);
+    }
+    const billingStore = env.PLAY_BILLING_STATE_STORE ?? createConfiguredD1BillingStateStore(env);
+    if (billingStore?.deleteUserBindings) {
+      await billingStore.deleteUserBindings(user.id);
+    }
+    if (env.ACCOUNT_DB) {
+      await env.ACCOUNT_DB.prepare("UPDATE users SET status = 'deleted', updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(user.id).run();
+      await env.ACCOUNT_DB.prepare("DELETE FROM identities WHERE user_id = ?").bind(user.id).run();
+      await env.ACCOUNT_DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(user.id).run();
+      await env.ACCOUNT_DB.prepare("DELETE FROM managed_ai_usage WHERE user_id = ?").bind(user.id).run();
+    }
+    return { status: 204, body: {} };
+  } catch {
     return result(503, "auth_unavailable");
   }
 }

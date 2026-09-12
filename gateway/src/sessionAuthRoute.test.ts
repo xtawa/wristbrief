@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import worker from "./index";
 import { AccountSessionService, InMemoryAccountSessionStore } from "./accountSession";
+import { InMemoryAccountIdentityStore } from "./accountIdentity";
+import { InMemoryBillingStateStore } from "./billingServer";
 import { InMemoryMembershipStore } from "./membership";
 
 const providerEnv = {
@@ -125,4 +127,59 @@ describe("WristBrief session route authentication", () => {
       entitlement: { plan: "PRO", source: "legacy" }
     });
   });
+
+  it("deletes user account, revoking sessions and purging billing bindings", async () => {
+    const sessionStore = new InMemoryAccountSessionStore();
+    const identityStore = new InMemoryAccountIdentityStore();
+    const billingStore = new InMemoryBillingStateStore();
+    const session = await sessionFor(sessionStore, "google-user-to-delete");
+
+    await identityStore.resolveOrCreateGoogleIdentity({
+      provider: "google",
+      providerSubject: "sub-123",
+      userId: "google-user-to-delete",
+      email: "del@example.com"
+    });
+    const tokenHash = "d".repeat(64);
+    await billingStore.bindTokenHash("google-user-to-delete", tokenHash);
+    await billingStore.setBillingEntitlement("google-user-to-delete", {
+      plan: "PRO",
+      source: "billing"
+    });
+
+    const env = {
+      ...providerEnv,
+      ACCOUNT_SESSION_STORE: sessionStore,
+      ACCOUNT_IDENTITY_STORE: identityStore,
+      PLAY_BILLING_STATE_STORE: billingStore
+    };
+
+    const deleteRes = await worker.fetch(new Request("https://gateway.example/v1/auth/delete", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${session.token}` }
+    }), env);
+
+    expect(deleteRes.status).toBe(204);
+
+    // Session is revoked
+    const meRes = await worker.fetch(new Request("https://gateway.example/v1/me", {
+      headers: { Authorization: `Bearer ${session.token}` }
+    }), env);
+    expect(meRes.status).toBe(401);
+
+    // Token binding and entitlement are purged
+    expect(await billingStore.userForTokenHash(tokenHash)).toBeNull();
+    expect(billingStore.entitlements.has("google-user-to-delete")).toBe(false);
+  });
+
+  it("rejects unauthenticated account deletion requests", async () => {
+    const response = await worker.fetch(new Request("https://gateway.example/v1/auth/delete", {
+      method: "POST"
+    }), {
+      ...providerEnv,
+      ACCOUNT_SESSION_STORE: new InMemoryAccountSessionStore()
+    });
+    expect(response.status).toBe(401);
+  });
 });
+

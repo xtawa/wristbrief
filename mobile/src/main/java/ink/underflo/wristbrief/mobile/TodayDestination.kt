@@ -46,6 +46,10 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.compose.foundation.isSystemInDarkTheme
+import ink.underflo.wristbrief.mobile.ui.glass.GlassSurface
+import ink.underflo.wristbrief.mobile.ui.glass.GlassTokens
+import ink.underflo.wristbrief.mobile.ui.glass.NeutralFilterChip
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -63,6 +67,7 @@ internal fun TodayDestination(
     onOpenArticle: (MobileFeedItem) -> Unit = {},
     onPlayPodcast: (MobileFeedItem) -> Unit = {},
     progressStore: PodcastProgressStore? = null,
+    darkTheme: Boolean = isSystemInDarkTheme(),
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -112,6 +117,10 @@ internal fun TodayDestination(
             return
         }
         val input = DailyBriefInputBuilder.build(unread) ?: return
+        if (dailyBriefRecord != null && dailyBriefRecord?.dateKey == todayKey && dailyBriefRecord?.inputHash == input.inputHash && input.inputHash.isNotBlank()) {
+            briefErrorMessage = context.getString(R.string.daily_brief_up_to_date)
+            return
+        }
         isGeneratingBrief = true
         briefErrorMessage = null
         scope.launch {
@@ -133,6 +142,7 @@ internal fun TodayDestination(
                     topics = summary.topics,
                     generatedAtEpochMs = System.currentTimeMillis(),
                     sourceCount = input.itemCount,
+                    inputHash = input.inputHash,
                 )
                 dailyBriefStore.save(record)
                 dailyBriefRecord = record
@@ -192,12 +202,13 @@ internal fun TodayDestination(
                 Text(
                     text = todayDateFormatted,
                     style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = GlassTokens.textSecondary(darkTheme),
                     fontWeight = FontWeight.Medium,
                 )
                 Text(
                     text = stringResource(R.string.today_greeting),
                     style = MaterialTheme.typography.headlineMedium,
+                    color = GlassTokens.textPrimary(darkTheme),
                     fontWeight = FontWeight.Bold,
                 )
             }
@@ -230,17 +241,19 @@ internal fun TodayDestination(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     item {
-                        FilterChip(
+                        NeutralFilterChip(
+                            label = stringResource(R.string.today_filter_all),
                             selected = selectedCategory == null,
                             onClick = { selectedCategory = null },
-                            label = { Text(stringResource(R.string.today_filter_all)) },
+                            darkTheme = darkTheme,
                         )
                     }
                     items(categories) { cat ->
-                        FilterChip(
+                        NeutralFilterChip(
+                            label = cat,
                             selected = selectedCategory == cat,
                             onClick = { selectedCategory = if (selectedCategory == cat) null else cat },
-                            label = { Text(cat) },
+                            darkTheme = darkTheme,
                         )
                     }
                 }
@@ -250,10 +263,11 @@ internal fun TodayDestination(
         // Empty state: No feeds subscribed
         if (feeds.isEmpty()) {
             item {
-                Card(
+                GlassSurface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.extraLarge,
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                    strong = false,
+                    cornerRadius = GlassTokens.CardRadius,
+                    darkTheme = darkTheme,
                 ) {
                     Column(
                         modifier = Modifier.padding(24.dp),
@@ -263,11 +277,12 @@ internal fun TodayDestination(
                             text = stringResource(R.string.today_empty_title),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.SemiBold,
+                            color = GlassTokens.textPrimary(darkTheme),
                         )
                         Text(
                             text = stringResource(R.string.today_empty_body),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = GlassTokens.textSecondary(darkTheme),
                         )
                         Spacer(Modifier.height(4.dp))
                         Button(
@@ -287,6 +302,7 @@ internal fun TodayDestination(
                             text = stringResource(R.string.sample_feeds_title),
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Medium,
+                            color = GlassTokens.textSecondary(darkTheme),
                         )
                         SampleFeeds.curatedFeeds.forEach { sample ->
                             OutlinedButton(
@@ -313,10 +329,11 @@ internal fun TodayDestination(
         } else if (items.isEmpty()) {
             // Feeds exist, but items not yet loaded / empty
             item {
-                Card(
+                GlassSurface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.extraLarge,
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                    strong = false,
+                    cornerRadius = GlassTokens.CardRadius,
+                    darkTheme = darkTheme,
                 ) {
                     Column(
                         modifier = Modifier.padding(24.dp),
@@ -326,11 +343,12 @@ internal fun TodayDestination(
                             text = stringResource(R.string.today_syncing_title),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.SemiBold,
+                            color = GlassTokens.textPrimary(darkTheme),
                         )
                         Text(
                             text = stringResource(R.string.today_syncing_body),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = GlassTokens.textSecondary(darkTheme),
                         )
                         Button(
                             enabled = !isRefreshing,
@@ -356,10 +374,11 @@ internal fun TodayDestination(
         } else {
             // Daily Brief card
             item {
-                Card(
+                GlassSurface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.extraLarge,
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                    strong = true,
+                    cornerRadius = GlassTokens.HeroRadius,
+                    darkTheme = darkTheme,
                 ) {
                     Column(
                         modifier = Modifier.padding(20.dp),
@@ -368,31 +387,47 @@ internal fun TodayDestination(
                         Text(
                             text = stringResource(R.string.today_brief_title),
                             style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            color = GlassTokens.textPrimary(darkTheme),
                             fontWeight = FontWeight.SemiBold,
                         )
 
                         if (dailyBriefRecord != null && dailyBriefRecord?.dateKey == todayKey) {
                             val record = dailyBriefRecord!!
+                            val generatedTimeStr = remember(record.generatedAtEpochMs) {
+                                val timeFormat = SimpleDateFormat("h:mm a", Locale.getDefault())
+                                timeFormat.format(Date(record.generatedAtEpochMs))
+                            }
+                            Text(
+                                text = stringResource(R.string.daily_brief_meta_info, record.sourceCount, generatedTimeStr),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = GlassTokens.textSecondary(darkTheme),
+                            )
                             Text(
                                 text = record.tiny,
                                 style = MaterialTheme.typography.bodyLarge,
                                 fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                color = GlassTokens.textPrimary(darkTheme),
                             )
                             if (record.bullets.isNotEmpty()) {
                                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                     record.bullets.take(3).forEach { bullet ->
                                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                            Text("•", color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                            Text("•", color = GlassTokens.textSecondary(darkTheme))
                                             Text(
                                                 bullet,
                                                 style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f),
+                                                color = GlassTokens.textSecondary(darkTheme),
                                             )
                                         }
                                     }
                                 }
+                            }
+                            briefErrorMessage?.let { err ->
+                                Text(
+                                    text = err,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                )
                             }
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -410,7 +445,7 @@ internal fun TodayDestination(
                                 ) {
                                     Text(
                                         stringResource(if (isGeneratingBrief) R.string.daily_brief_generating else R.string.daily_brief_regenerate),
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        color = GlassTokens.textSecondary(darkTheme),
                                     )
                                 }
                             }
@@ -418,7 +453,7 @@ internal fun TodayDestination(
                             Text(
                                 text = stringResource(R.string.daily_brief_unread_prompt, unread.size),
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
+                                color = GlassTokens.textSecondary(darkTheme),
                             )
                             briefErrorMessage?.let { err ->
                                 Text(
@@ -438,7 +473,7 @@ internal fun TodayDestination(
                             Text(
                                 text = stringResource(R.string.daily_brief_all_caught_up),
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                                color = GlassTokens.textSecondary(darkTheme),
                             )
                             TextButton(
                                 onClick = onOpenAskAi,
@@ -446,7 +481,7 @@ internal fun TodayDestination(
                             ) {
                                 Text(
                                     stringResource(R.string.today_brief_action),
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    color = GlassTokens.textSecondary(darkTheme),
                                 )
                             }
                         }
@@ -457,10 +492,11 @@ internal fun TodayDestination(
             // Continue reading card
             continueReading?.let { reading ->
                 item {
-                    Card(
+                    GlassSurface(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.extraLarge,
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                        strong = false,
+                        cornerRadius = GlassTokens.CardRadius,
+                        darkTheme = darkTheme,
                     ) {
                         Column(
                             modifier = Modifier.padding(20.dp),
@@ -469,7 +505,7 @@ internal fun TodayDestination(
                             Text(
                                 text = stringResource(R.string.today_continue_reading),
                                 style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary,
+                                color = GlassTokens.textSecondary(darkTheme),
                                 fontWeight = FontWeight.Bold,
                             )
                             Text(
@@ -478,11 +514,12 @@ internal fun TodayDestination(
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
+                                color = GlassTokens.textPrimary(darkTheme),
                             )
                             Text(
                                 text = reading.feedTitle,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = GlassTokens.textSecondary(darkTheme),
                             )
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -508,10 +545,11 @@ internal fun TodayDestination(
             // Continue listening card
             continueListening?.let { podcast ->
                 item {
-                    Card(
+                    GlassSurface(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.extraLarge,
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                        strong = false,
+                        cornerRadius = GlassTokens.CardRadius,
+                        darkTheme = darkTheme,
                     ) {
                         Column(
                             modifier = Modifier.padding(20.dp),
@@ -520,7 +558,7 @@ internal fun TodayDestination(
                             Text(
                                 text = stringResource(R.string.today_continue_listening),
                                 style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.tertiary,
+                                color = GlassTokens.textSecondary(darkTheme),
                                 fontWeight = FontWeight.Bold,
                             )
                             Text(
@@ -529,17 +567,18 @@ internal fun TodayDestination(
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
+                                color = GlassTokens.textPrimary(darkTheme),
                             )
                             Text(
                                 text = podcast.feedTitle,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = GlassTokens.textSecondary(darkTheme),
                             )
                             if (activeProgress != null && activeProgress.positionMs > 0L) {
                                 Text(
                                     text = formatPlaybackTime(activeProgress.positionMs, activeProgress.durationMs),
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.tertiary,
+                                    color = GlassTokens.textSecondary(darkTheme),
                                     fontWeight = FontWeight.Medium,
                                 )
                             }
@@ -558,14 +597,16 @@ internal fun TodayDestination(
                         text = stringResource(R.string.today_latest),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
+                        color = GlassTokens.textPrimary(darkTheme),
                     )
                 }
                 items(unread.take(6), key = { it.id }) { item ->
                     val isSaved = inboxRepository.isSaved(item.id)
-                    Card(
+                    GlassSurface(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.extraLarge,
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                        strong = false,
+                        cornerRadius = GlassTokens.CardRadius,
+                        darkTheme = darkTheme,
                     ) {
                         Column(
                             modifier = Modifier.padding(18.dp),
@@ -575,11 +616,12 @@ internal fun TodayDestination(
                                 text = item.title,
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold,
+                                color = GlassTokens.textPrimary(darkTheme),
                             )
                             Text(
                                 text = "${item.feedTitle}${item.published?.let { " · $it" }.orEmpty()}",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = GlassTokens.textSecondary(darkTheme),
                             )
                             item.description?.let { desc ->
                                 val clean = desc.replace(Regex("<[^>]+>"), "").trim()
@@ -589,7 +631,7 @@ internal fun TodayDestination(
                                         style = MaterialTheme.typography.bodyMedium,
                                         maxLines = 3,
                                         overflow = TextOverflow.Ellipsis,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        color = GlassTokens.textSecondary(darkTheme),
                                     )
                                 }
                             }
@@ -639,6 +681,7 @@ internal fun TodayDestination(
                             text = stringResource(R.string.today_saved),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
+                            color = GlassTokens.textPrimary(darkTheme),
                         )
                         TextButton(onClick = onOpenLibrary) {
                             Text(stringResource(R.string.today_view_all))
@@ -646,14 +689,15 @@ internal fun TodayDestination(
                     }
                 }
                 items(saved.take(3), key = { "saved:${it.id}" }) { item ->
-                    Card(
+                    GlassSurface(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
                                 if (item.audioUrl != null) onPlayPodcast(item) else onOpenArticle(item)
                             },
-                        shape = MaterialTheme.shapes.extraLarge,
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                        strong = false,
+                        cornerRadius = GlassTokens.CardRadius,
+                        darkTheme = darkTheme,
                     ) {
                         Column(
                             modifier = Modifier.padding(16.dp),
@@ -665,11 +709,12 @@ internal fun TodayDestination(
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
+                                color = GlassTokens.textPrimary(darkTheme),
                             )
                             Text(
                                 text = item.feedTitle,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = GlassTokens.textSecondary(darkTheme),
                             )
                         }
                     }

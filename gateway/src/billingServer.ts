@@ -25,6 +25,9 @@ export interface BillingStateStore {
   userForTokenHash(tokenHash: string): Promise<string | null>;
   bindTokenHash(userId: string, tokenHash: string): Promise<"bound" | "already_bound" | "conflict">;
   setBillingEntitlement(userId: string, entitlement: Entitlement): Promise<void>;
+  recordSubscription?(userId: string, tokenHash: string, subscription: VerifiedPlaySubscription): Promise<void>;
+  recomputeUserEntitlement?(userId: string): Promise<Entitlement>;
+  deleteUserBindings?(userId: string): Promise<void>;
 }
 
 export type BillingServerEnv = GooglePlayVerifierEnv & PubSubPushAuthEnv & DurableMembershipEnv & {
@@ -58,8 +61,15 @@ export async function restorePlayPurchase(user: AuthenticatedUser, body: unknown
 
   const binding = await config.store.bindTokenHash(user.id, tokenHash);
   if (binding === "conflict") return result(409, "purchase_already_linked");
-  const entitlement = entitlementFor(verified);
-  await config.store.setBillingEntitlement(user.id, entitlement);
+  if (config.store.recordSubscription) {
+    await config.store.recordSubscription(user.id, tokenHash, verified);
+  }
+  const entitlement = config.store.recomputeUserEntitlement
+    ? await config.store.recomputeUserEntitlement(user.id)
+    : entitlementFor(verified);
+  if (!config.store.recomputeUserEntitlement) {
+    await config.store.setBillingEntitlement(user.id, entitlement);
+  }
   return { status: 200, body: { entitlement, subscription: publicSubscription(verified) } };
 }
 
@@ -84,7 +94,14 @@ export async function processPlayRtdn(request: Request, env: BillingServerEnv): 
   try {
     const verified = await config.verifier.verifySubscription({ packageName: config.packageName, purchaseToken: notification.purchaseToken });
     if (verified.packageName !== config.packageName || !config.productIds.has(verified.productId)) return result(400, "purchase_mismatch");
-    await config.store.setBillingEntitlement(userId, entitlementFor(verified));
+    if (config.store.recordSubscription) {
+      await config.store.recordSubscription(userId, tokenHash, verified);
+    }
+    if (config.store.recomputeUserEntitlement) {
+      await config.store.recomputeUserEntitlement(userId);
+    } else {
+      await config.store.setBillingEntitlement(userId, entitlementFor(verified));
+    }
     return { status: 204, body: {} };
   } catch (error) {
     // Do not convert a transient verifier/storage failure into a permanently acknowledged duplicate.
@@ -93,14 +110,55 @@ export async function processPlayRtdn(request: Request, env: BillingServerEnv): 
   }
 }
 
+export function aggregateEntitlement(subscriptions: VerifiedPlaySubscription[]): Entitlement {
+  if (subscriptions.length === 0) {
+    return { plan: "FREE", source: "billing" };
+  }
+
+  const proSubs = subscriptions.filter((sub) => {
+    if (sub.status === "active" || sub.status === "grace") return true;
+    if (sub.status === "canceled") {
+      if (!sub.expiresAt) return true;
+      const expiry = Date.parse(sub.expiresAt);
+      return !isNaN(expiry) && expiry > Date.now();
+    }
+    return false;
+  });
+
+  if (proSubs.length === 0) {
+    return { plan: "FREE", source: "billing" };
+  }
+
+  let latestExpiresAt: string | undefined = undefined;
+  let latestEpoch = 0;
+  for (const sub of proSubs) {
+    if (!sub.expiresAt) {
+      latestExpiresAt = undefined;
+      break;
+    }
+    const epoch = Date.parse(sub.expiresAt);
+    if (!isNaN(epoch) && epoch > latestEpoch) {
+      latestEpoch = epoch;
+      latestExpiresAt = sub.expiresAt;
+    }
+  }
+
+  return {
+    plan: "PRO",
+    source: "billing",
+    ...(latestExpiresAt ? { expiresAt: latestExpiresAt } : {})
+  };
+}
+
 export function entitlementFor(subscription: VerifiedPlaySubscription): Entitlement {
-  const pro = subscription.status === "active" || subscription.status === "grace" || subscription.status === "canceled";
-  return { plan: pro ? "PRO" : "FREE", source: "billing", expiresAt: subscription.expiresAt };
+  return aggregateEntitlement([subscription]);
 }
 
 export class InMemoryBillingStateStore implements BillingStateStore {
   readonly entitlements = new Map<string, Entitlement>();
   private readonly bindings = new Map<string, string>();
+  private readonly tokenSubscriptions = new Map<string, { userId: string; subscription: VerifiedPlaySubscription }>();
+
   async userForTokenHash(tokenHash: string): Promise<string | null> { return this.bindings.get(tokenHash) ?? null; }
   async bindTokenHash(userId: string, tokenHash: string): Promise<"bound" | "already_bound" | "conflict"> {
     const existing = this.bindings.get(tokenHash);
@@ -110,6 +168,32 @@ export class InMemoryBillingStateStore implements BillingStateStore {
     return "bound";
   }
   async setBillingEntitlement(userId: string, entitlement: Entitlement): Promise<void> { this.entitlements.set(userId, entitlement); }
+
+  async recordSubscription(userId: string, tokenHash: string, subscription: VerifiedPlaySubscription): Promise<void> {
+    this.tokenSubscriptions.set(tokenHash, { userId, subscription });
+  }
+
+  async recomputeUserEntitlement(userId: string): Promise<Entitlement> {
+    const userSubs: VerifiedPlaySubscription[] = [];
+    for (const entry of this.tokenSubscriptions.values()) {
+      if (entry.userId === userId) {
+        userSubs.push(entry.subscription);
+      }
+    }
+    const aggregated = aggregateEntitlement(userSubs);
+    await this.setBillingEntitlement(userId, aggregated);
+    return aggregated;
+  }
+
+  async deleteUserBindings(userId: string): Promise<void> {
+    for (const [tokenHash, owner] of [...this.bindings.entries()]) {
+      if (owner === userId) {
+        this.bindings.delete(tokenHash);
+        this.tokenSubscriptions.delete(tokenHash);
+      }
+    }
+    this.entitlements.delete(userId);
+  }
 }
 
 export class FakeGooglePlayPurchaseVerifier implements GooglePlayPurchaseVerifier {

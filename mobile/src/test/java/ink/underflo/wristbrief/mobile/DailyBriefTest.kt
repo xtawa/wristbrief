@@ -46,4 +46,49 @@ class DailyBriefTest {
         val key = DailyBriefInputBuilder.todayKey(Date(1773200000000L))
         assertTrue(key.matches(Regex("\\d{4}-\\d{2}-\\d{2}")))
     }
+
+    @Test
+    fun inputHashIsDeterministicAndDetectsChanges() {
+        val hash1 = DailyBriefInputBuilder.computeInputHash("Sample content")
+        val hash2 = DailyBriefInputBuilder.computeInputHash("Sample content")
+        val hash3 = DailyBriefInputBuilder.computeInputHash("Different content")
+        assertEquals(hash1, hash2)
+        assertTrue(hash1.isNotBlank())
+        assertTrue(hash1 != hash3)
+    }
+
+    @Test
+    fun inMemoryDailyBriefStoreRetainsUpTo7DaysAndPrunesOlder() {
+        val store = InMemoryDailyBriefStore()
+        for (i in 1..10) {
+            store.save(
+                DailyBriefRecord(
+                    dateKey = "2026-09-%02d".format(i),
+                    title = "Brief $i",
+                    tiny = "Tiny $i",
+                    long = "Long $i",
+                    bullets = listOf("B$i"),
+                    topics = listOf("T$i"),
+                    generatedAtEpochMs = 1773200000000L + (i * 86_400_000L),
+                    sourceCount = i,
+                    inputHash = "hash-$i",
+                )
+            )
+        }
+
+        // Only 7 latest entries should remain (days 4..10)
+        val history = store.history(limit = 10)
+        assertEquals(7, history.size)
+        assertEquals("2026-09-10", history.first().dateKey)
+        assertEquals("2026-09-04", history.last().dateKey)
+
+        // Day 1, 2, 3 should have been pruned
+        assertNull(store.get("2026-09-01"))
+        assertNull(store.get("2026-09-02"))
+        assertNull(store.get("2026-09-03"))
+        assertNotNull(store.get("2026-09-04"))
+        assertNotNull(store.get("2026-09-10"))
+
+        assertEquals("2026-09-10", store.getLatest()?.dateKey)
+    }
 }

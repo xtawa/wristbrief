@@ -73,4 +73,12 @@
     <string name="wear_ai_content_still_available">Original article and podcast are still available</string>
     <string name="wear_ai_temporarily_unavailable">AI temporarily unavailable</string>
     <string name="wear_ai_retry_hint">Tap to retry; original content still works</string>
+    <string name="wear_stage_todays_brief">Today\'s Brief</string>
+    <string name="wear_stage_latest_library">Latest in Library</string>
+    <string name="wear_stage_more">More</string>
+    <string name="wear_now_playing_title">Now Playing</string>
+    <string name="wear_no_brief_points">No brief points yet. Refresh to fetch.</string>
+    <string name="wear_brief_listen">Listen to today\'s brief</string>
+    <string name="wear_library_title">Library</string>
+    <string name="wear_no_articles">No articles available</string>
 </resources>

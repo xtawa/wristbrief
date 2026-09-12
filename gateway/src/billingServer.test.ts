@@ -181,4 +181,70 @@ describe("Play billing server foundation", () => {
     expect(response).toEqual({ status: 401, body: { error: "unauthorized" } });
     expect(setup.verifier.calls).toBe(0);
   });
+
+  it("aggregates multiple active tokens and preserves PRO if one expires or cancels", async () => {
+    const store = new InMemoryBillingStateStore();
+    const verifier = {
+      calls: 0,
+      subscriptions: new Map<string, { packageName: string; productId: string; status: "active" | "canceled" | "expired" | "grace"; expiresAt?: string }>(),
+      async verifySubscription(input: { packageName: string; purchaseToken: string }) {
+        this.calls += 1;
+        const sub = this.subscriptions.get(input.purchaseToken);
+        if (!sub) throw new Error("not_found");
+        return sub;
+      }
+    };
+    const testEnv = {
+      PLAY_PACKAGE_NAME: packageName,
+      PLAY_SUBSCRIPTION_PRODUCT_IDS: productId,
+      PLAY_PURCHASE_VERIFIER: verifier,
+      PLAY_BILLING_STATE_STORE: store,
+      PUBSUB_PUSH_AUTHENTICATOR: new FakePubSubPushAuthenticator(true),
+      RTDN_DEDUP_STORE: new InMemoryRtdnDedupStore()
+    };
+
+    // Token 1: Monthly PRO expiring Oct 2026
+    verifier.subscriptions.set("token-monthly", {
+      packageName,
+      productId,
+      status: "active",
+      expiresAt: "2026-10-01T00:00:00Z"
+    });
+    // Token 2: Annual PRO expiring Oct 2027
+    verifier.subscriptions.set("token-annual", {
+      packageName,
+      productId,
+      status: "active",
+      expiresAt: "2027-10-01T00:00:00Z"
+    });
+
+    const res1 = await restorePlayPurchase({ id: "user-multi" }, { packageName, productId, purchaseToken: "token-monthly" }, testEnv);
+    expect(res1.status).toBe(200);
+    expect(store.entitlements.get("user-multi")?.expiresAt).toBe("2026-10-01T00:00:00Z");
+
+    const res2 = await restorePlayPurchase({ id: "user-multi" }, { packageName, productId, purchaseToken: "token-annual" }, testEnv);
+    expect(res2.status).toBe(200);
+    // Aggregation should take the later expiry
+    expect(store.entitlements.get("user-multi")?.expiresAt).toBe("2027-10-01T00:00:00Z");
+
+    // Annual token expires via RTDN; monthly token is still active, so user remains PRO
+    verifier.subscriptions.set("token-annual", {
+      packageName,
+      productId,
+      status: "expired"
+    });
+    const rtdnRes = await processPlayRtdn(rtdnRequest({
+      packageName,
+      subscriptionNotification: { purchaseToken: "token-annual" }
+    }, "annual-expired"), testEnv);
+    expect(rtdnRes.status).toBe(204);
+
+    const aggregated = store.entitlements.get("user-multi");
+    expect(aggregated?.plan).toBe("PRO");
+    expect(aggregated?.expiresAt).toBe("2026-10-01T00:00:00Z");
+
+    // Delete user bindings purges all bindings and entitlements
+    await store.deleteUserBindings("user-multi");
+    expect(store.entitlements.has("user-multi")).toBe(false);
+  });
 });

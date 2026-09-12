@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AiProviderRegistry,
+  AnthropicProvider,
   GeminiProvider,
   OpenAiCompatibleProvider,
   OpenRouterProvider,
@@ -17,7 +18,9 @@ const env = {
   OPENROUTER_API_KEY: "openrouter-secret",
   OPENROUTER_MODEL: "openrouter/test-model",
   GEMINI_API_KEY: "gemini-secret",
-  GEMINI_MODEL: "gemini-test"
+  GEMINI_MODEL: "gemini-test",
+  ANTHROPIC_API_KEY: "anthropic-secret",
+  ANTHROPIC_MODEL: "claude-3-5-haiku-20241022"
 };
 
 const structured: StructuredBrief = {
@@ -40,6 +43,10 @@ const geminiBody = (value: unknown) => new Response(JSON.stringify({
   candidates: [{ content: { parts: [{ text: typeof value === "string" ? value : JSON.stringify(value) }] } }]
 }), { status: 200, headers: { "Content-Type": "application/json" } });
 
+const anthropicBody = (value: unknown) => new Response(JSON.stringify({
+  content: [{ type: "text", text: typeof value === "string" ? value : JSON.stringify(value) }]
+}), { status: 200, headers: { "Content-Type": "application/json" } });
+
 afterEach(() => vi.unstubAllGlobals());
 
 describe("AI provider registry", () => {
@@ -59,10 +66,12 @@ describe("AI provider registry", () => {
     expect(registry.require("openai-compatible")).toBeInstanceOf(OpenAiCompatibleProvider);
     expect(registry.require("openrouter")).toBeInstanceOf(OpenRouterProvider);
     expect(registry.require("gemini")).toBeInstanceOf(GeminiProvider);
+    expect(registry.require("anthropic")).toBeInstanceOf(AnthropicProvider);
     expect(registry.list()).toEqual([
       { id: "openai-compatible", model: "test-model", api: "openai-compatible" },
       { id: "openrouter", model: "openrouter/test-model", api: "openai-compatible" },
-      { id: "gemini", model: "gemini-test", api: "gemini-native" }
+      { id: "gemini", model: "gemini-test", api: "gemini-native" },
+      { id: "anthropic", model: "claude-3-5-haiku-20241022", api: "anthropic-native" }
     ]);
     expect(JSON.stringify(registry.list())).not.toContain("secret");
   });
@@ -110,6 +119,27 @@ describe("provider routing and security", () => {
     await expect(
       new GeminiProvider(env.GEMINI_API_KEY, env.GEMINI_MODEL).summarize({ content: "Body" })
     ).resolves.toMatchObject({ model: "gemini-test", summary: "Concise.", structured: { long: structured.long } });
+  });
+
+  it("routes Anthropic through native Messages API with proper headers", async () => {
+    const upstreamFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe("https://api.anthropic.com/v1/messages");
+      expect(init?.headers).toMatchObject({
+        "x-api-key": "anthropic-secret",
+        "anthropic-version": "2023-06-01"
+      });
+      expect(init?.redirect).toBe("error");
+      const body = JSON.parse(String(init?.body));
+      expect(body.model).toBe("claude-3-5-haiku-20241022");
+      expect(body.system).toContain("untrusted data");
+      expect(body.messages[0].role).toBe("user");
+      return anthropicBody(structured);
+    });
+    vi.stubGlobal("fetch", upstreamFetch);
+
+    await expect(
+      new AnthropicProvider(env.ANTHROPIC_API_KEY, env.ANTHROPIC_MODEL).summarize({ content: "Body" })
+    ).resolves.toMatchObject({ model: "claude-3-5-haiku-20241022", summary: "Concise.", structured: { long: structured.long } });
   });
 
   it("keeps the OpenAI-compatible HTTPS guard", async () => {

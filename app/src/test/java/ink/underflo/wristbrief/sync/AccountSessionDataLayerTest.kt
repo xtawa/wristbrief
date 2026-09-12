@@ -93,4 +93,56 @@ class AccountSessionDataLayerTest {
         WearAccountSessionRuntime.clear()
         assertNull(WearAccountSessionRuntime.currentToken(Instant.parse("2026-09-11T00:00:00Z")))
     }
+
+    @Test
+    fun accountSwitchTriggersPurge() {
+        var purged = false
+        val sessionB = WearAccountSession(token, Instant.parse("2026-10-01T00:00:00Z"), "usr_B")
+
+        applyWearAccountSessionMessage(
+            message = WearAccountSessionMessageCodec.Message.Set(sessionB),
+            currentUserId = "usr_A",
+            now = Instant.parse("2026-09-11T00:00:00Z"),
+            write = { _, _ -> true },
+            clear = {},
+            onAccountPurge = { purged = true },
+        )
+
+        assertTrue(purged)
+    }
+
+    @Test
+    fun sameAccountDoesNotTriggerPurge() {
+        var purged = false
+        val sessionA = WearAccountSession(token, Instant.parse("2026-10-01T00:00:00Z"), "usr_A")
+
+        applyWearAccountSessionMessage(
+            message = WearAccountSessionMessageCodec.Message.Set(sessionA),
+            currentUserId = "usr_A",
+            now = Instant.parse("2026-09-11T00:00:00Z"),
+            write = { _, _ -> true },
+            clear = {},
+            onAccountPurge = { purged = true },
+        )
+
+        assertFalse(purged)
+    }
+
+    @Test
+    fun clearMessageTriggersPurge() {
+        var purged = false
+        var cleared = false
+
+        applyWearAccountSessionMessage(
+            message = WearAccountSessionMessageCodec.Message.Clear,
+            currentUserId = "usr_A",
+            now = Instant.parse("2026-09-11T00:00:00Z"),
+            write = { _, _ -> true },
+            clear = { cleared = true },
+            onAccountPurge = { purged = true },
+        )
+
+        assertTrue(cleared)
+        assertTrue(purged)
+    }
 }

@@ -29,6 +29,7 @@ export interface MembershipStore {
   getEntitlement(userId: string): Promise<Entitlement>;
   getManagedAiQuota(userId: string): Promise<{ limit: number | null; used: number }>;
   incrementManagedAiUsage(userId: string): Promise<void>;
+  decrementManagedAiUsage?(userId: string): Promise<void>;
 }
 
 export interface BillingVerifier {
@@ -72,7 +73,7 @@ export class MembershipService {
     };
   }
 
-  async canUseAi(userId: string, kind: AiUsageKind): Promise<{ allowed: boolean; quota: ManagedAiQuota }> {
+  async reserveAiQuota(userId: string): Promise<{ allowed: boolean; quota: ManagedAiQuota }> {
     // Managed-AI admission reserves quota atomically before any upstream provider work.
     // Durable stores must enforce the limit inside incrementManagedAiUsage rather than via a prior read.
     try {
@@ -84,8 +85,22 @@ export class MembershipService {
     }
   }
 
+  async releaseAiQuota(userId: string): Promise<void> {
+    if (this.store.decrementManagedAiUsage) {
+      await this.store.decrementManagedAiUsage(userId);
+    }
+  }
+
+  async commitAiQuota(_userId: string): Promise<void> {
+    // Quota was atomically reserved upon admission
+  }
+
+  async canUseAi(userId: string, _kind: AiUsageKind): Promise<{ allowed: boolean; quota: ManagedAiQuota }> {
+    return this.reserveAiQuota(userId);
+  }
+
   async recordAiUsage(_userId: string, _kind: AiUsageKind): Promise<void> {
-    // Managed usage is reserved during canUseAi so concurrent requests cannot all pass a stale quota read.
+    // Managed usage is reserved during canUseAi / reserveAiQuota
   }
 }
 
@@ -112,16 +127,17 @@ class LegacyScopedMembershipStore implements MembershipStore {
 
   async incrementManagedAiUsage(userId: string): Promise<void> {
     if (userId !== this.legacyUserId) throw new Error("managed_ai_quota_unavailable");
-    // Compatibility mode for the configured legacy principal only; its quota is unlimited.
   }
+
+  async decrementManagedAiUsage(_userId: string): Promise<void> {}
 }
 
-type InMemoryMembershipRecord = {
+export type InMemoryMembershipRecord = {
   userId: string;
   plan: Plan;
+  source?: "legacy" | "billing" | "admin" | "test" | "default";
   managedAiLimit: number | null;
   managedAiUsed?: number;
-  source?: Entitlement["source"];
   expiresAt?: string;
 };
 
@@ -153,6 +169,12 @@ export class InMemoryMembershipStore implements MembershipStore {
       throw new Error("managed_ai_quota_unavailable");
     }
     record.managedAiUsed = used + 1;
+  }
+
+  async decrementManagedAiUsage(userId: string): Promise<void> {
+    const record = this.require(userId);
+    const used = record.managedAiUsed ?? 0;
+    record.managedAiUsed = Math.max(0, used - 1);
   }
 
   private require(userId: string): InMemoryMembershipRecord {

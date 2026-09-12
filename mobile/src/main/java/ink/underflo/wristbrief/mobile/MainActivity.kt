@@ -17,6 +17,13 @@ import ink.underflo.wristbrief.mobile.artifacts.TranscriptFetchResult
 import ink.underflo.wristbrief.mobile.artifacts.TranscriptViewerDestination
 import ink.underflo.wristbrief.mobile.media.PodcastProgressStore
 import ink.underflo.wristbrief.mobile.navigation.MobileBackHandler
+import ink.underflo.wristbrief.mobile.sync.CloudSyncCoordinator
+import ink.underflo.wristbrief.mobile.sync.CloudSyncMerge
+import ink.underflo.wristbrief.mobile.sync.CloudSyncOutboxStore
+import ink.underflo.wristbrief.mobile.sync.CloudSyncRuntime
+import ink.underflo.wristbrief.mobile.sync.HttpCloudSyncApi
+import ink.underflo.wristbrief.mobile.sync.SharedPreferencesCloudSyncPreferences
+import ink.underflo.wristbrief.mobile.sync.WearSyncNotifier
 import ink.underflo.wristbrief.mobile.ui.glass.GlassSurface
 import androidx.compose.ui.text.style.TextAlign
 import android.content.Context
@@ -24,6 +31,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -116,6 +126,7 @@ class MainActivity : ComponentActivity() {
         val sqliteFeedStore = remember(dbHelper) { SqliteMobileFeedStore(dbHelper) }
         val sqliteInboxStore = remember(dbHelper) { SqliteMobileInboxStore(dbHelper) }
         val sqlitePodcastStore = remember(dbHelper) { SqlitePodcastProgressStore(dbHelper) }
+        val accountSessionPreferences = remember(context) { AccountSessionPreferences(context) }
 
         LaunchedEffect(Unit) {
             LegacyDataMigration.performIfNeeded(context, sqliteFeedStore, sqliteInboxStore, sqlitePodcastStore)
@@ -129,11 +140,40 @@ class MainActivity : ComponentActivity() {
             )
         }
         val syncManager = remember(context) { PhoneItemStateSyncManager(context) }
-        val inboxRepository = remember(context, feedManager, sqliteInboxStore) {
+
+        // Cloud sync runtime: the coordinator (push outbox + pull + merge) that
+        // existed but was never wired into the app. Cycles start on app start,
+        // ON_RESUME, and after every local item-state mutation; signed-out
+        // users never start a cycle. Failures leave mutations in the outbox
+        // with exponential backoff.
+        val cloudSyncOutboxStore = remember(dbHelper) { CloudSyncOutboxStore(dbHelper) }
+        val cloudSyncRuntime = remember(context, dbHelper, feedManager, cloudSyncOutboxStore, accountSessionPreferences) {
+            val wearFeedPublisher = GoogleWearFeedSyncPublisher(context)
+            CloudSyncRuntime(
+                coordinator = CloudSyncCoordinator(
+                    api = HttpCloudSyncApi(BuildConfig.GATEWAY_BASE_URL),
+                    outbox = cloudSyncOutboxStore,
+                    merge = CloudSyncMerge(dbHelper),
+                    preferences = SharedPreferencesCloudSyncPreferences(context),
+                    wearPublisher = WearSyncNotifier {
+                        runCatching { wearFeedPublisher.publish(feedManager.feeds()) }
+                    },
+                ),
+                sessionTokenProvider = { accountSessionPreferences.read()?.sessionToken },
+            )
+        }
+        DisposableEffect(cloudSyncRuntime) {
+            onDispose { cloudSyncRuntime.dispose() }
+        }
+        val inboxRepository = remember(context, feedManager, sqliteInboxStore, cloudSyncOutboxStore, cloudSyncRuntime) {
             MobileInboxRepository(
                 feedManager = feedManager,
                 store = sqliteInboxStore,
-                stateAdapter = SyncManagerItemStateAdapter(syncManager),
+                stateAdapter = SyncManagerItemStateAdapter(
+                    syncManager,
+                    cloudOutbox = cloudSyncOutboxStore,
+                    onCloudMutation = { cloudSyncRuntime.requestSync() },
+                ),
                 fetcher = HttpFeedItemFetcher(),
             )
         }
@@ -163,7 +203,6 @@ class MainActivity : ComponentActivity() {
         }
 
         val transcriptCache = remember(dbHelper) { TranscriptCacheStore(dbHelper) }
-        val accountSessionPreferences = remember(context) { AccountSessionPreferences(context) }
         val transcriptGateway = remember(context, accountSessionPreferences) {
             HttpTranscriptGatewayApi(BuildConfig.GATEWAY_BASE_URL) {
                 accountSessionPreferences.read()?.sessionToken
@@ -171,6 +210,19 @@ class MainActivity : ComponentActivity() {
         }
         val transcriptRepo = remember(transcriptCache, transcriptGateway) {
             DefaultTranscriptRepository(transcriptCache, transcriptGateway)
+        }
+
+        // Cloud sync triggers: app start and every return to the foreground.
+        val lifecycleOwner = LocalLifecycleOwner.current
+        LaunchedEffect(cloudSyncRuntime) {
+            cloudSyncRuntime.requestSync()
+        }
+        DisposableEffect(lifecycleOwner, cloudSyncRuntime) {
+            val observer = LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_RESUME) cloudSyncRuntime.requestSync()
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
         }
 
         var activeTranscriptRequest by remember { mutableStateOf<EpisodeTranscriptRequest?>(null) }

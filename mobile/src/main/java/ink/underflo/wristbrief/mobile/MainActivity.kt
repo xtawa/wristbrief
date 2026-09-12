@@ -16,6 +16,14 @@ import ink.underflo.wristbrief.mobile.artifacts.TranscriptCacheStore
 import ink.underflo.wristbrief.mobile.artifacts.TranscriptFetchResult
 import ink.underflo.wristbrief.mobile.artifacts.TranscriptViewerDestination
 import ink.underflo.wristbrief.mobile.media.PodcastProgressStore
+import ink.underflo.wristbrief.mobile.navigation.MobileBackHandler
+import ink.underflo.wristbrief.mobile.sync.CloudSyncCoordinator
+import ink.underflo.wristbrief.mobile.sync.CloudSyncMerge
+import ink.underflo.wristbrief.mobile.sync.CloudSyncOutboxStore
+import ink.underflo.wristbrief.mobile.sync.CloudSyncRuntime
+import ink.underflo.wristbrief.mobile.sync.HttpCloudSyncApi
+import ink.underflo.wristbrief.mobile.sync.SharedPreferencesCloudSyncPreferences
+import ink.underflo.wristbrief.mobile.sync.WearSyncNotifier
 import ink.underflo.wristbrief.mobile.ui.glass.GlassSurface
 import androidx.compose.ui.text.style.TextAlign
 import android.content.Context
@@ -23,6 +31,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -94,10 +105,24 @@ import ink.underflo.wristbrief.mobile.media.PodcastExpandedSheet
 import ink.underflo.wristbrief.mobile.media.PodcastMiniPlayer
 import ink.underflo.wristbrief.mobile.media.PodcastPlaybackRequest
 import ink.underflo.wristbrief.mobile.media.PodcastPlayerState
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); setContent { WristBriefMobileApp() } }
+}
+
+/**
+ * Late-bound subscription lifecycle hooks: the feed manager is constructed before
+ * the inbox repository, so the bindings are assigned after both exist.
+ */
+private class MobileFeedListenerBindings : MobileFeedListener {
+    var onAdded: (MobileFeedSubscription) -> Unit = {}
+    var onUpdated: (MobileFeedSubscription) -> Unit = {}
+    var onRemoved: (MobileFeedSubscription) -> Unit = {}
+    override fun onSubscriptionAdded(feed: MobileFeedSubscription) = onAdded(feed)
+    override fun onSubscriptionUpdated(feed: MobileFeedSubscription) = onUpdated(feed)
+    override fun onSubscriptionRemoved(feed: MobileFeedSubscription) = onRemoved(feed)
 }
 
 @Composable fun WristBriefMobileApp() {
@@ -115,26 +140,76 @@ class MainActivity : ComponentActivity() {
         val sqliteFeedStore = remember(dbHelper) { SqliteMobileFeedStore(dbHelper) }
         val sqliteInboxStore = remember(dbHelper) { SqliteMobileInboxStore(dbHelper) }
         val sqlitePodcastStore = remember(dbHelper) { SqlitePodcastProgressStore(dbHelper) }
+        val accountSessionPreferences = remember(context) { AccountSessionPreferences(context) }
 
         LaunchedEffect(Unit) {
             LegacyDataMigration.performIfNeeded(context, sqliteFeedStore, sqliteInboxStore, sqlitePodcastStore)
         }
 
-        val feedManager = remember(context, sqliteFeedStore) {
+        val syncManager = remember(context) { PhoneItemStateSyncManager(context) }
+
+        // Cloud sync runtime: the coordinator (push outbox + pull + merge) that
+        // existed but was never wired into the app. Cycles start on app start,
+        // ON_RESUME, and after every local mutation; signed-out users never
+        // start a cycle. Failures leave mutations in the outbox with backoff.
+        val cloudSyncOutboxStore = remember(dbHelper) { CloudSyncOutboxStore(dbHelper) }
+        val cloudSyncRuntime = remember(context, dbHelper, sqliteFeedStore, cloudSyncOutboxStore, accountSessionPreferences) {
+            val wearFeedPublisher = GoogleWearFeedSyncPublisher(context)
+            CloudSyncRuntime(
+                coordinator = CloudSyncCoordinator(
+                    api = HttpCloudSyncApi(BuildConfig.GATEWAY_BASE_URL),
+                    outbox = cloudSyncOutboxStore,
+                    merge = CloudSyncMerge(dbHelper),
+                    preferences = SharedPreferencesCloudSyncPreferences(context),
+                    wearPublisher = WearSyncNotifier {
+                        runCatching { wearFeedPublisher.publish(sqliteFeedStore.load()) }
+                    },
+                ),
+                sessionTokenProvider = { accountSessionPreferences.read()?.sessionToken },
+            )
+        }
+        DisposableEffect(cloudSyncRuntime) {
+            onDispose { cloudSyncRuntime.dispose() }
+        }
+
+        // Subscription lifecycle: additions/removals enqueue cloud mutations and
+        // refresh the inbox; deletions also clear the feed's cached items
+        // (local cleanup only — the cloud tombstone never deletes shared content).
+        val appScope = remember { kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default) }
+        DisposableEffect(appScope) {
+            onDispose { appScope.cancel() }
+        }
+        val feedListener = remember { MobileFeedListenerBindings() }
+        val feedManager = remember(context, sqliteFeedStore, cloudSyncOutboxStore, feedListener) {
             MobileFeedManager(
                 sqliteFeedStore,
                 HttpFeedProbe(),
                 GoogleWearFeedSyncPublisher(context),
+                cloudOutbox = cloudSyncOutboxStore,
+                listener = feedListener,
             )
         }
-        val syncManager = remember(context) { PhoneItemStateSyncManager(context) }
-        val inboxRepository = remember(context, feedManager, sqliteInboxStore) {
+        val inboxRepository = remember(context, feedManager, sqliteInboxStore, cloudSyncOutboxStore, cloudSyncRuntime) {
             MobileInboxRepository(
                 feedManager = feedManager,
                 store = sqliteInboxStore,
-                stateAdapter = SyncManagerItemStateAdapter(syncManager),
+                stateAdapter = SyncManagerItemStateAdapter(
+                    syncManager,
+                    cloudOutbox = cloudSyncOutboxStore,
+                    onCloudMutation = { cloudSyncRuntime.requestSync() },
+                ),
                 fetcher = HttpFeedItemFetcher(),
             )
+        }
+        feedListener.onAdded = {
+            cloudSyncRuntime.requestSync()
+            appScope.launch { runCatching { inboxRepository.refresh() } }
+        }
+        feedListener.onUpdated = { cloudSyncRuntime.requestSync() }
+        feedListener.onRemoved = { feed ->
+            cloudSyncRuntime.requestSync()
+            sqliteInboxStore.deleteItemsForFeed(feed.id)
+            appScope.launch { runCatching { inboxRepository.refresh() } }
         }
 
         if (!onboardingComplete) {
@@ -162,13 +237,51 @@ class MainActivity : ComponentActivity() {
         }
 
         val transcriptCache = remember(dbHelper) { TranscriptCacheStore(dbHelper) }
-        val transcriptGateway = remember(context) {
+        val transcriptGateway = remember(context, accountSessionPreferences) {
             HttpTranscriptGatewayApi(BuildConfig.GATEWAY_BASE_URL) {
-                context.getSharedPreferences("account_session", Context.MODE_PRIVATE).getString("token", null)
+                accountSessionPreferences.read()?.sessionToken
             }
         }
         val transcriptRepo = remember(transcriptCache, transcriptGateway) {
             DefaultTranscriptRepository(transcriptCache, transcriptGateway)
+        }
+
+        // Full-text reader: the media proxy is authenticated, so article images
+        // load through a dedicated Coil ImageLoader that attaches the session.
+        val articleRepository = remember(context, accountSessionPreferences) {
+            ink.underflo.wristbrief.mobile.articles.ArticleRepository(context, BuildConfig.GATEWAY_BASE_URL) {
+                accountSessionPreferences.read()?.sessionToken
+            }
+        }
+        val articleImageLoader = remember(context, accountSessionPreferences) {
+            val authedClient = okhttp3.OkHttpClient.Builder()
+                .addInterceptor { chain ->
+                    val token = accountSessionPreferences.read()?.sessionToken
+                    val request = if (token != null) {
+                        chain.request().newBuilder().header("Authorization", "Bearer $token").build()
+                    } else {
+                        chain.request()
+                    }
+                    chain.proceed(request)
+                }
+                .build()
+            coil.ImageLoader.Builder(context)
+                .okHttpClient(authedClient)
+                .crossfade(true)
+                .build()
+        }
+
+        // Cloud sync triggers: app start and every return to the foreground.
+        val lifecycleOwner = LocalLifecycleOwner.current
+        LaunchedEffect(cloudSyncRuntime) {
+            cloudSyncRuntime.requestSync()
+        }
+        DisposableEffect(lifecycleOwner, cloudSyncRuntime) {
+            val observer = LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_RESUME) cloudSyncRuntime.requestSync()
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
         }
 
         var activeTranscriptRequest by remember { mutableStateOf<EpisodeTranscriptRequest?>(null) }
@@ -206,6 +319,8 @@ class MainActivity : ComponentActivity() {
         }
 
         var name by rememberSaveable { mutableStateOf(initialMobileDestination().name) }
+        // Normalize stale saved selections (e.g. the retired Now Playing tab).
+        if (MobileDestination.valueOf(name) == MobileDestination.NowPlaying) name = MobileDestination.Today.name
         var selectedArticle by remember { mutableStateOf<MobileFeedItem?>(null) }
         var aiPrefilledTitle by rememberSaveable { mutableStateOf("") }
         var aiPrefilledContent by rememberSaveable { mutableStateOf("") }
@@ -237,6 +352,28 @@ class MainActivity : ComponentActivity() {
                 )
             )
         }
+
+        // System back / gesture back is arbitrated by MobileBackPolicy; the snapshot
+        // below is derived from the same state that drives rendering (no duplicates).
+        // Back never touches the account session, the playback service, or the
+        // Wear sync paths — it only maps to the navigation states captured here.
+        var exitHintShownAtMs by remember { mutableStateOf<Long?>(null) }
+        MobileBackHandler(
+            hasActiveDialog = false, // destination-owned dialogs install their own inner BackHandler
+            expandedPlayerVisible = showExpandedPlayer,
+            transcriptViewerVisible = activeTranscriptState != null,
+            articleDetailVisible = selectedArticle != null,
+            settingsVisible = showSettings,
+            exitHintShownAtEpochMs = exitHintShownAtMs,
+            onExitHintChanged = { exitHintShownAtMs = it },
+            onDismissExpandedPlayer = { showExpandedPlayer = false },
+            onCloseTranscriptViewer = {
+                activeTranscriptRequest = null
+                activeTranscriptState = null
+            },
+            onCloseArticleDetail = { selectedArticle = null },
+            onCloseSettings = { showSettings = false },
+        )
 
         if (activeTranscriptState != null) {
             TranscriptViewerDestination(
@@ -271,6 +408,8 @@ class MainActivity : ComponentActivity() {
                         guid = item.id,
                     )
                 },
+                articleRepository = articleRepository,
+                articleImageLoader = articleImageLoader,
             )
         } else if (showSettings) {
             SettingsDestination(
@@ -284,6 +423,7 @@ class MainActivity : ComponentActivity() {
                 onOnboardingActionConsumed = { onboardingAction = null },
                 appPreferences = appPreferences,
                 onThemeChanged = { themeMode = it },
+                feedManager = feedManager,
             )
         } else {
             MobileShell(
@@ -360,12 +500,15 @@ class MainActivity : ComponentActivity() {
 ) {
     BoxWithConstraints {
         val useRail = maxWidth >= 600.dp
+        // Bottom bar / rail show the four primary destinations per uidocs;
+        // playback is reached through the mini/expanded player surfaces.
+        val destinations = MobileDestination.entries.filter { it.showsInBottomBar }
         Row(Modifier.fillMaxSize()) {
             if (useRail) NavigationRail(
                 containerColor = GlassTokens.surfaceGlass(darkTheme),
                 contentColor = GlassTokens.textPrimary(darkTheme),
             ) {
-                MobileDestination.entries.forEach { item ->
+                destinations.forEach { item ->
                     NavigationRailItem(
                         selected = item == destination,
                         onClick = { select(item) },
@@ -423,7 +566,6 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         if (!useRail) {
-                            val destinations = MobileDestination.entries
                             val selectedIndex = destinations.indexOf(destination)
                             GlassBottomBar(
                                 items = destinations.map { item ->

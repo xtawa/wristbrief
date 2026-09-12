@@ -21,4 +21,14 @@ class MobileDestinationTest {
             routes.toSet(),
         )
     }
+
+    @Test
+    fun `bottom bar shows the four primary destinations per uidocs`() {
+        assertEquals(
+            listOf(MobileDestination.Today, MobileDestination.Explore, MobileDestination.AiProvider, MobileDestination.Library),
+            MobileDestination.entries.filter { it.showsInBottomBar },
+        )
+        // Playback is not a tab: it lives in the mini/expanded player surfaces.
+        assertEquals(false, MobileDestination.NowPlaying.showsInBottomBar)
+    }
 }

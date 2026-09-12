@@ -44,6 +44,21 @@ import {
   handleTranscriptStatus,
   type TranscriptRouteEnv
 } from "./artifacts/transcriptRoutes";
+import {
+  handleEmailAuthRoute,
+  handleEmailVerifyConfirm,
+  handleLinkEmailIdentity,
+  handleLinkGoogleIdentity,
+  handleListIdentities,
+  handleUnlinkIdentity,
+  MAX_EMAIL_BODY_BYTES,
+  type EmailAuthEnv
+} from "./emailAuth/emailAuthRoutes";
+import { handleAdminRoute, type AdminRoutesEnv } from "./admin/adminRoutes";
+import { previewOpmlUrl } from "./opml/opmlPreview";
+import { createActiveProviderRegistry } from "./providerRegistryFactory";
+import { handleArticleResolve, handleArticleGet, type ArticleRouteEnv } from "./articles/articleRoutes";
+import { handleMediaGet } from "./articles/mediaProxy";
 
 interface Env
   extends ProviderEnv,
@@ -53,7 +68,10 @@ interface Env
     AuthServerEnv,
     SyncRouteEnv,
     ContentRouteEnv,
-    TranscriptRouteEnv {}
+    TranscriptRouteEnv,
+    EmailAuthEnv,
+    AdminRoutesEnv,
+    ArticleRouteEnv {}
 type SummaryRequest = { title?: string; content?: string };
 const DEFAULT_PROVIDER_ID = "openai-compatible";
 const MAX_REQUEST_BYTES = 64 * 1024;
@@ -116,7 +134,63 @@ export default {
       }
     }
 
+    // Email/password authentication. These routes apply their own rate limits
+    // (route x IP prefix x normalized-email hash) inside the handlers.
+    if (request.method === "POST" && (url.pathname === "/v1/auth/email/register" || url.pathname === "/v1/auth/email/login" || url.pathname === "/v1/auth/email/verify/request" || url.pathname === "/v1/auth/email/verify/confirm" || url.pathname === "/v1/auth/email/password/forgot" || url.pathname === "/v1/auth/email/password/reset")) {
+      const parsedBody = await readJsonBodyLimited<unknown>(request, MAX_EMAIL_BODY_BYTES);
+      if (parsedBody.error) {
+        return respond({ error: parsedBody.error }, parsedBody.error === "request_too_large" ? 413 : 400);
+      }
+      const auth = await handleEmailAuthRoute(url.pathname, request, env, parsedBody.value);
+      return respondAuth(auth);
+    }
+
+    // Email verification links arrive as GET (from the email body).
+    if (request.method === "GET" && url.pathname === "/v1/auth/email/verify/confirm") {
+      return respondAuth(await handleEmailVerifyConfirm(request, env, null, url));
+    }
+
+    // Server-rendered /admin pages and /v1/admin API. Self-contained
+    // authorization (admin cookie session + CSRF); returns null for other paths.
+    const adminResponse = await handleAdminRoute(request, env, requestId);
+    if (adminResponse) return adminResponse;
+
     const user = await authenticateRequestUser(request, env);
+
+    // Identity linking: explicit, session-authenticated, and never auto-merged
+    // by matching email addresses between Google and email credentials.
+    if (request.method === "GET" && url.pathname === "/v1/account/identities") {
+      if (!user) return respond({ error: "unauthorized" }, 401);
+      return respondAuth(await handleListIdentities(user.id, env));
+    }
+
+    if (request.method === "POST" && url.pathname === "/v1/account/identities/email") {
+      if (!user) return respond({ error: "unauthorized" }, 401);
+      const parsedBody = await readJsonBodyLimited<unknown>(request, MAX_EMAIL_BODY_BYTES);
+      if (parsedBody.error) {
+        return respond({ error: parsedBody.error }, parsedBody.error === "request_too_large" ? 413 : 400);
+      }
+      return respondAuth(await handleLinkEmailIdentity(user.id, env, parsedBody.value));
+    }
+
+    if (request.method === "POST" && url.pathname === "/v1/account/identities/google") {
+      if (!user) return respond({ error: "unauthorized" }, 401);
+      const parsedBody = await readJsonBodyLimited<unknown>(request, MAX_EMAIL_BODY_BYTES);
+      if (parsedBody.error) {
+        return respond({ error: parsedBody.error }, parsedBody.error === "request_too_large" ? 413 : 400);
+      }
+      return respondAuth(await handleLinkGoogleIdentity(user.id, env, parsedBody.value));
+    }
+
+    if (request.method === "DELETE" && url.pathname.startsWith("/v1/account/identities/")) {
+      if (!user) return respond({ error: "unauthorized" }, 401);
+      const rest = url.pathname.slice("/v1/account/identities/".length);
+      const separator = rest.indexOf("/");
+      if (separator <= 0) return respond({ error: "not_found" }, 404);
+      const provider = rest.slice(0, separator);
+      const subject = decodeURIComponent(rest.slice(separator + 1));
+      return respondAuth(await handleUnlinkIdentity(user.id, env, provider, subject));
+    }
 
     if (
       (request.method === "POST" || request.method === "DELETE") &&
@@ -168,9 +242,10 @@ export default {
     if (request.method === "GET" && url.pathname === "/v1/providers") {
       if (!user) return respond({ error: "unauthorized" }, 401);
       try {
+        const registry = await createActiveProviderRegistry(env);
         return respond({
           selected: env.AI_PROVIDER?.trim() || DEFAULT_PROVIDER_ID,
-          providers: createProviderRegistry(env).list()
+          providers: registry.list()
         });
       } catch (error) {
         return providerFailure(error, respond);
@@ -196,6 +271,49 @@ export default {
       } catch {
         return respond({ error: "content_unavailable" }, 503);
       }
+    }
+
+    if (request.method === "POST" && url.pathname === "/v1/articles/resolve") {
+      if (!user) return respond({ error: "unauthorized" }, 401);
+      const parsedBody = await readJsonBodyLimited<any>(request, MAX_REQUEST_BYTES);
+      if (parsedBody.error) return respond({ error: parsedBody.error }, parsedBody.error === "request_too_large" ? 413 : 400);
+      try {
+        return respondAuth(await handleArticleResolve(env, parsedBody.value));
+      } catch {
+        return respond({ error: "content_unavailable" }, 503);
+      }
+    }
+
+    if (request.method === "GET" && url.pathname.startsWith("/v1/articles/")) {
+      if (!user) return respond({ error: "unauthorized" }, 401);
+      const articleKey = url.pathname.slice("/v1/articles/".length);
+      try {
+        return respondAuth(await handleArticleGet(env, articleKey));
+      } catch {
+        return respond({ error: "content_unavailable" }, 503);
+      }
+    }
+
+    // Article images: opaque media ids, authenticated, full SSRF policy inside.
+    if (request.method === "GET" && url.pathname.startsWith("/v1/media/")) {
+      if (!user) return respond({ error: "unauthorized" }, 401);
+      const mediaId = url.pathname.slice("/v1/media/".length);
+      try {
+        return await handleMediaGet(request, env, mediaId);
+      } catch {
+        return respond({ error: "media_unavailable" }, 503);
+      }
+    }
+
+    if (request.method === "POST" && url.pathname === "/v1/opml/preview-url") {
+      if (!user) return respond({ error: "unauthorized" }, 401);
+      const parsedBody = await readJsonBodyLimited<{ url?: unknown }>(request, MAX_AUTH_REQUEST_BYTES);
+      if (parsedBody.error) {
+        return respond({ error: parsedBody.error }, parsedBody.error === "request_too_large" ? 413 : 400);
+      }
+      const preview = await previewOpmlUrl(parsedBody.value.url);
+      if (preview.ok) return respond(preview.body);
+      return respond({ error: preview.code }, preview.status);
     }
 
     if (request.method === "POST" && url.pathname === "/v1/sync/push") {
@@ -269,7 +387,7 @@ export default {
     let primaryId: string;
     let model: string;
     try {
-      registry = createProviderRegistry(env);
+      registry = await createActiveProviderRegistry(env);
       primaryId = env.AI_PROVIDER?.trim() || DEFAULT_PROVIDER_ID;
       model = registry.require(primaryId).metadata.model;
     } catch (error) {

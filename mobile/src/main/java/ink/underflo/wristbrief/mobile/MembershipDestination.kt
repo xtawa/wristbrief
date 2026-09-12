@@ -39,6 +39,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.android.billingclient.api.BillingClient.BillingResponseCode
 import kotlinx.coroutines.launch
+import ink.underflo.wristbrief.mobile.auth.EmailAuthClient
+import ink.underflo.wristbrief.mobile.auth.EmailFlowResult
+import ink.underflo.wristbrief.mobile.auth.EmailSignInSection
+import ink.underflo.wristbrief.mobile.auth.LinkEmailIdentitySection
+import ink.underflo.wristbrief.mobile.auth.PasswordResetDialog
+import ink.underflo.wristbrief.mobile.auth.emailAuthErrorMessageRes
 import ink.underflo.wristbrief.mobile.artifacts.TranscriptCacheStore
 import ink.underflo.wristbrief.mobile.db.WristBriefDatabaseHelper
 import ink.underflo.wristbrief.mobile.sync.CloudSyncOutboxStore
@@ -65,6 +71,16 @@ internal fun MembershipDestination(padding: PaddingValues) {
             localDataCleaner = localDataCleaner,
         )
     }
+    val emailAuthClient = remember(context, localDataCleaner, sessionPreferences) {
+        EmailAuthClient(
+            sessionPreferences = sessionPreferences,
+            sessionBridge = GoogleWearAccountSessionBridge(context),
+            localDataCleaner = localDataCleaner,
+        )
+    }
+    var emailBusy by remember { mutableStateOf(false) }
+    var showResetDialog by remember { mutableStateOf(false) }
+    var resetDialogMessage by remember { mutableStateOf<String?>(null) }
     val membershipApi = remember(context) {
         MembershipApiClient(
             sessionProvider = sessionPreferences::read,
@@ -220,6 +236,49 @@ internal fun MembershipDestination(padding: PaddingValues) {
                                 else stringResource(R.string.membership_sign_in_google),
                             )
                         }
+
+                        // Email/password sign-in against the same account model.
+                        EmailSignInSection(
+                            busy = emailBusy,
+                            onSignIn = { email, password ->
+                                scope.launch {
+                                    emailBusy = true
+                                    accountMessage = null
+                                    when (val result = emailAuthClient.login(email, password)) {
+                                        is AccountAuthResult.Success -> {
+                                            accountSession = result.session
+                                            accountMessage = context.getString(R.string.membership_signed_in)
+                                        }
+                                        is AccountAuthResult.Failure -> {
+                                            accountMessage = context.getString(emailAuthErrorMessageRes(result.code))
+                                        }
+                                        AccountAuthResult.SignedOut -> accountSession = null
+                                    }
+                                    emailBusy = false
+                                }
+                            },
+                            onRegister = { email, password ->
+                                scope.launch {
+                                    emailBusy = true
+                                    accountMessage = null
+                                    when (val result = emailAuthClient.register(email, password)) {
+                                        is AccountAuthResult.Success -> {
+                                            accountSession = result.session
+                                            accountMessage = context.getString(R.string.auth_account_created)
+                                        }
+                                        is AccountAuthResult.Failure -> {
+                                            accountMessage = context.getString(emailAuthErrorMessageRes(result.code))
+                                        }
+                                        AccountAuthResult.SignedOut -> accountSession = null
+                                    }
+                                    emailBusy = false
+                                }
+                            },
+                            onForgotPassword = {
+                                resetDialogMessage = null
+                                showResetDialog = true
+                            },
+                        )
                     }
                 }
                 is AccountPresentation.SignedIn -> Card(
@@ -300,6 +359,21 @@ internal fun MembershipDestination(padding: PaddingValues) {
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
                         )
 
+                        // Scenario A: attach email/password sign-in to this account.
+                        LinkEmailIdentitySection(
+                            busy = emailBusy,
+                            onLink = { email, password ->
+                                scope.launch {
+                                    emailBusy = true
+                                    accountMessage = when (val result = emailAuthClient.linkEmailIdentity(email, password)) {
+                                        EmailFlowResult.Success -> context.getString(R.string.auth_link_email_done)
+                                        is EmailFlowResult.Failure -> context.getString(emailAuthErrorMessageRes(result.code))
+                                    }
+                                    emailBusy = false
+                                }
+                            },
+                        )
+
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -336,6 +410,39 @@ internal fun MembershipDestination(padding: PaddingValues) {
                         }
                     }
                 }
+            }
+            if (showResetDialog) {
+                PasswordResetDialog(
+                    busy = emailBusy,
+                    message = resetDialogMessage,
+                    onDismissRequest = { showResetDialog = false },
+                    onRequestReset = { email ->
+                        emailBusy = true
+                        val result = emailAuthClient.forgotPassword(email)
+                        emailBusy = false
+                        resetDialogMessage = when (result) {
+                            EmailFlowResult.Success -> context.getString(R.string.auth_reset_request_hint)
+                            is EmailFlowResult.Failure -> context.getString(emailAuthErrorMessageRes(result.code))
+                        }
+                        EmailFlowResult.Success
+                    },
+                    onResetPassword = { token, newPassword ->
+                        emailBusy = true
+                        val result = emailAuthClient.resetPassword(token, newPassword)
+                        emailBusy = false
+                        when (result) {
+                            EmailFlowResult.Success -> {
+                                resetDialogMessage = null
+                                showResetDialog = false
+                                accountMessage = context.getString(R.string.auth_reset_done)
+                            }
+                            is EmailFlowResult.Failure -> {
+                                resetDialogMessage = context.getString(emailAuthErrorMessageRes(result.code))
+                            }
+                        }
+                        result
+                    },
+                )
             }
             if (showDeleteDialog) {
                 AlertDialog(

@@ -58,6 +58,7 @@ internal fun SettingsDestination(
     onOnboardingActionConsumed: () -> Unit = {},
     appPreferences: AppPreferences? = null,
     onThemeChanged: (AppThemeMode) -> Unit = {},
+    feedManager: MobileFeedManager,
 ) {
     val context = LocalContext.current
     val preferences = remember(context, appPreferences) {
@@ -148,6 +149,7 @@ internal fun SettingsDestination(
                     SettingsTab.Sources -> {
                         CategorizedFeedManagementDestination(
                             padding = PaddingValues(0.dp),
+                            feedManager = feedManager,
                             onboardingAction = onboardingAction,
                             onOnboardingActionConsumed = onOnboardingActionConsumed,
                         )

@@ -18,6 +18,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
+import ink.underflo.wristbrief.mobile.sync.enqueueItemState
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.concurrent.TimeUnit
@@ -81,6 +82,8 @@ fun mobileItemId(
 interface MobileInboxStore {
     fun load(): List<MobileFeedItem>
     fun save(items: List<MobileFeedItem>)
+    /** Optional capability: drop cached items belonging to one feed (subscription deletion cleanup). */
+    fun deleteItemsForFeed(feedId: String) {}
 }
 
 internal fun decodeMobileFeedItems(raw: String): List<MobileFeedItem> = runCatching {
@@ -166,14 +169,26 @@ interface ItemStateReaderAndWriter {
 class SyncManagerItemStateAdapter(
     private val syncManager: PhoneItemStateSyncManager,
     private val clock: () -> Long = System::currentTimeMillis,
+    private val cloudOutbox: ink.underflo.wristbrief.mobile.sync.CloudSyncOutbox? = null,
+    private val onCloudMutation: (() -> Unit)? = null,
 ) : ItemStateReaderAndWriter {
     override fun isRead(itemId: String): Boolean = syncManager.state(itemId)?.read?.value == true
     override fun isSaved(itemId: String): Boolean = syncManager.state(itemId)?.saved?.value == true
     override fun setRead(itemId: String, isRead: Boolean) {
-        syncManager.recordRead(itemId, isRead, nowEpochMs = clock())
+        val now = clock()
+        syncManager.recordRead(itemId, isRead, nowEpochMs = now)
+        cloudOutbox?.let { outbox ->
+            outbox.enqueueItemState(itemId, isRead = isRead, nowEpochMs = now)
+            onCloudMutation?.invoke()
+        }
     }
     override fun setSaved(itemId: String, isSaved: Boolean) {
-        syncManager.recordSaved(itemId, isSaved, nowEpochMs = clock())
+        val now = clock()
+        syncManager.recordSaved(itemId, isSaved, nowEpochMs = now)
+        cloudOutbox?.let { outbox ->
+            outbox.enqueueItemState(itemId, isSaved = isSaved, nowEpochMs = now)
+            onCloudMutation?.invoke()
+        }
     }
 }
 

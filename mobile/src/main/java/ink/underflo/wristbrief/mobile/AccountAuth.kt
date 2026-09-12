@@ -70,27 +70,14 @@ interface AccountSessionStorage {
     fun clear()
 }
 
-private class SharedPreferencesAccountSessionStorage(context: Context) : AccountSessionStorage {
-    private val preferences = context.getSharedPreferences("account_session", Context.MODE_PRIVATE)
-    override fun getString(key: String): String? = preferences.getString(key, null)
-    override fun put(token: String, expiresAt: String, userId: String) {
-        preferences.edit()
-            .putString("token", token)
-            .putString("expires_at", expiresAt)
-            .putString("user_id", userId)
-            .apply()
-    }
-    override fun clear() {
-        preferences.edit().clear().apply()
-    }
-}
-
 class AccountSessionPreferences internal constructor(
     private val storage: AccountSessionStorage,
     private val sessionBridge: AccountSessionBridge? = null,
 ) {
+    // Sessions are stored in the Keystore-backed secure store; a legacy plain
+    // SharedPreferences session is migrated transparently on first read.
     constructor(context: Context, sessionBridge: AccountSessionBridge? = null) :
-        this(SharedPreferencesAccountSessionStorage(context), sessionBridge)
+        this(ink.underflo.wristbrief.mobile.auth.MigratingAccountSessionStorage(context), sessionBridge)
 
     fun read(now: java.time.Instant = java.time.Instant.now()): AccountSession? {
         val token = storage.getString("token") ?: return null

@@ -43,6 +43,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import ink.underflo.wristbrief.mobile.articles.ArticleRepository
+import ink.underflo.wristbrief.mobile.articles.plainText
 import ink.underflo.wristbrief.mobile.media.MobilePodcastPlayerController
 import ink.underflo.wristbrief.mobile.media.PodcastPlayerState
 import ink.underflo.wristbrief.mobile.media.formatPlaybackTime
@@ -59,10 +61,31 @@ internal fun ArticleDetailDestination(
     onPlayPodcast: ((MobileFeedItem) -> Unit)? = null,
     playerController: MobilePodcastPlayerController? = null,
     onOpenTranscript: ((MobileFeedItem) -> Unit)? = null,
+    articleRepository: ink.underflo.wristbrief.mobile.articles.ArticleRepository? = null,
+    articleImageLoader: coil.ImageLoader? = null,
 ) {
     val context = LocalContext.current
     var isRead by remember(item.id) { mutableStateOf(inboxRepository.isRead(item.id)) }
     var isSaved by remember(item.id) { mutableStateOf(inboxRepository.isSaved(item.id)) }
+
+    // Full reader: resolve a structured ArticleDocument via the gateway (RSS
+    // full-content first, server extraction as fallback). When unavailable —
+    // offline without cache, signed out, or extraction failed — the legacy
+    // sanitized-description rendering stays as the in-app fallback; the browser
+    // is only ever opened by explicit user action.
+    var articleDocument by remember(item.id) {
+        mutableStateOf<ink.underflo.wristbrief.mobile.articles.ArticleDocument?>(null)
+    }
+    LaunchedEffect(item.id) {
+        if (articleDocument == null) {
+            articleDocument = articleRepository?.loadArticle(
+                url = item.link,
+                rssContent = item.description,
+                title = item.title,
+                sourceName = item.feedTitle,
+            )
+        }
+    }
 
     // Auto-mark read on opening the article
     LaunchedEffect(item.id) {
@@ -75,6 +98,9 @@ internal fun ArticleDetailDestination(
     val sanitized = remember(item.description) {
         ArticleContentSanitizer.sanitize(item.description)
     }
+
+    val document = articleDocument
+    val bodyPlainText = document?.plainText()?.takeIf { it.isNotBlank() } ?: sanitized.plainText
 
     val readingTime = remember(sanitized.readingTimeMinutes) {
         ArticleContentSanitizer.formatReadingTime(sanitized.readingTimeMinutes, Locale.getDefault())
@@ -155,7 +181,7 @@ internal fun ArticleDetailDestination(
                                 Text(stringResource(R.string.action_share))
                             }
                         }
-                        Button(onClick = { onAskAi(item.title, sanitized.plainText.ifBlank { item.title }) }) {
+                        Button(onClick = { onAskAi(item.title, bodyPlainText.ifBlank { item.title }) }) {
                             Text(stringResource(R.string.action_ask_ai))
                         }
                     }
@@ -270,8 +296,23 @@ internal fun ArticleDetailDestination(
                 }
             }
 
-            // Article Body Paragraphs
-            if (sanitized.paragraphs.isNotEmpty()) {
+            // Article Body: structured full-text reader when a document was
+            // resolved, otherwise the sanitized-description fallback.
+            val loadedDocument = document
+            if (loadedDocument != null) {
+                item {
+                    ink.underflo.wristbrief.mobile.articles.ArticleDocumentRenderer(
+                        document = loadedDocument,
+                        imageContent = { image ->
+                            if (articleImageLoader != null) {
+                                ink.underflo.wristbrief.mobile.articles.ArticleImage(image, articleRepository, articleImageLoader)
+                            } else {
+                                ink.underflo.wristbrief.mobile.articles.ArticleImagePlaceholder(image.alt)
+                            }
+                        },
+                    )
+                }
+            } else if (sanitized.paragraphs.isNotEmpty()) {
                 items(sanitized.paragraphs) { paragraph ->
                     Text(
                         text = paragraph,

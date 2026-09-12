@@ -18,6 +18,8 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import ink.underflo.wristbrief.mobile.sync.CloudSyncOutbox
+import ink.underflo.wristbrief.mobile.sync.enqueueSubscription
 
 data class MobileFeedSubscription(
     val id: String,
@@ -152,6 +154,17 @@ class SharedPreferencesMobileFeedStore(context: Context) : MobileFeedStore {
 
 interface FeedSyncPublisher { fun publish(feeds: List<MobileFeedSubscription>) }
 
+/**
+ * Structural lifecycle notifications for subscription changes. Additions and
+ * removals are content-affecting (the inbox should refresh); attribute toggles
+ * are not. Cloud outbox enqueueing happens inside the manager itself.
+ */
+interface MobileFeedListener {
+    fun onSubscriptionAdded(feed: MobileFeedSubscription) {}
+    fun onSubscriptionUpdated(feed: MobileFeedSubscription) {}
+    fun onSubscriptionRemoved(feed: MobileFeedSubscription) {}
+}
+
 internal fun wearSyncPayloadFor(feeds: List<MobileFeedSubscription>): WearSyncPayload = WearSyncPayload(
     subscriptions = feeds.filter { it.sendToWatch }.map {
         SyncFeed(it.id, it.title, it.url, it.enabled, normalizeWatchKeywords(it.watchKeywords))
@@ -174,6 +187,8 @@ class MobileFeedManager(
     private val store: MobileFeedStore,
     private val probe: FeedProbe,
     private val publisher: FeedSyncPublisher,
+    private val cloudOutbox: CloudSyncOutbox? = null,
+    private val listener: MobileFeedListener? = null,
 ) {
     fun feeds(): List<MobileFeedSubscription> = store.load()
 
@@ -195,7 +210,9 @@ class MobileFeedManager(
             category = normalizeFeedCategory(category),
             watchKeywords = normalizeWatchKeywords(watchKeywords),
         )
-        return persist(store.load() + feed)
+        val result = persist(store.load() + feed)
+        notifyAdded(feed)
+        return result
     }
 
     suspend fun update(
@@ -218,28 +235,88 @@ class MobileFeedManager(
             category = normalizeFeedCategory(category),
             watchKeywords = watchKeywords?.let(::normalizeWatchKeywords) ?: old.watchKeywords,
         )
-        return persist(current.map { if (it.id == id) updated else it })
+        val result = persist(current.map { if (it.id == id) updated else it })
+        notifyAdded(updated)
+        return result
     }
 
     fun setEnabled(id: String, enabled: Boolean): FeedMutationResult =
-        persist(store.load().map { if (it.id == id) it.copy(enabled = enabled) else it })
+        mutateAttribute(id) { it.copy(enabled = enabled) }
 
     fun setSendToWatch(id: String, sendToWatch: Boolean): FeedMutationResult =
-        persist(store.load().map { if (it.id == id) it.copy(sendToWatch = sendToWatch) else it })
+        mutateAttribute(id) { it.copy(sendToWatch = sendToWatch) }
 
     fun setCategory(id: String, category: String?): FeedMutationResult =
-        persist(store.load().map { if (it.id == id) it.copy(category = normalizeFeedCategory(category)) else it })
+        mutateAttribute(id) { it.copy(category = normalizeFeedCategory(category)) }
 
     fun setWatchKeywords(id: String, watchKeywords: Iterable<String>): FeedMutationResult =
-        persist(store.load().map { if (it.id == id) it.copy(watchKeywords = normalizeWatchKeywords(watchKeywords)) else it })
+        mutateAttribute(id) { it.copy(watchKeywords = normalizeWatchKeywords(watchKeywords)) }
 
-    fun remove(id: String): FeedMutationResult = persist(store.load().filterNot { it.id == id })
+    fun remove(id: String): FeedMutationResult {
+        val existing = store.load().find { it.id == id } ?: return FeedMutationResult.Error("Feed no longer exists")
+        val result = persist(store.load().filterNot { it.id == id })
+        notifyRemoved(existing)
+        return result
+    }
 
     internal suspend fun validateForBulkImport(url: String): String? = probe.validate(url)
 
-    internal fun persistBulkImport(feeds: List<MobileFeedSubscription>): FeedMutationResult.Success = persist(feeds)
+    internal fun persistBulkImport(feeds: List<MobileFeedSubscription>): FeedMutationResult.Success {
+        val before = store.load().map { it.id }.toSet()
+        val result = persist(feeds)
+        feeds.filter { it.id !in before }.forEach(::notifyAdded)
+        return result
+    }
 
     private fun persist(feeds: List<MobileFeedSubscription>): FeedMutationResult.Success {
         store.save(feeds); publisher.publish(feeds); return FeedMutationResult.Success(feeds)
+    }
+
+    private fun mutateAttribute(id: String, transform: (MobileFeedSubscription) -> MobileFeedSubscription): FeedMutationResult {
+        val current = store.load()
+        val old = current.find { it.id == id } ?: return FeedMutationResult.Error("Feed no longer exists")
+        val updated = transform(old)
+        val result = persist(current.map { if (it.id == id) updated else it })
+        notifyUpdated(updated)
+        return result
+    }
+
+    private fun notifyAdded(feed: MobileFeedSubscription) {
+        cloudOutbox?.enqueueSubscription(
+            subscriptionId = feed.id,
+            feedUrl = feed.url,
+            nowEpochMs = System.currentTimeMillis(),
+            title = feed.title,
+            category = feed.category,
+            enabled = feed.enabled,
+            sendToWatch = feed.sendToWatch,
+            watchKeywords = feed.watchKeywords,
+        )
+        listener?.onSubscriptionAdded(feed)
+    }
+
+    private fun notifyUpdated(feed: MobileFeedSubscription) {
+        cloudOutbox?.enqueueSubscription(
+            subscriptionId = feed.id,
+            feedUrl = feed.url,
+            nowEpochMs = System.currentTimeMillis(),
+            title = feed.title,
+            category = feed.category,
+            enabled = feed.enabled,
+            sendToWatch = feed.sendToWatch,
+            watchKeywords = feed.watchKeywords,
+        )
+        listener?.onSubscriptionUpdated(feed)
+    }
+
+    /** Deletion is a cloud tombstone (user_subscriptions.deleted_at), never a global content delete. */
+    private fun notifyRemoved(feed: MobileFeedSubscription) {
+        cloudOutbox?.enqueueSubscription(
+            subscriptionId = feed.id,
+            feedUrl = feed.url,
+            nowEpochMs = System.currentTimeMillis(),
+            isDeleted = true,
+        )
+        listener?.onSubscriptionRemoved(feed)
     }
 }

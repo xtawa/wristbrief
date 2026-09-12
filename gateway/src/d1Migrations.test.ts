@@ -12,9 +12,9 @@ describe("D1 SQL Migrations Chain", () => {
       .filter((file) => file.endsWith(".sql"))
       .sort();
 
-    expect(migrationFiles.length).toBeGreaterThanOrEqual(8);
+    expect(migrationFiles.length).toBeGreaterThanOrEqual(12);
     expect(migrationFiles[0]).toBe("0001_membership.sql");
-    expect(migrationFiles[migrationFiles.length - 1]).toBe("0008_cloud_sync_and_content_registry.sql");
+    expect(migrationFiles[migrationFiles.length - 1]).toBe("0012_ai_provider_admin.sql");
 
     const db = new DatabaseSync(":memory:");
 
@@ -50,6 +50,36 @@ describe("D1 SQL Migrations Chain", () => {
     expect(tableNames).toContain("user_artifact_access");
     expect(tableNames).toContain("artifact_jobs");
     expect(tableNames).toContain("credit_transactions");
+    expect(tableNames).toContain("user_roles");
+    expect(tableNames).toContain("bootstrap_state");
+    expect(tableNames).toContain("system_settings");
+    expect(tableNames).toContain("admin_web_sessions");
+    expect(tableNames).toContain("email_credentials");
+    expect(tableNames).toContain("email_verification_tokens");
+    expect(tableNames).toContain("password_reset_tokens");
+    expect(tableNames).toContain("admin_audit_log");
+    expect(tableNames).toContain("auth_rate_limits");
+    expect(tableNames).toContain("article_content_cache");
+    expect(tableNames).toContain("article_media_cache");
+    expect(tableNames).toContain("ai_provider_configs");
+    expect(tableNames).toContain("ai_provider_health");
+
+    // Migration 0009 rebuilds identities to allow provider IN ('google', 'email').
+    const identityCols = db.prepare("PRAGMA table_info(identities)").all() as Array<{ name: string }>;
+    expect(identityCols.map((c) => c.name)).toContain("provider");
+    db.prepare("INSERT INTO users (id) VALUES ('u-email-probe')").run();
+    db.prepare(
+      "INSERT INTO identities (provider, provider_subject, user_id, email) VALUES ('email', 'cred-1', 'u-email-probe', 'a@example.com')"
+    ).run();
+
+    // Bootstrap singleton is seeded exactly once with the window open.
+    const bootstrap = db.prepare("SELECT * FROM bootstrap_state").get() as Record<string, unknown>;
+    expect(bootstrap.singleton_id).toBe(1);
+    expect(bootstrap.first_admin_user_id).toBeNull();
+    expect(bootstrap.web_registration_enabled).toBe(1);
+
+    const settings = db.prepare("SELECT value_json FROM system_settings WHERE key = 'registration_mode'").get() as Record<string, unknown>;
+    expect(settings.value_json).toBe('"CLOSED"');
 
     // Verify play_purchase_bindings schema includes migration 0007 alterations
     const bindingCols = db

@@ -8,8 +8,18 @@ import org.junit.Test
 class SampleFeedsTest {
 
     @Test
-    fun curatedFeeds_areNotEmpty() {
+    fun curatedFeeds_areAvailableByDefault() {
         assertTrue(SampleFeeds.curatedFeeds.isNotEmpty())
+    }
+
+    @Test
+    fun curatedFeeds_coverCoreDiscoveryCategories() {
+        val categories = SampleFeeds.curatedFeeds.map { it.category }.toSet()
+        val hasPodcast = SampleFeeds.curatedFeeds.any { it.isPodcast }
+
+        assertTrue("Technology", categories.any { it.equals("Tech", ignoreCase = true) })
+        assertTrue("News", categories.any { it.equals("News", ignoreCase = true) })
+        assertTrue("Podcasts", hasPodcast)
     }
 
     @Test

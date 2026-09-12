@@ -38,50 +38,82 @@ internal fun materialYouExpressiveTypography(): Typography = Typography().copy(
     bodyLarge = TextStyle(fontSize = 16.sp, lineHeight = 24.sp),
 )
 
+internal val NeutralGlassDarkColorScheme: ColorScheme = darkColorScheme(
+    surface = Color(0xFF111316),
+    surfaceDim = Color(0xFF111316),
+    surfaceBright = Color(0xFF37393D),
+    surfaceContainerLowest = Color(0xFF0C0E11),
+    surfaceContainerLow = Color(0xFF1A1C1F),
+    surfaceContainer = Color(0xFF1E2023),
+    surfaceContainerHigh = Color(0xFF282A2D),
+    surfaceContainerHighest = Color(0xFF333538),
+    onSurface = Color(0xFFE2E2E6),
+    onSurfaceVariant = Color(0xFFC4C6CD),
+    inverseSurface = Color(0xFFE2E2E6),
+    inverseOnSurface = Color(0xFF2F3034),
+    outline = Color(0xFF8E9197),
+    outlineVariant = Color(0xFF43474C),
+    primary = Color(0xFFB5C8DF),
+    onPrimary = Color(0xFF203243),
+    primaryContainer = Color(0xFF2C3E50),
+    onPrimaryContainer = Color(0xFF96A9BE),
+    inversePrimary = Color(0xFF4E6073),
+    secondary = Color(0xFFADC6FF),
+    onSecondary = Color(0xFF002E6A),
+    secondaryContainer = Color(0xFF0566D9),
+    onSecondaryContainer = Color(0xFFE6ECFF),
+    tertiary = Color(0xFF6BD8CB),
+    onTertiary = Color(0xFF003732),
+    tertiaryContainer = Color(0xFF00453F),
+    onTertiaryContainer = Color(0xFF48B8AB),
+    error = Color(0xFFFFB4AB),
+    onError = Color(0xFF690005),
+    errorContainer = Color(0xFF93000A),
+    onErrorContainer = Color(0xFFFFDAD6),
+    background = Color(0xFF111316),
+    onBackground = Color(0xFFE2E2E6),
+    surfaceVariant = Color(0xFF333538),
+)
+
+internal val EditorialLightGlassColorScheme: ColorScheme = lightColorScheme(
+    surface = Color(0xFFF8F9FA),
+    surfaceDim = Color(0xFFD9DADB),
+    surfaceBright = Color(0xFFF8F9FA),
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceContainerLow = Color(0xFFF5F6F8),
+    surfaceContainer = Color(0xFFF1F3F5),
+    surfaceContainerHigh = Color(0xFFE9ECEF),
+    surfaceContainerHighest = Color(0xFFDEE2E6),
+    onSurface = Color(0xFF191C1E),
+    onSurfaceVariant = Color(0xFF43474E),
+    inverseSurface = Color(0xFF2E3132),
+    inverseOnSurface = Color(0xFFF0F1F2),
+    outline = Color(0xFF73777F),
+    outlineVariant = Color(0x0F000000),
+    primary = Color(0xFF004C6E),
+    onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = Color(0xFFC8E6FF),
+    onPrimaryContainer = Color(0xFF001E2E),
+    inversePrimary = Color(0xFF88CEFF),
+    secondary = Color(0xFF016874),
+    onSecondary = Color(0xFFFFFFFF),
+    secondaryContainer = Color(0xFF97F0FF),
+    onSecondaryContainer = Color(0xFF001F24),
+    tertiary = Color(0xFF42474C),
+    onTertiary = Color(0xFFFFFFFF),
+    tertiaryContainer = Color(0xFF5A5F63),
+    onTertiaryContainer = Color(0xFFD5D9DE),
+    error = Color(0xFFBA1A1A),
+    onError = Color(0xFFFFFFFF),
+    errorContainer = Color(0xFFFFDAD6),
+    onErrorContainer = Color(0xFF93000A),
+    background = Color(0xFFF8F9FA),
+    onBackground = Color(0xFF191C1D),
+    surfaceVariant = Color(0xFFE1E3E4),
+)
+
 internal fun wristBriefFallbackColorScheme(darkTheme: Boolean): ColorScheme =
-    if (darkTheme) {
-        darkColorScheme(
-            primary = Color(0xFF82D5D2),
-            onPrimary = Color(0xFF003736),
-            primaryContainer = Color(0xFF004F4F),
-            onPrimaryContainer = Color(0xFF9CF1F0),
-            secondary = Color(0xFFB1CCC8),
-            onSecondary = Color(0xFF1C3531),
-            secondaryContainer = Color(0xFF334B48),
-            onSecondaryContainer = Color(0xFFCDE8E3),
-            tertiary = Color(0xFFD0BBE6),
-            onTertiary = Color(0xFF3A2942),
-            tertiaryContainer = Color(0xFF513F5A),
-            onTertiaryContainer = Color(0xFFF2DAFF),
-            background = Color(0xFF191C1C),
-            onBackground = Color(0xFFE0E3E2),
-            surface = Color(0xFF191C1C),
-            onSurface = Color(0xFFE0E3E2),
-            surfaceVariant = Color(0xFF3F4847),
-            onSurfaceVariant = Color(0xFFBEC8C7),
-        )
-    } else {
-        lightColorScheme(
-            primary = Color(0xFF006A6A),
-            onPrimary = Color(0xFFFFFFFF),
-            primaryContainer = Color(0xFF9CF1F0),
-            onPrimaryContainer = Color(0xFF002020),
-            secondary = Color(0xFF4A635F),
-            onSecondary = Color(0xFFFFFFFF),
-            secondaryContainer = Color(0xFFCDE8E3),
-            onSecondaryContainer = Color(0xFF05201C),
-            tertiary = Color(0xFF6B5876),
-            onTertiary = Color(0xFFFFFFFF),
-            tertiaryContainer = Color(0xFFF2DAFF),
-            onTertiaryContainer = Color(0xFF251431),
-            background = Color(0xFFF4FBFA),
-            onBackground = Color(0xFF161D1D),
-            surface = Color(0xFFF4FBFA),
-            onSurface = Color(0xFF161D1D),
-            surfaceVariant = Color(0xFFDAE4E3),
-            onSurfaceVariant = Color(0xFF3F4847),
-        )
-    }
+    if (darkTheme) NeutralGlassDarkColorScheme else EditorialLightGlassColorScheme
 
 internal fun resolveDarkTheme(themeMode: AppThemeMode, systemDark: Boolean): Boolean =
     when (themeMode) {
@@ -96,12 +128,7 @@ internal fun WristBriefMobileTheme(
     darkTheme: Boolean = resolveDarkTheme(themeMode, isSystemInDarkTheme()),
     content: @Composable () -> Unit,
 ) {
-    val context = LocalContext.current
-    val colorScheme = when {
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && darkTheme -> dynamicDarkColorScheme(context)
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> dynamicLightColorScheme(context)
-        else -> wristBriefFallbackColorScheme(darkTheme)
-    }
+    val colorScheme = wristBriefFallbackColorScheme(darkTheme)
 
     MaterialTheme(
         colorScheme = colorScheme,

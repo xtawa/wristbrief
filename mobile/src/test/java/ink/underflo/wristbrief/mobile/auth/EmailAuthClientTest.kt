@@ -74,6 +74,7 @@ class EmailAuthClientTest {
         assertEquals(R.string.auth_error_email_taken, emailAuthErrorMessageRes("email_already_registered"))
         assertEquals(R.string.auth_error_rate_limited, emailAuthErrorMessageRes("rate_limited"))
         assertEquals(R.string.auth_error_network, emailAuthErrorMessageRes("auth_network_error"))
+        assertEquals(R.string.auth_error_not_configured, emailAuthErrorMessageRes("auth_not_configured"))
         assertEquals(R.string.auth_error_generic, emailAuthErrorMessageRes("something_unexpected"))
         assertEquals(R.string.auth_error_generic, emailAuthErrorMessageRes(null))
     }

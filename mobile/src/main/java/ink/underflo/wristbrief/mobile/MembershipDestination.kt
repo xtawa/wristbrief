@@ -223,7 +223,9 @@ internal fun MembershipDestination(padding: PaddingValues) {
                                             accountMessage = context.getString(R.string.membership_signed_in)
                                         }
                                         is AccountAuthResult.Failure -> {
-                                            accountMessage = context.getString(R.string.membership_sign_in_failed)
+                                            if (result.code != "cancelled") {
+                                                accountMessage = context.getString(emailAuthErrorMessageRes(result.code))
+                                            }
                                         }
                                         AccountAuthResult.SignedOut -> accountSession = null
                                     }

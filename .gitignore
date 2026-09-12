@@ -9,7 +9,7 @@ out/
 .gradle/
 .kotlin/
 **/build/
-
+gradle.properties
 # Android local machine configuration
 local.properties
 captures/
@@ -44,6 +44,7 @@ coverage/
 .env.*
 !.env.example
 !.env.*.example
+.env.cloudflare.local
 
 # Logs and crash dumps
 *.log

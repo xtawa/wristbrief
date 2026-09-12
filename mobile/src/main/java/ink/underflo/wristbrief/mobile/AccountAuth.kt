@@ -1,10 +1,14 @@
 package ink.underflo.wristbrief.mobile
 
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
+import android.util.Log
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialCancellationException
 import ink.underflo.wristbrief.mobile.artifacts.TranscriptCache
 import ink.underflo.wristbrief.mobile.sync.CloudSyncOutbox
 import ink.underflo.wristbrief.mobile.sync.CloudSyncPreferences
@@ -149,13 +153,29 @@ class GoogleAccountAuthClient(
             .build()
 
         val idToken = try {
-            val result = credentialManager.getCredential(context, credentialRequest)
+            val activity = (context as? Activity) ?: (context as? ContextWrapper)?.let {
+                var c: Context = it
+                while (c is ContextWrapper) {
+                    if (c is Activity) break
+                    c = c.baseContext
+                }
+                c as? Activity
+            }
+            val targetContext = activity ?: context
+            val result = credentialManager.getCredential(targetContext, credentialRequest)
             val credential = result.credential
             if (credential !is CustomCredential || credential.type != GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
                 return AccountAuthResult.Failure("unsupported_google_credential")
             }
             GoogleIdTokenCredential.createFrom(credential.data).idToken
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.w("GoogleAccountAuth", "Google sign in error: ${e.javaClass.simpleName} - ${e.message}", e)
+            if (e is GetCredentialCancellationException ||
+                e.javaClass.name.contains("Cancellation") ||
+                e.message?.contains("cancel", ignoreCase = true) == true
+            ) {
+                return AccountAuthResult.Failure("cancelled")
+            }
             return AccountAuthResult.Failure("google_sign_in_failed")
         }
 

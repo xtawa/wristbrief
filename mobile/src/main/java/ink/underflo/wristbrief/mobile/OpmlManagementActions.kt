@@ -48,6 +48,7 @@ internal fun OpmlManagementActions(
     val scope = rememberCoroutineScope()
     var urlInput by remember { mutableStateOf("") }
     var urlInputError by remember { mutableStateOf(false) }
+    var urlInputErrorText by remember { mutableStateOf<String?>(null) }
     var pendingPreview by remember { mutableStateOf<OpmlImportPreview?>(null) }
     val previewApi = remember(context) {
         HttpOpmlPreviewApi(BuildConfig.GATEWAY_BASE_URL) {
@@ -195,11 +196,20 @@ internal fun OpmlManagementActions(
                 onValueChange = {
                     urlInput = it
                     urlInputError = false
+                    urlInputErrorText = null
                 },
                 label = { Text(stringResource(R.string.opml_import_from_url_hint)) },
                 singleLine = true,
                 enabled = !busy,
-                isError = urlInputError,
+                isError = urlInputError || urlInputErrorText != null,
+                supportingText = {
+                    urlInputErrorText?.let { error ->
+                        Text(
+                            text = error,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                },
                 modifier = Modifier.fillMaxWidth(),
             )
             OutlinedButton(
@@ -207,20 +217,26 @@ internal fun OpmlManagementActions(
                     val url = urlInput.trim()
                     if (url.isEmpty()) {
                         urlInputError = true
-                        onStatus(context.getString(R.string.opml_preview_error_invalid_url))
+                        urlInputErrorText = context.getString(R.string.opml_preview_error_invalid_url)
                         return@OutlinedButton
                     }
                     urlInputError = false
+                    urlInputErrorText = null
                     if (AccountSessionPreferences(context).read() == null) {
-                        onStatus(context.getString(R.string.opml_preview_error_unauthorized))
+                        urlInputErrorText = context.getString(R.string.opml_preview_error_unauthorized)
                         return@OutlinedButton
                     }
                     scope.launch {
                         onBusyChange(true)
                         onStatus(context.getString(R.string.opml_importing))
                         when (val outcome = previewApi.preview(url)) {
-                            is OpmlPreviewOutcome.Ready -> pendingPreview = outcome.preview
-                            is OpmlPreviewOutcome.Error -> onStatus(context.getString(opmlPreviewErrorMessageRes(outcome.code)))
+                            is OpmlPreviewOutcome.Ready -> {
+                                urlInputErrorText = null
+                                pendingPreview = outcome.preview
+                            }
+                            is OpmlPreviewOutcome.Error -> {
+                                urlInputErrorText = context.getString(opmlPreviewErrorMessageRes(outcome.code))
+                            }
                         }
                         onBusyChange(false)
                     }

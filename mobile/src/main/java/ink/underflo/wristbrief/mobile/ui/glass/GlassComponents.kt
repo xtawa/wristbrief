@@ -14,8 +14,10 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -97,6 +99,7 @@ fun GlassHeader(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .statusBarsPadding()
                 .padding(horizontal = 18.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -285,51 +288,58 @@ fun GlassBottomBar(
     modifier: Modifier = Modifier,
     darkTheme: Boolean = isSystemInDarkTheme(),
 ) {
-    GlassSurface(
+    Box(
         modifier = modifier
             .fillMaxWidth()
+            .navigationBarsPadding()
             .padding(horizontal = 16.dp, vertical = 6.dp),
-        strong = true,
-        cornerRadius = GlassTokens.HeroRadius,
-        darkTheme = darkTheme,
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(6.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically,
+        GlassSurface(
+            modifier = Modifier.fillMaxWidth(),
+            strong = true,
+            cornerRadius = GlassTokens.HeroRadius,
+            darkTheme = darkTheme,
         ) {
-            items.forEachIndexed { index, item ->
-                val selected = selectedIndex == index
-                val label = item.first
-                val iconComposable = item.second
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 6.dp, horizontal = 4.dp),
+                horizontalArrangement = Arrangement.SpaceAround,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                items.forEachIndexed { index, item ->
+                    val selected = selectedIndex == index
+                    val label = item.first
+                    val iconComposable = item.second
 
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .defaultMinSize(minHeight = 56.dp)
-                        .clip(RoundedCornerShape(GlassTokens.ControlRadius))
-                        .background(
-                            if (selected) GlassTokens.controlSelected(darkTheme)
-                            else Color.Transparent,
-                        )
-                        .clickable { onSelect(index) }
-                        .semantics { role = Role.Tab }
-                        .padding(horizontal = 14.dp, vertical = 8.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(GlassTokens.CompactRadius))
+                            .background(
+                                if (selected) GlassTokens.controlSelected(darkTheme)
+                                else Color.Transparent,
+                            )
+                            .clickable { onSelect(index) }
+                            .semantics { role = Role.Tab }
+                            .padding(vertical = 8.dp, horizontal = 2.dp),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        iconComposable(selected)
-                        Text(
-                            text = label,
-                            color = if (selected) GlassTokens.onControlSelected(darkTheme) else GlassTokens.textSecondary(darkTheme),
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                        )
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                        ) {
+                            iconComposable(selected)
+                            Spacer(Modifier.height(3.dp))
+                            Text(
+                                text = label,
+                                color = if (selected) GlassTokens.onControlSelected(darkTheme) else GlassTokens.textSecondary(darkTheme),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
                 }
             }

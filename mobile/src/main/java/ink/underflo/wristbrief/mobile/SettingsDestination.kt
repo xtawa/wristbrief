@@ -1,8 +1,13 @@
 package ink.underflo.wristbrief.mobile
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.runtime.CompositionLocalProvider
 import ink.underflo.wristbrief.mobile.ui.BackIconButton
 import ink.underflo.wristbrief.mobile.ui.glass.GlassHeader
+import ink.underflo.wristbrief.mobile.ui.glass.GlassTokens
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -23,8 +28,8 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -54,41 +59,27 @@ internal enum class SettingsTab { Sources, Preferences, Account, About }
 @Composable
 internal fun SettingsDestination(
     onBack: () -> Unit,
-    onReplayOnboarding: () -> Unit,
     onboardingAction: OnboardingAction? = null,
     onOnboardingActionConsumed: () -> Unit = {},
     appPreferences: AppPreferences? = null,
     onThemeChanged: (AppThemeMode) -> Unit = {},
     feedManager: MobileFeedManager,
     darkTheme: Boolean = androidx.compose.foundation.isSystemInDarkTheme(),
+    initialTab: SettingsTab = SettingsTab.Sources,
 ) {
     val context = LocalContext.current
     val preferences = remember(context, appPreferences) {
         appPreferences ?: AppPreferences(context)
     }
 
-    var selectedTab by rememberSaveable { mutableStateOf(SettingsTab.Sources) }
+    var selectedTab by rememberSaveable(initialTab) { mutableStateOf(initialTab) }
     var currentTheme by rememberSaveable { mutableStateOf(preferences.getThemeMode()) }
     var currentInterval by rememberSaveable { mutableStateOf(preferences.getRefreshInterval()) }
     var wifiOnly by rememberSaveable { mutableStateOf(preferences.isWifiOnly()) }
     var wearSync by rememberSaveable { mutableStateOf(preferences.isWearSyncEnabled()) }
     var notifications by rememberSaveable { mutableStateOf(preferences.isNotificationsEnabled()) }
 
-    var showPrivacyDialog by rememberSaveable { mutableStateOf(false) }
     var showLicensesDialog by rememberSaveable { mutableStateOf(false) }
-
-    if (showPrivacyDialog) {
-        AlertDialog(
-            onDismissRequest = { showPrivacyDialog = false },
-            title = { Text(stringResource(R.string.settings_privacy_policy_title)) },
-            text = { Text(stringResource(R.string.settings_privacy_policy_body)) },
-            confirmButton = {
-                TextButton(onClick = { showPrivacyDialog = false }) {
-                    Text(stringResource(R.string.dialog_ok))
-                }
-            },
-        )
-    }
 
     if (showLicensesDialog) {
         AlertDialog(
@@ -104,49 +95,95 @@ internal fun SettingsDestination(
     }
 
     Scaffold(
-        containerColor = ink.underflo.wristbrief.mobile.ui.glass.GlassTokens.canvas(darkTheme),
+        containerColor = GlassTokens.canvas(darkTheme),
+        contentColor = GlassTokens.textPrimary(darkTheme),
         topBar = {
             GlassHeader(
                 title = stringResource(R.string.settings_title),
-                subtitle = stringResource(R.string.settings_sources_subtitle),
+                subtitle = when (selectedTab) {
+                    SettingsTab.Sources -> stringResource(R.string.settings_sources_subtitle)
+                    SettingsTab.Preferences -> stringResource(R.string.settings_preferences_title)
+                    SettingsTab.Account -> stringResource(R.string.settings_account_title)
+                    SettingsTab.About -> stringResource(R.string.settings_about_title)
+                },
                 darkTheme = darkTheme,
                 navigationIcon = { BackIconButton(onClick = onBack) },
             )
         },
     ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-            contentAlignment = Alignment.TopCenter,
+        CompositionLocalProvider(
+            LocalContentColor provides GlassTokens.textPrimary(darkTheme)
         ) {
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .widthIn(max = 840.dp),
+                    .padding(padding),
+                contentAlignment = Alignment.TopCenter,
             ) {
-                PrimaryTabRow(selectedTabIndex = selectedTab.ordinal) {
-                    Tab(
-                        selected = selectedTab == SettingsTab.Sources,
-                        onClick = { selectedTab = SettingsTab.Sources },
-                        text = { Text(stringResource(R.string.settings_sources_title), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
-                    )
-                    Tab(
-                        selected = selectedTab == SettingsTab.Preferences,
-                        onClick = { selectedTab = SettingsTab.Preferences },
-                        text = { Text(stringResource(R.string.settings_preferences_title), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
-                    )
-                    Tab(
-                        selected = selectedTab == SettingsTab.Account,
-                        onClick = { selectedTab = SettingsTab.Account },
-                        text = { Text(stringResource(R.string.settings_account_title), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
-                    )
-                    Tab(
-                        selected = selectedTab == SettingsTab.About,
-                        onClick = { selectedTab = SettingsTab.About },
-                        text = { Text(stringResource(R.string.settings_about_title), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
-                    )
-                }
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .widthIn(max = 840.dp),
+                ) {
+                    ScrollableTabRow(
+                        selectedTabIndex = selectedTab.ordinal,
+                        edgePadding = 16.dp,
+                        containerColor = GlassTokens.surfaceGlassStrong(darkTheme),
+                        contentColor = GlassTokens.textPrimary(darkTheme),
+                    ) {
+                        Tab(
+                            selected = selectedTab == SettingsTab.Sources,
+                            onClick = { selectedTab = SettingsTab.Sources },
+                            text = {
+                                Text(
+                                    stringResource(R.string.settings_sources_title),
+                                    color = if (selectedTab == SettingsTab.Sources) MaterialTheme.colorScheme.primary else GlassTokens.textSecondary(darkTheme),
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            },
+                        )
+                        Tab(
+                            selected = selectedTab == SettingsTab.Preferences,
+                            onClick = { selectedTab = SettingsTab.Preferences },
+                            text = {
+                                Text(
+                                    stringResource(R.string.settings_preferences_title),
+                                    color = if (selectedTab == SettingsTab.Preferences) MaterialTheme.colorScheme.primary else GlassTokens.textSecondary(darkTheme),
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            },
+                        )
+                        Tab(
+                            selected = selectedTab == SettingsTab.Account,
+                            onClick = { selectedTab = SettingsTab.Account },
+                            text = {
+                                Text(
+                                    stringResource(R.string.settings_account_title),
+                                    color = if (selectedTab == SettingsTab.Account) MaterialTheme.colorScheme.primary else GlassTokens.textSecondary(darkTheme),
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            },
+                        )
+                        Tab(
+                            selected = selectedTab == SettingsTab.About,
+                            onClick = { selectedTab = SettingsTab.About },
+                            text = {
+                                Text(
+                                    stringResource(R.string.settings_about_title),
+                                    color = if (selectedTab == SettingsTab.About) MaterialTheme.colorScheme.primary else GlassTokens.textSecondary(darkTheme),
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            },
+                        )
+                    }
 
                 when (selectedTab) {
                     SettingsTab.Sources -> {
@@ -415,39 +452,6 @@ internal fun SettingsDestination(
                                 }
                             }
 
-                            // Replay Onboarding Card
-                            item {
-                                Card(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = MaterialTheme.shapes.extraLarge,
-                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-                                ) {
-                                    Column(
-                                        modifier = Modifier.padding(20.dp),
-                                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                                    ) {
-                                        Text(
-                                            text = stringResource(R.string.settings_replay_onboarding_title),
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.SemiBold,
-                                        )
-                                        Text(
-                                            text = stringResource(R.string.settings_replay_onboarding_desc),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                        OutlinedButton(
-                                            onClick = onReplayOnboarding,
-                                            modifier = Modifier
-                                                .semantics { role = Role.Button }
-                                                .testTag("settings_replay_onboarding_button"),
-                                        ) {
-                                            Text(stringResource(R.string.settings_replay_onboarding))
-                                        }
-                                    }
-                                }
-                            }
-
                             // Privacy & Licenses Card
                             item {
                                 Card(
@@ -469,7 +473,10 @@ internal fun SettingsDestination(
                                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                                         ) {
                                             OutlinedButton(
-                                                onClick = { showPrivacyDialog = true },
+                                                onClick = {
+                                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wb.underflo.ink"))
+                                                    context.startActivity(intent)
+                                                },
                                                 modifier = Modifier.weight(1f),
                                             ) {
                                                 Text(stringResource(R.string.settings_privacy_policy))
@@ -551,4 +558,5 @@ internal fun SettingsDestination(
             }
         }
     }
+}
 }

@@ -62,6 +62,7 @@ internal fun CategorizedFeedManagementDestination(
     var launchOpmlImport by rememberSaveable { mutableStateOf(false) }
     var status by remember { mutableStateOf(context.getString(R.string.feed_management_status)) }
     var busy by remember { mutableStateOf(false) }
+    var editorError by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(onboardingAction) {
         when (onboardingAction) {
@@ -112,60 +113,62 @@ internal fun CategorizedFeedManagementDestination(
             item { Text(stringResource(R.string.feed_management_empty), style = MaterialTheme.typography.bodyLarge) }
         }
 
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.extraLarge,
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-            ) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        stringResource(R.string.sample_feeds_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    SampleFeeds.curatedFeeds.forEach { sample ->
-                        val isAdded = feeds.any { normalizeFeedUrl(it.url) == normalizeFeedUrl(sample.url) }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(Modifier.weight(1f).padding(end = 8.dp)) {
-                                Text(sample.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                                Text(sample.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            if (isAdded) {
-                                AppIcon(
-                                    kind = AppIconKind.Check,
-                                    modifier = Modifier.size(22.dp),
-                                    tint = MaterialTheme.colorScheme.primary,
-                                )
-                            } else {
-                                OutlinedButton(
-                                    onClick = {
-                                        scope.launch {
-                                            busy = true
-                                            status = context.getString(R.string.feed_validating)
-                                            val result = manager.add(sample.url, sample.title, sample.category)
-                                            busy = false
-                                            if (result is FeedMutationResult.Success) {
-                                                feeds = result.feeds
-                                                status = context.getString(R.string.sample_feed_added, sample.title)
-                                            } else if (result is FeedMutationResult.Error) {
-                                                status = result.message
+        if (SampleFeeds.curatedFeeds.isNotEmpty()) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.extraLarge,
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                ) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            stringResource(R.string.sample_feeds_title),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        SampleFeeds.curatedFeeds.forEach { sample ->
+                            val isAdded = feeds.any { normalizeFeedUrl(it.url) == normalizeFeedUrl(sample.url) }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(Modifier.weight(1f).padding(end = 8.dp)) {
+                                    Text(sample.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                                    Text(sample.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                if (isAdded) {
+                                    AppIcon(
+                                        kind = AppIconKind.Check,
+                                        modifier = Modifier.size(22.dp),
+                                        tint = MaterialTheme.colorScheme.primary,
+                                    )
+                                } else {
+                                    OutlinedButton(
+                                        onClick = {
+                                            scope.launch {
+                                                busy = true
+                                                status = context.getString(R.string.feed_validating)
+                                                val result = manager.add(sample.url, sample.title, sample.category)
+                                                busy = false
+                                                if (result is FeedMutationResult.Success) {
+                                                    feeds = result.feeds
+                                                    status = context.getString(R.string.sample_feed_added, sample.title)
+                                                } else if (result is FeedMutationResult.Error) {
+                                                    status = result.message
+                                                }
                                             }
+                                        },
+                                        enabled = !busy,
+                                    ) {
+                                        if (busy) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(18.dp),
+                                                strokeWidth = 2.dp,
+                                            )
+                                        } else {
+                                            Text(stringResource(R.string.sample_feeds_quick_add))
                                         }
-                                    },
-                                    enabled = !busy,
-                                ) {
-                                    if (busy) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(18.dp),
-                                            strokeWidth = 2.dp,
-                                        )
-                                    } else {
-                                        Text(stringResource(R.string.sample_feeds_quick_add))
                                     }
                                 }
                             }
@@ -179,7 +182,7 @@ internal fun CategorizedFeedManagementDestination(
             item(key = "category:${group.category ?: "uncategorized"}") {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        group.label,
+                        group.category ?: stringResource(R.string.feed_uncategorized),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -191,8 +194,18 @@ internal fun CategorizedFeedManagementDestination(
                     )
                 }
             }
-            items(group.feeds, key = { it.id }) { feed ->
-                val keywordState = keywordWatchUiState(feed.watchKeywords)
+                items(group.feeds, key = { it.id }) { feed ->
+                    val keywordState = keywordWatchUiState(feed.watchKeywords)
+                    val keywordSummary = if (keywordState.keywords.isEmpty()) {
+                        stringResource(R.string.feed_all_items)
+                    } else {
+                        keywordState.keywords.joinToString(" · ")
+                    }
+                    val keywordSupportingText = if (keywordState.keywords.isEmpty()) {
+                        stringResource(R.string.feed_no_keyword_filter)
+                    } else {
+                        stringResource(R.string.feed_keyword_filter_supporting)
+                    }
                 Card(
                     Modifier.fillMaxWidth(),
                     shape = MaterialTheme.shapes.extraLarge,
@@ -205,9 +218,9 @@ internal fun CategorizedFeedManagementDestination(
                             Text(stringResource(R.string.feed_folder_prefix, category), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                         }
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(stringResource(R.string.feed_watch_filter_prefix, keywordState.summary), style = MaterialTheme.typography.labelLarge)
+                            Text(stringResource(R.string.feed_watch_filter_prefix, keywordSummary), style = MaterialTheme.typography.labelLarge)
                             Text(
-                                keywordState.supportingText,
+                                keywordSupportingText,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -279,10 +292,17 @@ internal fun CategorizedFeedManagementDestination(
             feed = editing,
             existingUrls = existingUrls,
             busy = busy,
-            onDismiss = { if (!busy) showEditor = false },
+            errorText = editorError,
+            onDismiss = {
+                if (!busy) {
+                    editorError = null
+                    showEditor = false
+                }
+            },
             onSave = { url, title, category, keywordText, sendToWatch ->
                 scope.launch {
                     busy = true
+                    editorError = null
                     status = context.getString(R.string.feed_validating)
                     val watchKeywords = normalizeWatchKeywords(keywordText)
                     val result = if (editing == null) {
@@ -304,7 +324,7 @@ internal fun CategorizedFeedManagementDestination(
                             } ?: context.getString(R.string.feed_saved, filterStatus)
                             showEditor = false
                         }
-                        is FeedMutationResult.Error -> status = result.message
+                        is FeedMutationResult.Error -> editorError = result.message
                     }
                 }
             },
@@ -317,6 +337,7 @@ private fun CategoryFeedEditorDialog(
     feed: MobileFeedSubscription?,
     existingUrls: Set<String>,
     busy: Boolean,
+    errorText: String?,
     onDismiss: () -> Unit,
     onSave: (String, String, String, String, Boolean) -> Unit,
 ) {
@@ -400,6 +421,13 @@ private fun CategoryFeedEditorDialog(
                     Switch(
                         checked = sendToWatch,
                         onCheckedChange = { sendToWatch = it },
+                    )
+                }
+                if (errorText != null) {
+                    Text(
+                        text = errorText,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
                     )
                 }
             }

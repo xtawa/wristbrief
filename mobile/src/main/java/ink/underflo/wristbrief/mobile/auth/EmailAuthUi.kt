@@ -36,7 +36,7 @@ fun emailAuthErrorMessageRes(code: String?): Int = when (code) {
     "weak_password", "invalid_email" -> R.string.auth_error_weak_request
     "rate_limited" -> R.string.auth_error_rate_limited
     "auth_network_error" -> R.string.auth_error_network
-    "auth_not_configured" -> R.string.auth_error_network
+    "auth_not_configured" -> R.string.auth_error_not_configured
     else -> R.string.auth_error_generic
 }
 

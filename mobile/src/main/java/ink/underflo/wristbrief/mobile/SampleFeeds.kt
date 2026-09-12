@@ -10,30 +10,28 @@ data class SampleFeed(
 )
 
 object SampleFeeds {
-    val curatedFeeds = listOf(
+    val curatedFeeds: List<SampleFeed> = listOf(
         SampleFeed(
-            id = "sample_android_dev",
-            title = "Android Developers Blog",
-            url = "https://android-developers.googleblog.com/feeds/posts/default",
+            id = "android-developers",
+            title = "Android Developers",
+            url = "https://feeds.feedburner.com/blogspot/hsDu",
             category = "Tech",
-            description = "Official news and announcements from the Android team",
-            isPodcast = false,
+            description = "Official news and announcements",
         ),
         SampleFeed(
-            id = "sample_npr_news_now",
+            id = "npr-news-now",
             title = "NPR News Now",
             url = "https://feeds.npr.org/500005/podcast.xml",
             category = "News",
-            description = "Top stories updated hourly in a 5-minute podcast",
+            description = "5-minute hourly news podcast",
             isPodcast = true,
         ),
         SampleFeed(
-            id = "sample_bbc_world",
-            title = "BBC World Service",
+            id = "bbc-world-news",
+            title = "BBC World News",
             url = "https://feeds.bbci.co.uk/news/world/rss.xml",
             category = "News",
-            description = "International news and analysis from the BBC",
-            isPodcast = false,
+            description = "Global news and current affairs",
         ),
     )
 }

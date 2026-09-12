@@ -15,7 +15,7 @@ class FeedCategoryUiTest {
 
         val groups = groupMobileFeedsByCategory(feeds)
 
-        assertEquals(listOf("Audio", "Tech News", "Uncategorized"), groups.map { it.label })
+        assertEquals(listOf("Audio", "Tech News", null), groups.map { it.category })
         assertEquals(listOf("4"), groups[0].feeds.map { it.id })
         assertEquals(listOf("1", "3"), groups[1].feeds.map { it.id })
         assertEquals(listOf("2"), groups[2].feeds.map { it.id })
@@ -31,7 +31,7 @@ class FeedCategoryUiTest {
         val groups = groupMobileFeedsByCategory(feeds)
 
         assertEquals(1, groups.size)
-        assertEquals("News", groups.single().label)
+        assertEquals("News", groups.single().category)
         assertEquals(listOf("a", "b"), groups.single().feeds.map { it.id })
     }
 
@@ -41,7 +41,6 @@ class FeedCategoryUiTest {
             listOf(MobileFeedSubscription("1", "One", "https://one.example/feed", category = "   ")),
         )
 
-        assertEquals("Uncategorized", groups.single().label)
         assertEquals(null, groups.single().category)
     }
 }

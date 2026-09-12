@@ -38,6 +38,15 @@ class ArticleContentSanitizerTest {
     }
 
     @Test
+    fun decodesNamedAndNumericHtmlEntitiesWithoutDoubleDecoding() {
+        val sanitized = ArticleContentSanitizer.sanitize(
+            "<p>isn&rsquo;t &amp; &quot;ok&quot; &#39;x&#39; &#x27;y&#x27; &amp;rsquo; &unknown;</p>"
+        )
+
+        assertEquals("isn’t & \"ok\" 'x' 'y' &rsquo; &unknown;", sanitized.plainText)
+    }
+
+    @Test
     fun computesReadingTimeForChinese() {
         val text = "这是一篇关于科技与未来的长文章。".repeat(50) // 800 CJK chars
         val sanitized = ArticleContentSanitizer.sanitize(text)

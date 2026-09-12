@@ -43,10 +43,10 @@ class MobileThemeTest {
         val light = wristBriefFallbackColorScheme(darkTheme = false)
         val dark = wristBriefFallbackColorScheme(darkTheme = true)
 
-        assertEquals(Color(0xFFF4FBFA), light.surface)
-        assertEquals(Color(0xFF191C1C), dark.surface)
-        assertEquals(Color(0xFF006A6A), light.primary)
-        assertEquals(Color(0xFF82D5D2), dark.primary)
+        assertEquals(Color(0xFFF8F9FA), light.surface)
+        assertEquals(Color(0xFF111316), dark.surface)
+        assertEquals(Color(0xFF004C6E), light.primary)
+        assertEquals(Color(0xFFB5C8DF), dark.primary)
     }
 
     @Test

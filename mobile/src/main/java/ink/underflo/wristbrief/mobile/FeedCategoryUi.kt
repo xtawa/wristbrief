@@ -2,7 +2,6 @@ package ink.underflo.wristbrief.mobile
 
 data class MobileFeedCategoryGroup(
     val category: String?,
-    val label: String,
     val feeds: List<MobileFeedSubscription>,
 )
 
@@ -29,7 +28,6 @@ fun groupMobileFeedsByCategory(feeds: List<MobileFeedSubscription>): List<Mobile
         .map { (category, groupedFeeds) ->
             MobileFeedCategoryGroup(
                 category = category,
-                label = category,
                 feeds = groupedFeeds,
             )
         }
@@ -39,7 +37,6 @@ fun groupMobileFeedsByCategory(feeds: List<MobileFeedSubscription>): List<Mobile
     } else {
         namedGroups + MobileFeedCategoryGroup(
             category = null,
-            label = "Uncategorized",
             feeds = uncategorized,
         )
     }

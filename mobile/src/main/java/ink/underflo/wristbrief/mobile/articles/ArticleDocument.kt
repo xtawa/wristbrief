@@ -139,7 +139,7 @@ fun ArticleDocument.plainText(): String = blocks.joinToString("\n\n") { block ->
     when (block) {
         is ArticleBlock.Paragraph -> block.spans.joinToString("") { it.text }
         is ArticleBlock.Heading -> block.spans.joinToString("") { it.text }
-        is ArticleBlock.UnorderedList -> block.items.joinToString("\n") { spans -> "- " + spans.joinToString("") { it.text } }
+        is ArticleBlock.UnorderedList -> block.items.joinToString("\n") { spans -> "• " + spans.joinToString("") { it.text } }
         is ArticleBlock.OrderedList -> block.items.mapIndexed { index, spans -> "${index + 1}. " + spans.joinToString("") { it.text } }.joinToString("\n")
         is ArticleBlock.Quote -> block.spans.joinToString("") { it.text }
         is ArticleBlock.CodeBlock -> block.text

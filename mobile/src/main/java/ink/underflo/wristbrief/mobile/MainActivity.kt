@@ -58,6 +58,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.Canvas
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Bookmarks
+import androidx.compose.material.icons.rounded.Explore
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Podcasts
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material3.Icon
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -134,10 +142,20 @@ private class MobileFeedListenerBindings : MobileFeedListener {
 
     WristBriefMobileTheme(themeMode = themeMode) {
         val darkTheme = resolveDarkTheme(themeMode, isSystemInDarkTheme())
+        DisposableEffect(darkTheme) {
+            val window = (context as? Activity)?.window
+            if (window != null) {
+                val insetsController = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
+                insetsController.isAppearanceLightStatusBars = !darkTheme
+                insetsController.isAppearanceLightNavigationBars = !darkTheme
+            }
+            onDispose {}
+        }
         val onboarding = remember(context) { OnboardingPreferences(context) }
         var onboardingComplete by rememberSaveable { mutableStateOf(onboarding.isComplete()) }
         var onboardingAction by rememberSaveable { mutableStateOf<String?>(null) }
         var showSettings by rememberSaveable { mutableStateOf(false) }
+        var settingsInitialTab by rememberSaveable { mutableStateOf(SettingsTab.Sources) }
 
         val dbHelper = remember(context) { WristBriefDatabaseHelper(context) }
         val sqliteFeedStore = remember(dbHelper) { SqliteMobileFeedStore(dbHelper) }
@@ -420,17 +438,13 @@ private class MobileFeedListenerBindings : MobileFeedListener {
         } else if (showSettings) {
             SettingsDestination(
                 onBack = { showSettings = false },
-                onReplayOnboarding = {
-                    onboarding.reset()
-                    showSettings = false
-                    onboardingComplete = false
-                },
                 onboardingAction = onboardingAction?.let(OnboardingAction::valueOf),
                 onOnboardingActionConsumed = { onboardingAction = null },
                 appPreferences = appPreferences,
                 onThemeChanged = { themeMode = it },
                 feedManager = feedManager,
                 darkTheme = darkTheme,
+                initialTab = settingsInitialTab,
             )
         } else {
             MobileShell(
@@ -438,7 +452,14 @@ private class MobileFeedListenerBindings : MobileFeedListener {
                 select = { name = it.name },
                 inboxRepository = inboxRepository,
                 feedManager = feedManager,
-                onOpenSettings = { showSettings = true },
+                onOpenSettings = {
+                    settingsInitialTab = SettingsTab.Sources
+                    showSettings = true
+                },
+                onOpenAccountSettings = {
+                    settingsInitialTab = SettingsTab.Account
+                    showSettings = true
+                },
                 onAddFeed = { showSettings = true },
                 onImportOpml = { showSettings = true },
                 onOpenArticle = { selectedArticle = it },
@@ -451,6 +472,11 @@ private class MobileFeedListenerBindings : MobileFeedListener {
                         audioUrl = ep.audioUrl,
                         title = ep.title,
                     )
+                },
+                onAskAi = { title, content ->
+                    aiPrefilledTitle = title
+                    aiPrefilledContent = content
+                    name = MobileDestination.AiProvider.name
                 },
                 aiPrefilledTitle = aiPrefilledTitle,
                 aiPrefilledContent = aiPrefilledContent,
@@ -481,6 +507,12 @@ private class MobileFeedListenerBindings : MobileFeedListener {
                         )
                     }
                 },
+                onAskAiClip = { title, clipContext ->
+                    showExpandedPlayer = false
+                    aiPrefilledTitle = title
+                    aiPrefilledContent = clipContext
+                    name = MobileDestination.AiProvider.name
+                },
             )
         }
     }
@@ -493,6 +525,7 @@ private class MobileFeedListenerBindings : MobileFeedListener {
     inboxRepository: MobileInboxRepository,
     feedManager: MobileFeedManager,
     onOpenSettings: () -> Unit,
+    onOpenAccountSettings: () -> Unit,
     onAddFeed: () -> Unit,
     onImportOpml: () -> Unit,
     onOpenArticle: (MobileFeedItem) -> Unit,
@@ -501,6 +534,7 @@ private class MobileFeedListenerBindings : MobileFeedListener {
     playerController: MobilePodcastPlayerController,
     onExpandPlayer: () -> Unit,
     onOpenTranscript: (PodcastPlaybackRequest) -> Unit = {},
+    onAskAi: (String, String) -> Unit = { _, _ -> },
     aiPrefilledTitle: String,
     aiPrefilledContent: String,
     progressStore: PodcastProgressStore? = null,
@@ -607,7 +641,6 @@ private class MobileFeedListenerBindings : MobileFeedListener {
                                     onImportOpml = onImportOpml,
                                     onOpenAskAi = { select(MobileDestination.AiProvider) },
                                     onOpenLibrary = { select(MobileDestination.Library) },
-                                    onOpenSettings = onOpenSettings,
                                     onOpenArticle = onOpenArticle,
                                     onPlayPodcast = onPlayPodcast,
                 progressStore = progressStore,
@@ -633,12 +666,17 @@ private class MobileFeedListenerBindings : MobileFeedListener {
                                     playerController = playerController,
                                     onOpenTranscript = onOpenTranscript,
                                     onOpenLibrary = { select(MobileDestination.Library) },
+                                    onAskAi = onAskAi,
                                     darkTheme = darkTheme,
                                 )
-                                MobileDestination.AiProvider -> PhoneLongSummaryDestination(
+                                MobileDestination.AiProvider -> AskAiDestination(
                                     padding = PaddingValues(0.dp),
+                                    inboxRepository = inboxRepository,
                                     initialTitle = aiPrefilledTitle,
                                     initialContent = aiPrefilledContent,
+                                    onOpenArticle = onOpenArticle,
+                                    onOpenAccountSettings = onOpenAccountSettings,
+                                    darkTheme = darkTheme,
                                 )
                             }
                         }
@@ -649,119 +687,7 @@ private class MobileFeedListenerBindings : MobileFeedListener {
     }
 }
 
-@Composable
-private fun ExploreDestination(
-    padding: PaddingValues,
-    feedManager: MobileFeedManager,
-    darkTheme: Boolean,
-) {
-    val scope = rememberCoroutineScope()
-    var addedIds by remember(feedManager) {
-        mutableStateOf(feedManager.feeds().map { it.id }.toSet())
-    }
-    var addingId by remember { mutableStateOf<String?>(null) }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(padding),
-        contentPadding = PaddingValues(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        item {
-            Text(
-                text = stringResource(R.string.nav_explore),
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = GlassTokens.textPrimary(darkTheme),
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = stringResource(R.string.explore_subtitle),
-                style = MaterialTheme.typography.bodyMedium,
-                color = GlassTokens.textSecondary(darkTheme),
-            )
-        }
-
-        item {
-            Text(
-                text = stringResource(R.string.sample_feeds_title),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = GlassTokens.textPrimary(darkTheme),
-            )
-        }
-
-        items(SampleFeeds.curatedFeeds) { feed ->
-            val isAdded = feed.id in addedIds
-            GlassSurface(
-                modifier = Modifier.fillMaxWidth(),
-                darkTheme = darkTheme,
-                cornerRadius = GlassTokens.CardRadius,
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(
-                            text = feed.title,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = GlassTokens.textPrimary(darkTheme),
-                        )
-                        Text(
-                            text = feed.description,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = GlassTokens.textSecondary(darkTheme),
-                        )
-                        Text(
-                            text = stringResource(
-                                if (feed.isPodcast) R.string.explore_feed_podcast else R.string.explore_feed_rss,
-                                feed.category,
-                            ),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = GlassTokens.textSecondary(darkTheme),
-                        )
-                    }
-                    OutlinedButton(
-                        onClick = {
-                            scope.launch {
-                                addingId = feed.id
-                                try {
-                                    val res = feedManager.add(feed.url, feed.title, feed.category)
-                                    if (res is FeedMutationResult.Success) {
-                                        addedIds = addedIds + feed.id
-                                    }
-                                } finally {
-                                    addingId = null
-                                }
-                            }
-                        },
-                        enabled = !isAdded && addingId == null,
-                    ) {
-                        if (addingId == feed.id) {
-                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                            Spacer(Modifier.size(6.dp))
-                            Text(stringResource(R.string.action_adding))
-                        } else if (isAdded) {
-                            AppIcon(AppIconKind.Check, Modifier.size(18.dp))
-                            Spacer(Modifier.size(6.dp))
-                            Text(stringResource(R.string.action_subscribed))
-                        } else {
-                            AppIcon(AppIconKind.Add, Modifier.size(18.dp))
-                            Spacer(Modifier.size(6.dp))
-                            Text(stringResource(R.string.action_subscribe))
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
 
 @Composable
 private fun NowPlayingDestination(
@@ -770,6 +696,7 @@ private fun NowPlayingDestination(
     playerController: MobilePodcastPlayerController,
     onOpenTranscript: (PodcastPlaybackRequest) -> Unit,
     onOpenLibrary: () -> Unit,
+    onAskAi: (title: String, content: String) -> Unit,
     darkTheme: Boolean,
 ) {
     val episode = playerState.currentEpisode
@@ -801,42 +728,26 @@ private fun NowPlayingDestination(
             }
         }
     } else {
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .padding(padding),
+            contentAlignment = Alignment.TopCenter,
         ) {
-            Text(
-                text = episode.title,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = GlassTokens.textPrimary(darkTheme),
-                textAlign = TextAlign.Center,
+            ink.underflo.wristbrief.mobile.media.PodcastExpandedContent(
+                state = playerState,
+                onPlayPause = {
+                    if (playerState.isPlaying) playerController.pause()
+                    else playerController.resume()
+                },
+                onSeekTo = { playerController.seekTo(it) },
+                onSeekBy = { playerController.seekBy(it) },
+                onCycleSpeed = { playerController.cycleSpeed() },
+                onOpenTranscript = { onOpenTranscript(episode) },
+                onAskAiClip = onAskAi,
+                onDismiss = null,
+                darkTheme = darkTheme,
             )
-            if (episode.feedTitle.isNotBlank()) {
-                Text(
-                    text = episode.feedTitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = GlassTokens.textSecondary(darkTheme),
-                )
-            }
-            Spacer(Modifier.height(16.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Button(
-                    onClick = {
-                        if (playerState.isPlaying) playerController.pause()
-                        else playerController.resume()
-                    }
-                ) {
-                    Text(if (playerState.isPlaying) stringResource(R.string.podcast_pause) else stringResource(R.string.podcast_play))
-                }
-                OutlinedButton(onClick = { onOpenTranscript(episode) }) {
-                    Text(stringResource(R.string.transcript_title))
-                }
-            }
         }
     }
 }
@@ -858,71 +769,27 @@ private fun MobileDestination.localizedLabel(): String = stringResource(
 
 @Composable
 private fun DestinationIcon(destination: MobileDestination, modifier: Modifier = Modifier) {
-    val color = androidx.compose.material3.LocalContentColor.current
-    val cutout = MaterialTheme.colorScheme.surface
-    Canvas(modifier.size(24.dp)) {
-        val stroke = 2.2.dp.toPx()
-        when (destination) {
-            MobileDestination.Today -> {
-                drawCircle(color, 5.dp.toPx())
-                repeat(8) { i ->
-                    val angle = Math.toRadians((i * 45).toDouble())
-                    val inner = 7.5.dp.toPx()
-                    val outer = 10.dp.toPx()
-                    drawLine(
-                        color,
-                        androidx.compose.ui.geometry.Offset(center.x + kotlin.math.cos(angle).toFloat() * inner, center.y + kotlin.math.sin(angle).toFloat() * inner),
-                        androidx.compose.ui.geometry.Offset(center.x + kotlin.math.cos(angle).toFloat() * outer, center.y + kotlin.math.sin(angle).toFloat() * outer),
-                        stroke,
-                    )
-                }
-            }
-            MobileDestination.Explore -> {
-                drawCircle(color, 9.dp.toPx(), style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
-                drawLine(
-                    color,
-                    androidx.compose.ui.geometry.Offset(center.x - 4.dp.toPx(), center.y + 4.dp.toPx()),
-                    androidx.compose.ui.geometry.Offset(center.x + 4.dp.toPx(), center.y - 4.dp.toPx()),
-                    stroke,
-                )
-            }
-            MobileDestination.Library -> {
-                drawCircle(color, 2.5.dp.toPx(), androidx.compose.ui.geometry.Offset(5.dp.toPx(), 19.dp.toPx()))
-                drawArc(color, 270f, 90f, false, androidx.compose.ui.geometry.Offset(4.dp.toPx(), 9.dp.toPx()), androidx.compose.ui.geometry.Size(11.dp.toPx(), 11.dp.toPx()), style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
-                drawArc(color, 270f, 90f, false, androidx.compose.ui.geometry.Offset(4.dp.toPx(), 4.dp.toPx()), androidx.compose.ui.geometry.Size(16.dp.toPx(), 16.dp.toPx()), style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
-            }
-            MobileDestination.NowPlaying -> {
-                drawLine(color, androidx.compose.ui.geometry.Offset(center.x - 7.dp.toPx(), center.y - 4.dp.toPx()), androidx.compose.ui.geometry.Offset(center.x - 7.dp.toPx(), center.y + 4.dp.toPx()), stroke)
-                drawLine(color, androidx.compose.ui.geometry.Offset(center.x, center.y - 9.dp.toPx()), androidx.compose.ui.geometry.Offset(center.x, center.y + 9.dp.toPx()), stroke)
-                drawLine(color, androidx.compose.ui.geometry.Offset(center.x + 7.dp.toPx(), center.y - 5.dp.toPx()), androidx.compose.ui.geometry.Offset(center.x + 7.dp.toPx(), center.y + 5.dp.toPx()), stroke)
-            }
-            MobileDestination.AiProvider -> {
-                drawCircle(color, 8.dp.toPx())
-                drawLine(cutout, androidx.compose.ui.geometry.Offset(9.dp.toPx(), 12.dp.toPx()), androidx.compose.ui.geometry.Offset(15.dp.toPx(), 12.dp.toPx()), stroke)
-                drawLine(cutout, androidx.compose.ui.geometry.Offset(12.dp.toPx(), 9.dp.toPx()), androidx.compose.ui.geometry.Offset(12.dp.toPx(), 15.dp.toPx()), stroke)
-            }
-        }
+    val imageVector = when (destination) {
+        MobileDestination.Today -> Icons.Rounded.Home
+        MobileDestination.Explore -> Icons.Rounded.Explore
+        MobileDestination.Library -> Icons.Rounded.Bookmarks
+        MobileDestination.NowPlaying -> Icons.Rounded.Podcasts
+        MobileDestination.AiProvider -> Icons.Rounded.AutoAwesome
     }
+    Icon(
+        imageVector = imageVector,
+        contentDescription = null,
+        modifier = modifier.size(24.dp),
+    )
 }
 
 @Composable
 private fun SettingsIcon(modifier: Modifier = Modifier) {
-    val color = androidx.compose.material3.LocalContentColor.current
-    Canvas(modifier.size(24.dp)) {
-        val stroke = 2.dp.toPx()
-        drawCircle(color, 4.dp.toPx(), style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
-        repeat(6) { i ->
-            val angle = Math.toRadians((i * 60).toDouble())
-            val inner = 6.dp.toPx()
-            val outer = 9.dp.toPx()
-            drawLine(
-                color,
-                androidx.compose.ui.geometry.Offset(center.x + kotlin.math.cos(angle).toFloat() * inner, center.y + kotlin.math.sin(angle).toFloat() * inner),
-                androidx.compose.ui.geometry.Offset(center.x + kotlin.math.cos(angle).toFloat() * outer, center.y + kotlin.math.sin(angle).toFloat() * outer),
-                stroke,
-            )
-        }
-    }
+    Icon(
+        imageVector = Icons.Rounded.Settings,
+        contentDescription = null,
+        modifier = modifier.size(24.dp),
+    )
 }
 
 

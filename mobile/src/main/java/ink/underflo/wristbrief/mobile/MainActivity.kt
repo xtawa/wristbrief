@@ -163,9 +163,10 @@ class MainActivity : ComponentActivity() {
         }
 
         val transcriptCache = remember(dbHelper) { TranscriptCacheStore(dbHelper) }
-        val transcriptGateway = remember(context) {
+        val accountSessionPreferences = remember(context) { AccountSessionPreferences(context) }
+        val transcriptGateway = remember(context, accountSessionPreferences) {
             HttpTranscriptGatewayApi(BuildConfig.GATEWAY_BASE_URL) {
-                context.getSharedPreferences("account_session", Context.MODE_PRIVATE).getString("token", null)
+                accountSessionPreferences.read()?.sessionToken
             }
         }
         val transcriptRepo = remember(transcriptCache, transcriptGateway) {

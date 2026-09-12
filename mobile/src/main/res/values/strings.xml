@@ -319,4 +319,27 @@
     <string name="sync_status_synced">Cloud sync up to date</string>
     <string name="sync_status_syncing">Syncing with cloud…</string>
     <string name="exit_hint_press_back_again">Press back again to exit</string>
+    <string name="auth_email_label">Email</string>
+    <string name="auth_password_label">Password</string>
+    <string name="auth_sign_in_email">Sign in with email</string>
+    <string name="auth_create_account">Create account</string>
+    <string name="auth_forgot_password">Forgot password?</string>
+    <string name="auth_reset_password_title">Reset password</string>
+    <string name="auth_reset_request">Send reset email</string>
+    <string name="auth_reset_request_hint">If the address exists, a reset link has been sent.</string>
+    <string name="auth_reset_token_label">Reset token</string>
+    <string name="auth_new_password_label">New password</string>
+    <string name="auth_reset_submit">Reset password</string>
+    <string name="auth_reset_done">Password updated. Sign in with your new password.</string>
+    <string name="auth_account_created">Account created.</string>
+    <string name="auth_link_email_title">Add email sign-in</string>
+    <string name="auth_link_email_submit">Link email</string>
+    <string name="auth_link_email_done">Email sign-in linked to this account.</string>
+    <string name="auth_error_invalid_credentials">Email or password is incorrect.</string>
+    <string name="auth_error_registration_closed">Registration is currently closed.</string>
+    <string name="auth_error_email_taken">That email is already registered.</string>
+    <string name="auth_error_weak_request">Check the email address and password requirements.</string>
+    <string name="auth_error_rate_limited">Too many attempts. Try again later.</string>
+    <string name="auth_error_network">Network unavailable. Try again later.</string>
+    <string name="auth_error_generic">Sign-in failed. Try again later.</string>
 </resources>

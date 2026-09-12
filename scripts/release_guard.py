@@ -98,8 +98,8 @@ def require_string_resource_parity(module: str) -> None:
 def require_d1_migrations_valid() -> None:
     import sqlite3
     migrations = sorted(Path("gateway/migrations").glob("*.sql"))
-    if len(migrations) < 7:
-        fail("gateway/migrations: expected at least 7 SQL migration files")
+    if len(migrations) < 8:
+        fail("gateway/migrations: expected at least 8 SQL migration files")
     con = sqlite3.connect(":memory:")
     for migration in migrations:
         try:

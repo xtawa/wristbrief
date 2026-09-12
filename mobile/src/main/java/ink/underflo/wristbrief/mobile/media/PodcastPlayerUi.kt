@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -182,6 +183,7 @@ fun PodcastExpandedSheet(
     onSeekTo: (Long) -> Unit,
     onSeekBy: (Long) -> Unit,
     onCycleSpeed: () -> Unit,
+    onOpenTranscript: (() -> Unit)? = null,
 ) {
     val episode = state.currentEpisode ?: return
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -376,6 +378,19 @@ fun PodcastExpandedSheet(
                         text = "+30s",
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
+
+            if (onOpenTranscript != null) {
+                OutlinedButton(
+                    onClick = onOpenTranscript,
+                    modifier = Modifier.defaultMinSize(minHeight = 48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.podcast_transcript_button),
+                        style = MaterialTheme.typography.labelLarge,
                     )
                 }
             }

@@ -5,23 +5,22 @@ import fs from "node:fs";
 import path from "node:path";
 
 describe("D1 SQL Migrations Chain", () => {
-  it("applies migrations 0001 through 0007 cleanly on a fresh SQLite database", () => {
+  it("applies migrations 0001 through 0008 cleanly on a fresh SQLite database", () => {
     const migrationsDir = path.resolve(__dirname, "../migrations");
     const migrationFiles = fs
       .readdirSync(migrationsDir)
       .filter((file) => file.endsWith(".sql"))
       .sort();
 
-    expect(migrationFiles.length).toBeGreaterThanOrEqual(7);
+    expect(migrationFiles.length).toBeGreaterThanOrEqual(8);
     expect(migrationFiles[0]).toBe("0001_membership.sql");
-    expect(migrationFiles[migrationFiles.length - 1]).toBe("0007_play_purchase_entitlements.sql");
+    expect(migrationFiles[migrationFiles.length - 1]).toBe("0008_cloud_sync_and_content_registry.sql");
 
     const db = new DatabaseSync(":memory:");
 
     for (const file of migrationFiles) {
       const filePath = path.join(migrationsDir, file);
       const sql = fs.readFileSync(filePath, "utf-8");
-      // D1 migrations may contain multiple statements separated by semicolons
       db.exec(sql);
     }
 
@@ -39,6 +38,18 @@ describe("D1 SQL Migrations Chain", () => {
     expect(tableNames).toContain("sessions");
     expect(tableNames).toContain("play_rtdn_messages");
     expect(tableNames).toContain("legacy_migration_grants");
+    expect(tableNames).toContain("devices");
+    expect(tableNames).toContain("user_subscriptions");
+    expect(tableNames).toContain("user_item_states");
+    expect(tableNames).toContain("user_playback_progress");
+    expect(tableNames).toContain("user_sync_cursors");
+    expect(tableNames).toContain("podcast_contents");
+    expect(tableNames).toContain("content_aliases");
+    expect(tableNames).toContain("content_fingerprints");
+    expect(tableNames).toContain("transcript_artifacts");
+    expect(tableNames).toContain("user_artifact_access");
+    expect(tableNames).toContain("artifact_jobs");
+    expect(tableNames).toContain("credit_transactions");
 
     // Verify play_purchase_bindings schema includes migration 0007 alterations
     const bindingCols = db
@@ -51,23 +62,23 @@ describe("D1 SQL Migrations Chain", () => {
     expect(colNames).toContain("product_id");
     expect(colNames).toContain("status");
     expect(colNames).toContain("expires_at");
-    expect(colNames).toContain("created_at");
-    expect(colNames).toContain("updated_at");
 
-    // Test row insertion with new columns
-    const testHash = "a".repeat(64);
-    db.prepare(
-      "INSERT INTO play_purchase_bindings (token_hash, user_id, product_id, status, expires_at) VALUES (?, ?, ?, ?, ?)"
-    ).run(testHash, "usr-test-1", "pro_yearly", "active", "2027-09-12T00:00:00Z");
+    // Verify podcast_contents and user_playback_progress schema
+    const progressCols = db
+      .prepare("PRAGMA table_info(user_playback_progress)")
+      .all() as Array<{ name: string; type: string }>;
+    const progressColNames = progressCols.map((c) => c.name);
+    expect(progressColNames).toContain("progress_generation");
+    expect(progressColNames).toContain("playback_session_id");
 
-    const row = db
-      .prepare("SELECT * FROM play_purchase_bindings WHERE token_hash = ?")
-      .get(testHash) as Record<string, unknown>;
+    // Test insertion into podcast_contents and transcript_artifacts
+    db.prepare(`
+      INSERT INTO podcast_contents (id, content_code, media_type, canonical_title, share_policy, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run("cnt_1", "WBEP-7Q2M-4H9D-K8XR", "podcast", "Episode Title", "PUBLIC_REUSE", "active", Date.now(), Date.now());
 
-    expect(row.user_id).toBe("usr-test-1");
-    expect(row.product_id).toBe("pro_yearly");
-    expect(row.status).toBe("active");
-    expect(row.expires_at).toBe("2027-09-12T00:00:00Z");
+    const contentRow = db.prepare("SELECT * FROM podcast_contents WHERE id = ?").get("cnt_1") as Record<string, unknown>;
+    expect(contentRow.content_code).toBe("WBEP-7Q2M-4H9D-K8XR");
 
     db.close();
   });

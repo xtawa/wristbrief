@@ -297,4 +297,15 @@
     <string name="membership_billing_not_configured_title">Google Play 结算未配置</string>
     <string name="membership_billing_not_configured_body">当前版本未配置有效的 Google Play 订阅商品 ID。</string>
     <string name="membership_auto_acknowledging">正在向 Google Play 确认购买…</string>
+
+    <!-- Cloud Sync, Content Code & Shared Transcripts -->
+    <string name="podcast_transcript_button">逐字稿</string>
+    <string name="transcript_title">单集逐字稿</string>
+    <string name="transcript_loading">正在生成或获取逐字稿…</string>
+    <string name="transcript_quota_cached">共享缓存（仅扣 1/5 额度）</string>
+    <string name="transcript_quota_free">已解锁（0 额度）</string>
+    <string name="transcript_empty">本集暂无逐字稿。</string>
+    <string name="transcript_seek_to">跳转至 %1$s</string>
+    <string name="sync_status_synced">云端同步已完成</string>
+    <string name="sync_status_syncing">正在与云端同步…</string>
 </resources>

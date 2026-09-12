@@ -22,6 +22,8 @@ data class PlaybackSyncPayload(
     val lastPlayedAtEpochMs: Long,
     val completed: Boolean,
     val origin: SyncOrigin,
+    val progressGeneration: Long = 1L,
+    val playbackSessionId: String? = null,
 ) {
     init {
         require(episodeId.isNotBlank()) { "episodeId must not be blank" }
@@ -63,6 +65,10 @@ object PlaybackWireContract {
         put("lastPlayedAtEpochMs", payload.lastPlayedAtEpochMs)
         put("completed", payload.completed)
         put("origin", payload.origin.name)
+        put("progressGeneration", payload.progressGeneration)
+        if (payload.playbackSessionId != null) {
+            put("playbackSessionId", payload.playbackSessionId)
+        }
     }.toString()
 
     fun encode(progress: PodcastEpisodeProgress, origin: SyncOrigin): String = encode(
@@ -97,6 +103,8 @@ object PlaybackWireContract {
         val originStr = root["origin"]?.jsonPrimitive?.content ?: error("Missing origin")
         val origin = runCatching { SyncOrigin.valueOf(originStr) }.getOrNull()
             ?: error("Invalid origin: $originStr")
+        val progressGen = root["progressGeneration"]?.jsonPrimitive?.longOrNull ?: 1L
+        val sessionId = root["playbackSessionId"]?.jsonPrimitive?.content
 
         return PlaybackSyncPayload(
             version = version,
@@ -108,6 +116,8 @@ object PlaybackWireContract {
             lastPlayedAtEpochMs = lastPlayed,
             completed = completed,
             origin = origin,
+            progressGeneration = progressGen,
+            playbackSessionId = sessionId,
         )
     }
 

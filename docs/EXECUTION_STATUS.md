@@ -31,6 +31,7 @@ To prevent mistaking "code exists" or "local build passed" for true end-to-end p
 | **Batch 6** | **AI Daily Brief & Predictable Quotas** | Reserve/commit/release quota lifecycle, cache stampede lock, structured brief output | **COMPLETED** | L2 Locally Tested |
 | **Batch 7** | **Account, Play Billing & Membership Entitlements** | Keystore SessionStore, Play Billing auto-verify/acknowledge, multi-token D1 entitlements | **COMPLETED** | L2 Locally Tested |
 | **Batch 8** | **Production Hardening & Release Gate** | Lockfiles, clean D1 migrations, security audit, release candidate verification record | **COMPLETED** | L2 Locally Tested |
+| **Cloud Sync** | **Cloud Sync, Content Code & Shared Transcripts** | D1 migration 0008, two-stage Content Code, 1.0x/0.2x/0x quota, outbox & conflict resolver | **COMPLETED** | L2 Locally Tested |
 
 ---
 
@@ -444,6 +445,43 @@ To prevent mistaking "code exists" or "local build passed" for true end-to-end p
   - `mobile:assembleDebug` & `app:assembleDebug`: Both APKs assembled cleanly.
 - **Roadmap Completion**:
   - **ALL BATCHES 0 THROUGH 8 COMPLETED AND VERIFIED.**
+
+---
+
+### Cloud Sync, Content Code & Shared Transcript Architecture
+
+- **Date**: 2026-09-12
+- **Specification Source**: [`docs/CLOUD_SYNC_AND_SHARED_TRANSCRIPT_ARCHITECTURE.md`](file:///g:/Projects/wristbrief/docs/CLOUD_SYNC_AND_SHARED_TRANSCRIPT_ARCHITECTURE.md)
+- **Product Outcome**:
+  - **D1 Migration 0008 & Content Registry**:
+    - Created `0008_cloud_sync_and_content_registry.sql` adding `devices`, `user_subscriptions`, `user_item_states`, `user_playback_progress`, `user_sync_cursors`, `podcast_contents`, `content_aliases`, `content_fingerprints`, `transcript_artifacts`, `user_artifact_access`, `artifact_jobs`, and `credit_transactions`.
+  - **Two-Stage Content Code Resolution**:
+    - Generates Crockford Base32 Content Codes formatted as `WBEP-XXXX-XXXX-XXXX`.
+    - Resolves content via Stage A candidate aliases (audio SHA-256, normalized enclosure URL, feed URL + GUID) avoiding redundant downloads.
+  - **Durable Transcripts & Fair Quota Model**:
+    - `1.0x` quota reservation for first generation of public content.
+    - `0.2x` (1/5) quota charged for shared cache hits by different users.
+    - `0.0x` quota for existing access grants (free reopens).
+    - In-flight deduplication mutex joins existing active jobs instead of duplicating provider tasks.
+  - **Multi-Device Account Cloud Sync**:
+    - Implemented `/v1/sync/push` and `/v1/sync/pull` with monotonic device cursors.
+    - Subscription deletion tombstones (`deleted_at`) prevent stale state resurrection.
+    - Independent clocks for item read and saved states (`read_changed_at`, `saved_changed_at`).
+    - Playback progress generation and session conflict arbitration.
+  - **Android Client & UI Integration**:
+    - Upgraded `WristBriefDatabase` to version 3 with `cloud_sync_outbox` and `transcript_cache`.
+    - Pure Kotlin `CloudSyncConflictResolver` and `CloudSyncOutbox`.
+    - Material 3 `TranscriptViewerDestination` adhering strictly to `uidocs` tokens (zero decorative gradients, 48dp touch targets).
+    - Player UI "Transcript" button integration.
+    - 100% bilingual string parity across English and Simplified Chinese.
+- **Evidence**:
+  - `gateway:npm run typecheck`: Passed (0 errors).
+  - `gateway:npm test`: 26/26 test files passed (168/168 tests, 100%).
+  - `mobile:testDebugUnitTest`: 37 test classes passed (100%).
+  - `app:testDebugUnitTest`: 26 test classes passed (100%).
+  - `python scripts/release_guard.py`: Passed (Android security, cross-device packaging, string parity, and 8 D1 migrations OK).
+  - `mobile:assembleDebug` & `app:assembleDebug`: Both APKs assembled cleanly without errors.
+
 
 
 

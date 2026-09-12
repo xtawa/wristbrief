@@ -297,4 +297,15 @@
     <string name="membership_billing_not_configured_title">Google Play Billing not configured</string>
     <string name="membership_billing_not_configured_body">This build was compiled without active Google Play subscription product IDs.</string>
     <string name="membership_auto_acknowledging">Acknowledging purchase with Google Play…</string>
+
+    <!-- Cloud Sync, Content Code & Shared Transcripts -->
+    <string name="podcast_transcript_button">Transcript</string>
+    <string name="transcript_title">Episode Transcript</string>
+    <string name="transcript_loading">Generating or retrieving transcript…</string>
+    <string name="transcript_quota_cached">Shared cache (1/5 quota)</string>
+    <string name="transcript_quota_free">Previously unlocked (0 quota)</string>
+    <string name="transcript_empty">No transcript available for this episode yet.</string>
+    <string name="transcript_seek_to">Seek to %1$s</string>
+    <string name="sync_status_synced">Cloud sync up to date</string>
+    <string name="sync_status_syncing">Syncing with cloud…</string>
 </resources>

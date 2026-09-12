@@ -36,8 +36,24 @@ import {
 import { AccountSessionService } from "./accountSession";
 import { createConfiguredD1AccountStores } from "./d1AccountStore";
 import { authenticateRequestUser } from "./requestAuth";
+import { handleSyncPush, handleSyncPull, type SyncRouteEnv } from "./sync/syncRoutes";
+import { handleContentResolve, handleContentGet, type ContentRouteEnv } from "./content/contentRoutes";
+import {
+  handleTranscriptRequest,
+  handleTranscriptGet,
+  handleTranscriptStatus,
+  type TranscriptRouteEnv
+} from "./artifacts/transcriptRoutes";
 
-interface Env extends ProviderEnv, SummaryCacheEnv, MembershipEnv, BillingServerEnv, AuthServerEnv {}
+interface Env
+  extends ProviderEnv,
+    SummaryCacheEnv,
+    MembershipEnv,
+    BillingServerEnv,
+    AuthServerEnv,
+    SyncRouteEnv,
+    ContentRouteEnv,
+    TranscriptRouteEnv {}
 type SummaryRequest = { title?: string; content?: string };
 const DEFAULT_PROVIDER_ID = "openai-compatible";
 const MAX_REQUEST_BYTES = 64 * 1024;
@@ -158,6 +174,77 @@ export default {
         });
       } catch (error) {
         return providerFailure(error, respond);
+      }
+    }
+
+    if (request.method === "POST" && url.pathname === "/v1/content/resolve") {
+      try {
+        const res = await handleContentResolve(request, env);
+        return respond(res.body, res.status);
+      } catch {
+        return respond({ error: "content_unavailable" }, 503);
+      }
+    }
+
+    if (request.method === "GET" && url.pathname.startsWith("/v1/content/")) {
+      const contentCode = url.pathname.slice("/v1/content/".length);
+      try {
+        const res = await handleContentGet(contentCode, env);
+        return respond(res.body, res.status);
+      } catch {
+        return respond({ error: "content_unavailable" }, 503);
+      }
+    }
+
+    if (request.method === "POST" && url.pathname === "/v1/sync/push") {
+      if (!user) return respond({ error: "unauthorized" }, 401);
+      try {
+        const res = await handleSyncPush(request, env, user.id);
+        return respond(res.body, res.status);
+      } catch {
+        return respond({ error: "sync_unavailable" }, 503);
+      }
+    }
+
+    if (request.method === "GET" && url.pathname === "/v1/sync/pull") {
+      if (!user) return respond({ error: "unauthorized" }, 401);
+      try {
+        const res = await handleSyncPull(request, env, user.id);
+        return respond(res.body, res.status);
+      } catch {
+        return respond({ error: "sync_unavailable" }, 503);
+      }
+    }
+
+    if (request.method === "POST" && url.pathname === "/v1/transcripts/request") {
+      if (!user) return respond({ error: "unauthorized" }, 401);
+      try {
+        const res = await handleTranscriptRequest(request, env, user.id);
+        return respond(res.body, res.status);
+      } catch {
+        return respond({ error: "transcripts_unavailable" }, 503);
+      }
+    }
+
+    if (request.method === "GET" && url.pathname.startsWith("/v1/transcripts/jobs/")) {
+      if (!user) return respond({ error: "unauthorized" }, 401);
+      const jobId = url.pathname.slice("/v1/transcripts/jobs/".length);
+      try {
+        const res = await handleTranscriptStatus(jobId, env);
+        return respond(res.body, res.status);
+      } catch {
+        return respond({ error: "transcripts_unavailable" }, 503);
+      }
+    }
+
+    if (request.method === "GET" && url.pathname.startsWith("/v1/transcripts/")) {
+      if (!user) return respond({ error: "unauthorized" }, 401);
+      const contentCode = url.pathname.slice("/v1/transcripts/".length);
+      try {
+        const res = await handleTranscriptGet(contentCode, env);
+        return respond(res.body, res.status);
+      } catch {
+        return respond({ error: "transcripts_unavailable" }, 503);
       }
     }
 

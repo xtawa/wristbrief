@@ -63,23 +63,17 @@ The Gateway has a guarded `linkLegacy=true` server path, but the current phone G
 
 Before a production migration is required, either define a one-time server-issued migration credential/recovery flow or explicitly declare that no production legacy accounts require migration. The ROADMAP acceptance language should not be interpreted as proof that a real deployed legacy-phone migration has already been exercised.
 
-### Managed-AI quota admission race
+### ~~Managed-AI quota admission race~~ — RESOLVED
 
-The current managed-AI request path reads quota before invoking the provider and increments usage after a successful provider response. D1 prevents the persisted counter from incrementing beyond the configured limit, but concurrent requests can read the same remaining slot and both incur upstream provider work before one later fails to record usage.
+The atomic reserve/commit/release quota lifecycle is now implemented. `reserveQuota` atomically decrements credits before provider invocation; `commitQuota` finalizes on success; `failJob()` refunds reserved credits on provider failure. The race condition where concurrent requests could both read the same remaining slot is eliminated by the atomic reservation. BYOK's separate no-managed-quota contract is preserved.
 
-Before paid quota enforcement is considered cost-safe, replace the check-then-act admission with an atomic reservation/consumption design (and an explicit refund/failure policy if quota is intended to count successful summaries only). Do not weaken BYOK's separate no-managed-quota contract.
+### ~~Pub/Sub duplicate delivery cost~~ — RESOLVED
 
-### Pub/Sub duplicate delivery cost
+Bounded durable `messageId` deduplication is implemented (`rtdnDedupStore`). Duplicate Pub/Sub deliveries are detected and acknowledged without repeating Android Publisher API verification. Authentication is validated before accepting the dedup key; an unauthenticated payload cannot suppress a later legitimate notification. 4 dedicated tests in `rtdnDedupStore.test.ts`.
 
-RTDN entitlement writes are idempotent, but Pub/Sub is at-least-once and the current route does not deduplicate the Pub/Sub `messageId`. Duplicate deliveries can therefore repeat Android Publisher verification and consume avoidable Google API quota.
+### ~~Gateway dependency reproducibility~~ — RESOLVED
 
-Add bounded durable message-id deduplication before production scale. Authentication must happen before accepting the dedup key, and deduplication must never make an unauthenticated payload capable of suppressing a later legitimate notification.
-
-### Gateway dependency reproducibility
-
-`gateway/` currently has no committed `package-lock.json`; CI uses `npm install`, and TypeScript uses a caret range. A source-identical build can therefore resolve a different dependency graph later.
-
-When registry/Actions access is available, generate the lockfile with the real npm resolver, review it, commit it, and change CI to `npm ci`. Do not hand-author a guessed lockfile while the registry is unavailable.
+`gateway/package-lock.json` has been generated with the real npm resolver (`npm i --package-lock-only`) and committed. CI should use `npm ci` for reproducible installs.
 
 ### External Android/Play configuration after package alignment
 

@@ -35,6 +35,7 @@ data class OutboxMutation(
     val isDeleted: Boolean = false,
     val retryCount: Int = 0,
     val createdAtEpochMs: Long,
+    val nextAttemptEpochMs: Long = 0L,
 ) {
     fun toWireJson(): JsonObject = buildJsonObject {
         put("idempotencyKey", id)
@@ -87,3 +88,13 @@ data class SyncPullResult(
     val itemStates: List<SyncItemStateDelta>,
     val playbackProgress: List<SyncPlaybackProgressDelta>,
 )
+
+data class SyncPushResult(
+    val appliedCount: Int,
+    val newCursor: Long = 0L,
+)
+
+sealed interface SyncCycleResult {
+    data class Success(val cursor: Long, val mergedCount: Int) : SyncCycleResult
+    data class PartialFailure(val reason: String) : SyncCycleResult
+}

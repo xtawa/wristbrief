@@ -1,5 +1,5 @@
 import type { AuthenticatedUser, MembershipEnv } from "./membership";
-import { authenticateGatewayUser } from "./membership";
+import { authenticateActiveGatewayUser } from "./membership";
 import { AccountSessionService, parseBearerSessionToken, type AccountSessionStore } from "./accountSession";
 import { createConfiguredD1AccountStores, type AccountPersistenceEnv } from "./d1AccountStore";
 
@@ -26,5 +26,5 @@ export async function authenticateRequestUser(
     }
   }
 
-  return authenticateGatewayUser(request, env);
+  return authenticateActiveGatewayUser(request, env);
 }

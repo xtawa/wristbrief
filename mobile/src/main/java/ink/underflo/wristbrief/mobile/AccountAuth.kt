@@ -5,6 +5,9 @@ import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
+import ink.underflo.wristbrief.mobile.artifacts.TranscriptCache
+import ink.underflo.wristbrief.mobile.sync.CloudSyncOutbox
+import ink.underflo.wristbrief.mobile.sync.CloudSyncPreferences
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import kotlinx.coroutines.Dispatchers
@@ -36,6 +39,29 @@ sealed interface AccountAuthResult {
     data class Success(val session: AccountSession) : AccountAuthResult
     data object SignedOut : AccountAuthResult
     data class Failure(val code: String) : AccountAuthResult
+}
+
+class AccountLocalDataCleaner(
+    private val transcriptCache: TranscriptCache,
+    private val cloudSyncOutbox: CloudSyncOutbox,
+    private val cloudSyncPreferences: CloudSyncPreferences,
+) {
+    fun clear() {
+        transcriptCache.clearAll()
+        cloudSyncOutbox.clearAll()
+        cloudSyncPreferences.resetAll()
+    }
+}
+
+internal fun clearLocalDataOnAccountSwitch(
+    previousUserId: String?,
+    result: AccountAuthResult,
+    cleaner: AccountLocalDataCleaner?,
+) {
+    val newUserId = (result as? AccountAuthResult.Success)?.session?.user?.id ?: return
+    if (previousUserId != null && previousUserId != newUserId) {
+        runCatching { cleaner?.clear() }
+    }
 }
 
 interface AccountSessionStorage {
@@ -102,6 +128,7 @@ class GoogleAccountAuthClient(
     private val sessionBridge: AccountSessionBridge = GoogleWearAccountSessionBridge(context),
     private val sessionPreferences: AccountSessionPreferences = AccountSessionPreferences(context, sessionBridge),
     private val migrationGrantPreferences: LegacyMigrationGrantPreferences = LegacyMigrationGrantPreferences(context),
+    private val localDataCleaner: AccountLocalDataCleaner? = null,
     private val webClientId: String = BuildConfig.GOOGLE_WEB_CLIENT_ID,
     private val gatewayBaseUrl: String = BuildConfig.GATEWAY_BASE_URL,
 ) {
@@ -121,6 +148,7 @@ class GoogleAccountAuthClient(
         ).prepare(legacyAuthorization)
 
     suspend fun signIn(): AccountAuthResult {
+        val previousUserId = sessionPreferences.read()?.user?.id
         val config = accountAuthConfig(webClientId, gatewayBaseUrl)
             ?: return AccountAuthResult.Failure("auth_not_configured")
 
@@ -145,7 +173,9 @@ class GoogleAccountAuthClient(
         }
 
         // The Google ID token stays in memory; a one-time migration grant is app-private and cleared after success.
-        return exchangeIdToken(config.gatewayBaseUrl, idToken)
+        val result = exchangeIdToken(config.gatewayBaseUrl, idToken)
+        clearLocalDataOnAccountSwitch(previousUserId, result, localDataCleaner)
+        return result
     }
 
     suspend fun signOut(): AccountAuthResult = withContext(Dispatchers.IO) {
@@ -166,6 +196,7 @@ class GoogleAccountAuthClient(
         sessionPreferences.clear()
         migrationGrantPreferences.clear()
         sessionBridge.clear()
+        runCatching { localDataCleaner?.clear() }
         try {
             credentialManager.clearCredentialState(ClearCredentialStateRequest())
         } catch (_: Exception) {
@@ -175,22 +206,27 @@ class GoogleAccountAuthClient(
     }
 
     suspend fun deleteAccount(): AccountAuthResult = withContext(Dispatchers.IO) {
-        val session = sessionPreferences.read()
+        val session = sessionPreferences.read() ?: return@withContext AccountAuthResult.SignedOut
         val config = accountAuthConfig(webClientId, gatewayBaseUrl)
-        if (session != null && config != null) {
-            try {
-                val request = Request.Builder()
-                    .url(config.gatewayBaseUrl + "/v1/auth/delete")
-                    .post(ByteArray(0).toRequestBody(null))
-                    .header("Authorization", "Bearer ${session.sessionToken}")
-                    .build()
-                httpClient.newCall(request).execute().use { /* proceed with local deletion */ }
-            } catch (_: Exception) {
+            ?: return@withContext AccountAuthResult.Failure("auth_not_configured")
+        val request = Request.Builder()
+            .url(config.gatewayBaseUrl + "/v1/auth/delete")
+            .post(ByteArray(0).toRequestBody(null))
+            .header("Authorization", "Bearer ${session.sessionToken}")
+            .build()
+        try {
+            httpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext AccountAuthResult.Failure("account_delete_failed")
+                }
             }
+        } catch (_: Exception) {
+            return@withContext AccountAuthResult.Failure("account_delete_network_error")
         }
         sessionPreferences.clear()
         migrationGrantPreferences.clear()
         sessionBridge.clear()
+        runCatching { localDataCleaner?.clear() }
         try {
             credentialManager.clearCredentialState(ClearCredentialStateRequest())
         } catch (_: Exception) {

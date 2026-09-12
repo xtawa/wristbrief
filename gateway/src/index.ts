@@ -16,7 +16,7 @@ import {
   type SummaryCacheEnv
 } from "./summaryCache";
 import {
-  authenticateGatewayUser,
+  authenticateActiveGatewayUser,
   createMembershipService,
   type MembershipEnv
 } from "./membership";
@@ -73,7 +73,7 @@ export default {
     if (request.method === "GET" && url.pathname === "/health") return respond({ ok: true });
 
     if (request.method === "POST" && url.pathname === "/v1/auth/legacy-migration-grant") {
-      const legacyUser = authenticateGatewayUser(request, env);
+      const legacyUser = await authenticateActiveGatewayUser(request, env);
       if (!legacyUser) return respond({ error: "legacy_auth_required" }, 401);
       try {
         return respondAuth(await issueLegacyMigrationGrant(legacyUser.id, env));
@@ -91,7 +91,7 @@ export default {
         );
       }
       const linkLegacy = requestsLegacyLink(parsedBody.value);
-      const legacyUser = linkLegacy ? authenticateGatewayUser(request, env) : null;
+      const legacyUser = linkLegacy ? await authenticateActiveGatewayUser(request, env) : null;
       if (linkLegacy && !legacyUser) return respond({ error: "legacy_auth_required" }, 401);
       try {
         return respondAuth(await exchangeGoogleIdToken(
@@ -178,8 +178,10 @@ export default {
     }
 
     if (request.method === "POST" && url.pathname === "/v1/content/resolve") {
+      const parsedBody = await readJsonBodyLimited<any>(request, MAX_REQUEST_BYTES);
+      if (parsedBody.error) return respond({ error: parsedBody.error }, parsedBody.error === "request_too_large" ? 413 : 400);
       try {
-        const res = await handleContentResolve(request, env);
+        const res = await handleContentResolve(request, env, parsedBody.value);
         return respond(res.body, res.status);
       } catch {
         return respond({ error: "content_unavailable" }, 503);
@@ -198,8 +200,10 @@ export default {
 
     if (request.method === "POST" && url.pathname === "/v1/sync/push") {
       if (!user) return respond({ error: "unauthorized" }, 401);
+      const parsedBody = await readJsonBodyLimited<any>(request, MAX_REQUEST_BYTES);
+      if (parsedBody.error) return respond({ error: parsedBody.error }, parsedBody.error === "request_too_large" ? 413 : 400);
       try {
-        const res = await handleSyncPush(request, env, user.id);
+        const res = await handleSyncPush(request, env, user.id, parsedBody.value);
         return respond(res.body, res.status);
       } catch {
         return respond({ error: "sync_unavailable" }, 503);
@@ -218,8 +222,10 @@ export default {
 
     if (request.method === "POST" && url.pathname === "/v1/transcripts/request") {
       if (!user) return respond({ error: "unauthorized" }, 401);
+      const parsedBody = await readJsonBodyLimited<any>(request, MAX_REQUEST_BYTES);
+      if (parsedBody.error) return respond({ error: parsedBody.error }, parsedBody.error === "request_too_large" ? 413 : 400);
       try {
-        const res = await handleTranscriptRequest(request, env, user.id);
+        const res = await handleTranscriptRequest(request, env, user.id, parsedBody.value);
         return respond(res.body, res.status);
       } catch {
         return respond({ error: "transcripts_unavailable" }, 503);
@@ -230,7 +236,7 @@ export default {
       if (!user) return respond({ error: "unauthorized" }, 401);
       const jobId = url.pathname.slice("/v1/transcripts/jobs/".length);
       try {
-        const res = await handleTranscriptStatus(jobId, env);
+        const res = await handleTranscriptStatus(jobId, env, user.id);
         return respond(res.body, res.status);
       } catch {
         return respond({ error: "transcripts_unavailable" }, 503);
@@ -241,7 +247,7 @@ export default {
       if (!user) return respond({ error: "unauthorized" }, 401);
       const contentCode = url.pathname.slice("/v1/transcripts/".length);
       try {
-        const res = await handleTranscriptGet(contentCode, env);
+        const res = await handleTranscriptGet(contentCode, env, user.id);
         return respond(res.body, res.status);
       } catch {
         return respond({ error: "transcripts_unavailable" }, 503);

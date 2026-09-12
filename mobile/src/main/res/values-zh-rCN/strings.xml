@@ -1,8 +1,10 @@
 <resources>
     <string name="app_name">WristBrief</string>
     <string name="nav_today">今日</string>
+    <string name="nav_explore">发现</string>
     <string name="nav_feeds">资料库</string>
     <string name="nav_library">资料库</string>
+    <string name="nav_now_playing">正在播放</string>
     <string name="nav_ai">问 AI</string>
     <string name="nav_membership">账户</string>
     <string name="nav_settings">设置</string>
@@ -14,6 +16,14 @@
     <string name="oobe_explore">先浏览资料库</string>
     <string name="oobe_welcome_title">跟得上你的每日简报</string>
     <string name="oobe_welcome_body">关注 RSS 与播客，让 AI 每天整理重点，并在手表上快速浏览。</string>
+    <string name="oobe_interests_title">选择感兴趣的主题</string>
+    <string name="oobe_interests_body">挑选你关心的领域，WristBrief 会提供安静、高信息密度的内容推荐。</string>
+    <string name="oobe_content_title">添加内容源</string>
+    <string name="oobe_content_body">添加 RSS 与播客订阅，或直接导入你的 OPML 订阅列表。</string>
+    <string name="oobe_ai_title">克制的 AI 体验</string>
+    <string name="oobe_ai_body">将长文与播客转写自动提炼为结构化简报，按你的节奏高效获取重点。</string>
+    <string name="oobe_ready_title">设置完成</string>
+    <string name="oobe_ready_body">你的个性化收件箱与每日简报已就绪，立即开始浏览或阅读。</string>
     <string name="oobe_sources_title">内容源由你决定</string>
     <string name="oobe_sources_body">添加 RSS 或播客地址，也可以通过 OPML 导入已有订阅。WristBrief 只会关注你亲自选择的来源。</string>
     <string name="oobe_devices_title">为每块屏幕而生</string>

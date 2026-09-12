@@ -62,7 +62,12 @@ Until this explicit link transaction is implemented and tested, a new Google ide
 - Revoking one session does not delete the Google identity or membership record; other valid sessions remain independent unless an account-wide revoke action is explicitly requested.
 - Switching Google accounts must clear the previous local WristBrief session before another account becomes active.
 - Google identity unlink is not permitted while it is the account's only login identity unless a replacement recovery identity/session mechanism exists. Unlink must never transfer Play purchases to another user implicitly.
-- Account deletion must revoke all sessions first, disable the internal user, stop future managed-AI use, and define how billing history/purchase bindings are retained or tombstoned for fraud, refund and RTDN correctness before production launch.
-- Deletion and unlink flows must be idempotent and auditable without retaining bearer tokens or raw purchase tokens.
+- **Account deletion is partially implemented** via `POST /v1/auth/delete` (and `DELETE /v1/auth/delete`, `/v1/account/delete`). The Gateway removes account-scoped D1 migration-0008 rows; configured transcript storage is used to delete private objects, and retained `PUBLIC_REUSE` artifacts have their creator reference cleared. Billing history is retained. Mobile cache/outbox/cursor cleanup, Queue/worker handling, production configuration, and end-to-end verification remain pending.
+- Deletion and unlink flows are intended to be idempotent and auditable without retaining bearer tokens or raw purchase tokens; full-chain idempotency is not yet verified.
 
-Production deployment is not claimed until these recovery/deletion operations and the external Google/Play configuration have been exercised in an internal-test environment.
+Production deployment is not claimed until recovery/deletion operations and the external Google/Play configuration have been exercised in an internal-test environment (L5).
+# Account deletion verification boundary (2026-09-12)
+
+The current Gateway deletion path removes the account's D1 migration-0008 user data. If transcript storage is configured, private transcript objects are removed before their artifact rows; retained `PUBLIC_REUSE` artifacts are anonymized by clearing their creator reference. Billing history is retained.
+
+Mobile cache, outbox, and cursor cleanup is not yet complete. Queue and production behavior has not been verified, so this must not be described as complete deletion across every device and service.

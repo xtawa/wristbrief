@@ -17,7 +17,7 @@ class MobileDestinationTest {
         assertEquals(routes.size, routes.toSet().size)
         assertTrue(routes.all { it.isNotBlank() })
         assertEquals(
-            setOf("today", "library", "ai-provider"),
+            setOf("today", "explore", "library", "now-playing", "ai-provider"),
             routes.toSet(),
         )
     }

@@ -58,6 +58,24 @@ export function authenticateGatewayUser(request: Request, env: MembershipEnv): A
   return { id: env.GATEWAY_USER_ID?.trim() || "legacy-user" };
 }
 
+export async function authenticateActiveGatewayUser(
+  request: Request,
+  env: MembershipEnv
+): Promise<AuthenticatedUser | null> {
+  const user = authenticateGatewayUser(request, env);
+  if (!user || !env.ACCOUNT_DB) return user;
+  try {
+    const record = await env.ACCOUNT_DB
+      .prepare("SELECT status FROM users WHERE id = ? LIMIT 1")
+      .bind(user.id)
+      .first<{ status?: string }>();
+    if (record && record.status !== "active") return null;
+    return user;
+  } catch {
+    return null;
+  }
+}
+
 export class MembershipService {
   constructor(private readonly store: MembershipStore) {}
 

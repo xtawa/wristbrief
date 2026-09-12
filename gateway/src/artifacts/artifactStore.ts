@@ -257,7 +257,7 @@ export class D1ArtifactStore implements ArtifactStore {
       wordCount: typeof row.word_count === "number" ? row.word_count : null,
       segmentCount: typeof row.segment_count === "number" ? row.segment_count : null,
       qualityScore: typeof row.quality_score === "number" ? row.quality_score : null,
-      sharePolicy: (row.share_policy as "PUBLIC_REUSE" | "PRIVATE_ACCOUNT") || "PUBLIC_REUSE",
+      sharePolicy: (row.share_policy as "PUBLIC_REUSE" | "PRIVATE_ACCOUNT") || "PRIVATE_ACCOUNT",
       createdByUserId: row.created_by_user_id ? String(row.created_by_user_id) : null,
       createdAt: Number(row.created_at),
       updatedAt: Number(row.updated_at)

@@ -67,4 +67,5 @@ object GlassTokens {
     fun textSecondary(darkTheme: Boolean): Color = if (darkTheme) TextSecondaryDark else TextSecondaryLight
     fun controlSelected(darkTheme: Boolean): Color = if (darkTheme) ControlSelectedDark else ControlSelectedLight
     fun onControlSelected(darkTheme: Boolean): Color = if (darkTheme) OnControlSelectedDark else OnControlSelectedLight
+    fun shadow(darkTheme: Boolean): Color = if (darkTheme) ShadowDark else ShadowLight
 }

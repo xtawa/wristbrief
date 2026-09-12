@@ -24,6 +24,7 @@ import {
 import type { AuthenticatedUser } from "./membership";
 import type { BillingStateStore } from "./billingServer";
 import { createConfiguredD1BillingStateStore } from "./d1MembershipStore";
+import { createTranscriptStorage, type TranscriptStorage } from "./artifacts/transcriptStorage";
 
 const MAX_GOOGLE_ID_TOKEN_LENGTH = 16_384;
 const MAX_MIGRATION_GRANT_LENGTH = 128;
@@ -34,6 +35,8 @@ export type AuthServerEnv = GoogleIdentityEnv & AccountPersistenceEnv & Migratio
   ACCOUNT_SESSION_STORE?: AccountSessionStore;
   ACCOUNT_SESSION_TTL_SECONDS?: string;
   PLAY_BILLING_STATE_STORE?: BillingStateStore;
+  TRANSCRIPT_STORAGE?: TranscriptStorage;
+  TRANSCRIPTS_BUCKET?: R2Bucket;
 };
 
 export type AuthResult = {
@@ -140,10 +143,40 @@ export async function deleteAccount(
       await billingStore.deleteUserBindings(user.id);
     }
     if (env.ACCOUNT_DB) {
+      const privateArtifacts = await env.ACCOUNT_DB
+        .prepare(`
+          SELECT object_key_json, object_key_text, object_key_segments
+          FROM transcript_artifacts
+          WHERE created_by_user_id = ? AND share_policy = 'PRIVATE_ACCOUNT'
+        `)
+        .bind(user.id)
+        .all<Record<string, unknown>>();
+      if (env.TRANSCRIPT_STORAGE || env.TRANSCRIPTS_BUCKET) {
+        const storage = createTranscriptStorage(env);
+        const objectKeys = new Set<string>();
+        for (const artifact of privateArtifacts.results ?? []) {
+          for (const key of [artifact.object_key_json, artifact.object_key_text, artifact.object_key_segments]) {
+            if (typeof key === "string" && key) objectKeys.add(key);
+          }
+        }
+        for (const key of objectKeys) await storage.delete(key);
+      }
+
       await env.ACCOUNT_DB.prepare("UPDATE users SET status = 'deleted', updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(user.id).run();
       await env.ACCOUNT_DB.prepare("DELETE FROM identities WHERE user_id = ?").bind(user.id).run();
       await env.ACCOUNT_DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(user.id).run();
       await env.ACCOUNT_DB.prepare("DELETE FROM managed_ai_usage WHERE user_id = ?").bind(user.id).run();
+      // SEC-03: Cascade deletion to 0008 user data, sync tables, jobs, and private artifacts
+      await env.ACCOUNT_DB.prepare("DELETE FROM devices WHERE user_id = ?").bind(user.id).run();
+      await env.ACCOUNT_DB.prepare("DELETE FROM user_subscriptions WHERE user_id = ?").bind(user.id).run();
+      await env.ACCOUNT_DB.prepare("DELETE FROM user_item_states WHERE user_id = ?").bind(user.id).run();
+      await env.ACCOUNT_DB.prepare("DELETE FROM user_playback_progress WHERE user_id = ?").bind(user.id).run();
+      await env.ACCOUNT_DB.prepare("DELETE FROM user_sync_cursors WHERE user_id = ?").bind(user.id).run();
+      await env.ACCOUNT_DB.prepare("DELETE FROM user_artifact_access WHERE user_id = ?").bind(user.id).run();
+      await env.ACCOUNT_DB.prepare("DELETE FROM artifact_jobs WHERE user_id = ?").bind(user.id).run();
+      await env.ACCOUNT_DB.prepare("DELETE FROM credit_transactions WHERE user_id = ? AND status = 'RESERVED'").bind(user.id).run();
+      await env.ACCOUNT_DB.prepare("DELETE FROM transcript_artifacts WHERE created_by_user_id = ? AND share_policy = 'PRIVATE_ACCOUNT'").bind(user.id).run();
+      await env.ACCOUNT_DB.prepare("UPDATE transcript_artifacts SET created_by_user_id = NULL WHERE created_by_user_id = ? AND share_policy = 'PUBLIC_REUSE'").bind(user.id).run();
     }
     return { status: 204, body: {} };
   } catch {

@@ -72,4 +72,44 @@ class TranscriptRepositoryTest {
         assertEquals("Cached text", cached?.fullText)
         assertTrue(!gatewayCalled)
     }
+
+    @Test
+    fun repositoryPollsUntilReadyAndCaches() = kotlinx.coroutines.runBlocking {
+        val cache = FakeTranscriptCache()
+        var checkCount = 0
+        val payload = TranscriptPayload(
+            contentCode = "WBEP-POLL-1234",
+            language = "en",
+            durationMs = 50_000L,
+            fullText = "Polled text",
+            segments = emptyList(),
+        )
+
+        val fakeGateway = object : TranscriptGatewayApi {
+            override suspend fun requestTranscript(request: EpisodeTranscriptRequest): TranscriptFetchResult {
+                return TranscriptFetchResult.Processing(contentCode = "WBEP-POLL-1234", jobId = "job_1")
+            }
+            override suspend fun checkJobStatus(jobId: String): TranscriptFetchResult {
+                checkCount++
+                return if (checkCount < 3) {
+                    TranscriptFetchResult.Processing(contentCode = "WBEP-POLL-1234", jobId = jobId)
+                } else {
+                    TranscriptFetchResult.Ready(
+                        contentCode = "WBEP-POLL-1234",
+                        artifactId = "art_poll",
+                        source = "generation",
+                        quota = TranscriptQuotaInfo(1, 1.0f, 1.0f),
+                        payload = payload,
+                    )
+                }
+            }
+        }
+
+        val repo = DefaultTranscriptRepository(cache, fakeGateway)
+        val result = repo.pollUntilReady("job_1", maxAttempts = 5, delayMs = 0L)
+
+        assertTrue(result is TranscriptFetchResult.Ready)
+        assertEquals(3, checkCount)
+        assertEquals(payload, repo.getCached("WBEP-POLL-1234"))
+    }
 }

@@ -77,7 +77,7 @@ WristBrief is a Wear OS-first inbox for RSS, Atom and podcast feeds. The watch s
 - [x] Managed OpenAI-compatible provider.
 - [x] OpenRouter configuration.
 - [x] Gemini adapter.
-- [ ] Anthropic adapter if product demand warrants it.
+- [x] Anthropic native adapter implemented in AI Gateway.
 - [x] BYOK support without shipping managed provider secrets in the APK.
 - [x] Never allow the public gateway to proxy arbitrary client-supplied hosts.
 
@@ -97,7 +97,7 @@ WristBrief is a Wear OS-first inbox for RSS, Atom and podcast feeds. The watch s
 - [x] Categories/folders.
 - [x] Keyword watch filter.
 - [x] Standalone watch refresh when the phone is unavailable and the watch has network access.
-- [x] Complete read/saved phone↔Wear synchronization with explicit ownership/merge semantics; the current v1 payload fields alone are not an end-to-end sync implementation.
+- [ ] **Partially implemented:** Data Layer contracts, schemas, and merge foundations exist, but the Cloud Sync coordinator lifecycle, account isolation, durable synchronization loop, and end-to-end verification remain incomplete.
 
 ## P8 — Membership and quotas
 
@@ -170,6 +170,8 @@ Implement after the current production RTDN hardening, and before calling the me
 - [x] Keep account merging/recovery explicit and auditable; never merge accounts solely because email strings match.
 
 #### Acceptance
+
+> The implemented account and membership code foundation does not itself establish production verification; use the current boundaries in [`docs/EXECUTION_STATUS.md`](./EXECUTION_STATUS.md).
 
 - Same Google account on a fresh install resolves to the same internal WristBrief user and receives the same server-owned membership state.
 - Different Google accounts cannot inherit each other's Pro entitlement, quota, Play purchase binding or sessions.

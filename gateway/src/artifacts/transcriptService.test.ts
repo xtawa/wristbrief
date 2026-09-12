@@ -5,6 +5,7 @@ import { D1ContentStore } from "../content/contentStore";
 import { D1ArtifactStore } from "./artifactStore";
 import { D1QuotaLedgerStore } from "./quotaLedger";
 import { TranscriptService } from "./transcriptService";
+import { InMemoryTranscriptStorage } from "./transcriptStorage";
 import { type TranscriptRequestInput } from "./transcriptTypes";
 
 describe("TranscriptService, Shared Cache & 1/5 Quota", () => {
@@ -18,6 +19,7 @@ describe("TranscriptService, Shared Cache & 1/5 Quota", () => {
     const service = new TranscriptService(contentResolver, artifactStore, quotaStore);
 
     const episodeInput: TranscriptRequestInput = {
+      sharePolicy: "PUBLIC_REUSE",
       episode: {
         feedUrl: "https://example.com/tech-podcast.xml",
         guid: "ep-100",
@@ -63,7 +65,7 @@ describe("TranscriptService, Shared Cache & 1/5 Quota", () => {
           { id: 1, startMs: 0, endMs: 5000, text: "Welcome to Episode 100" },
           { id: 2, startMs: 5000, endMs: 10000, text: "of the Grand Special." }
         ]
-      });
+      }, new InMemoryTranscriptStorage());
       expect(artifact.id).toMatch(/^art_/);
       expect(artifact.status).toBe("ready");
 

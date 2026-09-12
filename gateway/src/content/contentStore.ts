@@ -162,7 +162,7 @@ export class D1ContentStore implements ContentStore {
       canonicalTitle: row.canonical_title ? String(row.canonical_title) : null,
       canonicalPublishedAt: typeof row.canonical_published_at === "number" ? row.canonical_published_at : null,
       canonicalDurationMs: typeof row.canonical_duration_ms === "number" ? row.canonical_duration_ms : null,
-      sharePolicy: (row.share_policy as "PUBLIC_REUSE" | "PRIVATE_ACCOUNT") || "PUBLIC_REUSE",
+      sharePolicy: (row.share_policy as "PUBLIC_REUSE" | "PRIVATE_ACCOUNT") || "PRIVATE_ACCOUNT",
       status: (row.status as "active" | "merged" | "tombstone") || "active",
       preferredTranscriptArtifactId: row.preferred_transcript_artifact_id ? String(row.preferred_transcript_artifact_id) : null,
       createdAt: Number(row.created_at),

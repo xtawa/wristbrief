@@ -17,6 +17,7 @@ describe("ContentResolver & ContentStore", () => {
     const resolver = new ContentResolver(store);
 
     const result = await resolver.resolve({
+      sharePolicy: "PUBLIC_REUSE",
       feedUrl: "https://example.com/feed.xml",
       guid: "ep-001",
       audioUrl: "https://cdn.example.com/ep001.mp3?utm_source=test",

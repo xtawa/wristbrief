@@ -4,10 +4,16 @@ import android.content.ContentValues
 import android.database.sqlite.SQLiteDatabase
 import ink.underflo.wristbrief.mobile.db.WristBriefDatabaseHelper
 
+interface CloudSyncTarget {
+    fun mergeSubscriptions(deltas: List<SyncSubscriptionDelta>)
+    fun mergeItemStates(deltas: List<SyncItemStateDelta>)
+    fun mergePlaybackProgress(deltas: List<SyncPlaybackProgressDelta>)
+}
+
 class CloudSyncMerge(
     private val dbHelper: WristBriefDatabaseHelper,
-) {
-    fun mergeSubscriptions(deltas: List<SyncSubscriptionDelta>) {
+) : CloudSyncTarget {
+    override fun mergeSubscriptions(deltas: List<SyncSubscriptionDelta>) {
         if (deltas.isEmpty()) return
         val db = dbHelper.writableDatabase
         db.beginTransaction()
@@ -37,7 +43,7 @@ class CloudSyncMerge(
         }
     }
 
-    fun mergeItemStates(deltas: List<SyncItemStateDelta>) {
+    override fun mergeItemStates(deltas: List<SyncItemStateDelta>) {
         if (deltas.isEmpty()) return
         val db = dbHelper.writableDatabase
         db.beginTransaction()
@@ -104,7 +110,7 @@ class CloudSyncMerge(
         }
     }
 
-    fun mergePlaybackProgress(deltas: List<SyncPlaybackProgressDelta>) {
+    override fun mergePlaybackProgress(deltas: List<SyncPlaybackProgressDelta>) {
         if (deltas.isEmpty()) return
         val db = dbHelper.writableDatabase
         db.beginTransaction()

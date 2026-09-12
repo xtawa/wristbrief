@@ -330,7 +330,7 @@ internal fun InboxScreen(
 
             item { SectionGap() }
 
-            // Stage 3 — More (navigation hub for secondary destinations)
+            // Stage 3 — More (navigation hub for secondary destinations: exactly Library, Now Playing, Settings)
             item {
                 WearPageHeading(
                     eyebrow = null,
@@ -340,7 +340,7 @@ internal fun InboxScreen(
 
             item {
                 SecondaryEntryButton(
-                    label = stringResource(R.string.wear_saved_count, state.savedItems.size),
+                    label = stringResource(R.string.wear_library_title),
                     onClick = onOpenSaved,
                 ) {
                     WearIconBook()
@@ -358,19 +358,10 @@ internal fun InboxScreen(
 
             item {
                 SecondaryEntryButton(
-                    label = stringResource(R.string.wear_feeds_title),
+                    label = stringResource(R.string.wear_settings_title),
                     onClick = onOpenFeeds,
                 ) {
                     WearIconSettings()
-                }
-            }
-
-            item {
-                SecondaryEntryButton(
-                    label = if (state.isLoading) stringResource(R.string.wear_status_refreshing) else stringResource(R.string.wear_action_refresh),
-                    onClick = onRefresh,
-                ) {
-                    WearIconPlay()
                 }
             }
 

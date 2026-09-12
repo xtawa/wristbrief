@@ -35,7 +35,7 @@ class CloudSyncMergeTest {
             )
         }
 
-        override fun getPending(limit: Int): List<OutboxMutation> = mutations.take(limit)
+        override fun getPending(limit: Int, nowEpochMs: Long): List<OutboxMutation> = mutations.take(limit)
         override fun remove(ids: List<String>) {
             mutations.removeAll { it.id in ids }
         }

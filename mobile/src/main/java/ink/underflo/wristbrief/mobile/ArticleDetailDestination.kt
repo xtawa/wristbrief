@@ -58,6 +58,7 @@ internal fun ArticleDetailDestination(
     playerState: PodcastPlayerState? = null,
     onPlayPodcast: ((MobileFeedItem) -> Unit)? = null,
     playerController: MobilePodcastPlayerController? = null,
+    onOpenTranscript: ((MobileFeedItem) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     var isRead by remember(item.id) { mutableStateOf(inboxRepository.isRead(item.id)) }
@@ -244,18 +245,25 @@ internal fun ArticleDetailDestination(
                                     )
                                 }
                             }
-                            Button(
-                                onClick = {
-                                    if (isPlayingThis) {
-                                        playerController?.pause()
-                                    } else if (isCurrentEpisode) {
-                                        playerController?.resume()
-                                    } else {
-                                        onPlayPodcast?.invoke(item)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (onOpenTranscript != null) {
+                                    OutlinedButton(onClick = { onOpenTranscript(item) }) {
+                                        Text(stringResource(R.string.transcript_title))
                                     }
-                                },
-                            ) {
-                                Text(stringResource(if (isPlayingThis) R.string.action_pause else R.string.action_listen))
+                                }
+                                Button(
+                                    onClick = {
+                                        if (isPlayingThis) {
+                                            playerController?.pause()
+                                        } else if (isCurrentEpisode) {
+                                            playerController?.resume()
+                                        } else {
+                                            onPlayPodcast?.invoke(item)
+                                        }
+                                    },
+                                ) {
+                                    Text(stringResource(if (isPlayingThis) R.string.action_pause else R.string.action_listen))
+                                }
                             }
                         }
                     }

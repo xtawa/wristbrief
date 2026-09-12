@@ -55,12 +55,21 @@ A syntactically valid WristBrief session never falls back to the legacy token if
 
 The legacy compatibility entitlement is scoped only to the configured legacy principal. A Google/session user without a durable `MEMBERSHIP_STORE` is fail-safe FREE with zero managed-AI quota rather than inheriting legacy PRO. BYOK remains governed by its separate quota-bypass contract.
 
+## Implemented since initial release
+
+1. **Session revocation and scoped account deletion**: `POST /v1/auth/delete` and `DELETE /v1/auth/delete` (and `/v1/account/delete`) revoke sessions and remove account-scoped identity and D1 migration-0008 user rows. When transcript storage is configured, private transcript objects are removed; retained `PUBLIC_REUSE` artifacts have their creator reference cleared. Billing history is retained. Mobile cache/outbox/cursor cleanup, Queue/worker handling, production configuration, and end-to-end idempotency verification remain pending.
+2. **RTDN deduplication**: Bounded durable `messageId` deduplication prevents duplicate Pub/Sub deliveries from repeating Android Publisher API verification. Authentication is validated before accepting the dedup key.
+3. **Play purchase binding to authenticated user**: `0007_play_purchase_entitlements.sql` extended purchase bindings with `product_id`, `status`, `expires_at`. Multi-token entitlement aggregation (`aggregateEntitlement`) resolves the authoritative plan from all bound purchase tokens.
+
 ## Planned next steps
 
-1. Add explicit session sign-out/revocation routing and account-level session management.
-2. Add short-lived sign-in challenges/nonces if required by the final Android Credential Manager flow.
-3. Add the phone Credential Manager / Sign in with Google flow and store only the WristBrief session credential locally.
-4. Bind Play restore and RTDN ownership to the authenticated internal user ID and exercise cross-device restore.
-5. Define account deletion/unlink and legacy-user linking/recovery policy before production launch.
+1. Add short-lived sign-in challenges/nonces if required by the final Android Credential Manager flow.
+2. Add the phone Credential Manager / Sign in with Google flow and store only the WristBrief session credential locally.
+3. Exercise cross-device Play restore with the authenticated internal user ID on real Play Console internal-test infrastructure (L5).
 
 Google ID tokens, session bearer credentials, Play purchase tokens and authorization headers must never be written to Git, normal application logs or public error bodies.
+# Account deletion verification boundary (2026-09-12)
+
+Account deletion clears the user's D1 data introduced by migration 0008. When transcript storage is configured, it also deletes the deleted account's private transcript objects; retained `PUBLIC_REUSE` artifacts have `created_by_user_id` cleared so they no longer retain the deleted user's identity. Billing history is retained.
+
+This is not an "all local and remote data deleted" guarantee. Mobile cache, outbox, and cursor cleanup, Queue and worker behavior, and production deployment verification remain incomplete.

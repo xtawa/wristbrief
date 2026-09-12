@@ -1,7 +1,6 @@
 name = "wristbrief-gateway"
 main = "src/index.ts"
 compatibility_date = "2026-02-01"
-
 [vars]
 AI_MODEL = "gpt-5-mini"
 AI_BASE_URL = "https://api.openai.com/v1"
@@ -11,3 +10,11 @@ binding = "ACCOUNT_DB"
 database_name = "wristbrief-account-db"
 database_id = "wristbrief-account-db-id"
 migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "TRANSCRIPTS_BUCKET"
+bucket_name = "wristbrief-transcripts"
+
+[[queues.producers]]
+binding = "TRANSCRIPT_QUEUE"
+queue = "wristbrief-transcript-jobs"

@@ -1,5 +1,9 @@
 package ink.underflo.wristbrief.mobile
 
+import ink.underflo.wristbrief.mobile.artifacts.TranscriptCache
+import ink.underflo.wristbrief.mobile.artifacts.TranscriptPayload
+import ink.underflo.wristbrief.mobile.sync.CloudSyncOutbox
+import ink.underflo.wristbrief.mobile.sync.CloudSyncPreferences
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -7,6 +11,74 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AccountAuthTest {
+    @Test
+    fun localDataCleanerClearsTranscriptCacheOutboxAndSyncPreferences() {
+        var transcriptCleared = false
+        var outboxCleared = false
+        var preferencesCleared = false
+        val transcriptCache = object : TranscriptCache {
+            override fun get(contentCode: String): TranscriptPayload? = null
+            override fun put(contentCode: String, artifactId: String, payload: TranscriptPayload) {}
+            override fun remove(contentCode: String) {}
+            override fun clearAll() { transcriptCleared = true }
+        }
+        val outbox = object : CloudSyncOutbox {
+            override fun enqueue(entityType: ink.underflo.wristbrief.mobile.sync.SyncEntityType, entityId: String, payloadJson: String, updatedAtEpochMs: Long, isDeleted: Boolean) {}
+            override fun getPending(limit: Int, nowEpochMs: Long) = emptyList<ink.underflo.wristbrief.mobile.sync.OutboxMutation>()
+            override fun remove(ids: List<String>) {}
+            override fun count(): Int = 0
+            override fun clearAll() { outboxCleared = true }
+        }
+        val preferences = object : CloudSyncPreferences {
+            override fun getOrCreateDeviceId(): String = "device"
+            override fun getCursor(deviceId: String): Long = 0
+            override fun saveCursor(deviceId: String, cursor: Long) {}
+            override fun resetAll() { preferencesCleared = true }
+        }
+
+        AccountLocalDataCleaner(transcriptCache, outbox, preferences).clear()
+
+        assertTrue(transcriptCleared)
+        assertTrue(outboxCleared)
+        assertTrue(preferencesCleared)
+    }
+
+    @Test
+    fun accountSwitchClearsLocalDataOnlyAfterSuccessfulDifferentUserLogin() {
+        var clearCount = 0
+        val cleaner = AccountLocalDataCleaner(
+            transcriptCache = object : TranscriptCache {
+                override fun get(contentCode: String): TranscriptPayload? = null
+                override fun put(contentCode: String, artifactId: String, payload: TranscriptPayload) {}
+                override fun remove(contentCode: String) {}
+                override fun clearAll() { clearCount++ }
+            },
+            cloudSyncOutbox = object : CloudSyncOutbox {
+                override fun enqueue(entityType: ink.underflo.wristbrief.mobile.sync.SyncEntityType, entityId: String, payloadJson: String, updatedAtEpochMs: Long, isDeleted: Boolean) {}
+                override fun getPending(limit: Int, nowEpochMs: Long) = emptyList<ink.underflo.wristbrief.mobile.sync.OutboxMutation>()
+                override fun remove(ids: List<String>) {}
+                override fun count(): Int = 0
+            },
+            cloudSyncPreferences = object : CloudSyncPreferences {
+                override fun getOrCreateDeviceId(): String = "device"
+                override fun getCursor(deviceId: String): Long = 0
+                override fun saveCursor(deviceId: String, cursor: Long) {}
+                override fun resetAll() {}
+            },
+        )
+        fun success(userId: String) = AccountAuthResult.Success(
+            AccountSession("wbs_${"A".repeat(43)}", "2026-10-01T00:00:00Z", AccountUser(userId))
+        )
+
+        clearLocalDataOnAccountSwitch("user-a", success("user-a"), cleaner)
+        clearLocalDataOnAccountSwitch("user-a", AccountAuthResult.Failure("auth_failed"), cleaner)
+        clearLocalDataOnAccountSwitch(null, success("user-b"), cleaner)
+        assertEquals(0, clearCount)
+
+        clearLocalDataOnAccountSwitch("user-a", success("user-b"), cleaner)
+        assertEquals(1, clearCount)
+    }
+
     @Test
     fun acceptsExactHttpsGatewayOriginAndGoogleWebClientId() {
         val config = accountAuthConfig(

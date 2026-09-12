@@ -80,5 +80,6 @@
     <string name="wear_no_brief_points">暂无简报要点，请刷新获取。</string>
     <string name="wear_brief_listen">收听今日简报</string>
     <string name="wear_library_title">内容库</string>
+    <string name="wear_settings_title">设置</string>
     <string name="wear_no_articles">暂无可用文章</string>
 </resources>

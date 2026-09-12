@@ -1,9 +1,10 @@
-import { ContentResolver, type EpisodeMetadataInput } from "../content/contentResolver";
+import { ContentResolver, validateAudioUrl, type EpisodeMetadataInput } from "../content/contentResolver";
 import { type ArtifactStore, type TranscriptArtifactRecord } from "./artifactStore";
 import {
   calculateNormalTranscriptUnits,
   type QuotaLedgerStore
 } from "./quotaLedger";
+import { type TranscriptStorage } from "./transcriptStorage";
 import {
   type TranscriptPayload,
   type TranscriptProcessingResponse,
@@ -36,6 +37,10 @@ export class TranscriptService {
     input: TranscriptRequestInput
   ): Promise<TranscriptRequestResponse> {
     const episode = input.episode;
+    const urlCheck = validateAudioUrl(episode.audioUrl);
+    if (!urlCheck.ok) {
+      throw new Error(`invalid_audio_url: ${urlCheck.error}`);
+    }
     const language = input.language || "auto";
 
     // 1. Resolve canonical content
@@ -47,7 +52,7 @@ export class TranscriptService {
       title: episode.title,
       publishedAt: episode.publishedAt,
       durationMs: episode.durationMs,
-      sharePolicy: input.sharePolicy || "PUBLIC_REUSE",
+      sharePolicy: input.sharePolicy === "PUBLIC_REUSE" ? "PUBLIC_REUSE" : "PRIVATE_ACCOUNT",
       audioSha256: episode.audioSha256
     };
 
@@ -160,14 +165,27 @@ export class TranscriptService {
 
   async completeJobWithArtifact(
     jobId: string,
-    transcript: TranscriptPayload
+    transcript: TranscriptPayload,
+    storage?: TranscriptStorage
   ): Promise<TranscriptArtifactRecord> {
     const job = await this.artifactStore.getJobById(jobId);
     if (!job) throw new Error(`Job not found: ${jobId}`);
+    if (!storage) throw new Error("transcript_storage_unavailable");
+
+    const content = await this.contentResolver.getById(job.contentId);
+    const sharePolicy = content?.sharePolicy === "PRIVATE_ACCOUNT" ? "PRIVATE_ACCOUNT" : "PUBLIC_REUSE";
 
     const artifactId = `art_${crypto.randomUUID()}`;
     const wordCount = transcript.fullText.split(/\s+/).filter(Boolean).length;
     const segmentCount = transcript.segments.length;
+
+    const objectKeyJson = `transcripts/${job.contentId}/${job.language}/1/transcript.json`;
+    const objectKeyText = `transcripts/${job.contentId}/${job.language}/1/transcript.txt`;
+    const objectKeySegments = `transcripts/${job.contentId}/${job.language}/1/segments.json`;
+
+    await storage.put(objectKeyJson, JSON.stringify(transcript));
+    await storage.put(objectKeyText, transcript.fullText, "text/plain");
+    await storage.put(objectKeySegments, JSON.stringify(transcript.segments));
 
     const artifact = await this.artifactStore.createArtifact({
       id: artifactId,
@@ -177,14 +195,14 @@ export class TranscriptService {
       provider: "managed",
       model: "whisper-large-v3",
       status: "ready",
-      objectKeyJson: `transcripts/${job.contentId}/${job.language}/1/transcript.json`,
-      objectKeyText: `transcripts/${job.contentId}/${job.language}/1/transcript.txt`,
-      objectKeySegments: `transcripts/${job.contentId}/${job.language}/1/segments.json`,
+      objectKeyJson,
+      objectKeyText,
+      objectKeySegments,
       transcriptHash: null,
       wordCount,
       segmentCount,
       qualityScore: 1.0,
-      sharePolicy: "PUBLIC_REUSE",
+      sharePolicy,
       createdByUserId: job.userId
     });
 
@@ -200,5 +218,18 @@ export class TranscriptService {
     await this.artifactStore.updateJobStatus(jobId, "completed");
 
     return artifact;
+  }
+
+  async failJob(jobId: string, errorCode = "generation_failed"): Promise<void> {
+    const job = await this.artifactStore.getJobById(jobId);
+    if (!job) return;
+
+    // Release quota reservation on failure
+    const tx = await this.quotaStore.findByReference(job.userId, "transcript_generation", jobId);
+    if (tx && tx.status === "RESERVED") {
+      await this.quotaStore.release(tx.id);
+    }
+
+    await this.artifactStore.updateJobStatus(jobId, "failed", errorCode);
   }
 }

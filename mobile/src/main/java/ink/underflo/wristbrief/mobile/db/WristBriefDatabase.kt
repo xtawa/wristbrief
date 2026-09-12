@@ -92,11 +92,13 @@ open class WristBriefDatabaseHelper(
                 updated_at_epoch_ms INTEGER NOT NULL,
                 is_deleted INTEGER NOT NULL DEFAULT 0,
                 retry_count INTEGER NOT NULL DEFAULT 0,
-                created_at_epoch_ms INTEGER NOT NULL
+                created_at_epoch_ms INTEGER NOT NULL,
+                next_attempt_epoch_ms INTEGER NOT NULL DEFAULT 0
             );
             """.trimIndent(),
         )
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_cloud_sync_outbox_created ON cloud_sync_outbox(created_at_epoch_ms ASC);")
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_cloud_sync_outbox_next_attempt ON cloud_sync_outbox(next_attempt_epoch_ms ASC);")
 
         db.execSQL(
             """
@@ -130,11 +132,13 @@ open class WristBriefDatabaseHelper(
                     updated_at_epoch_ms INTEGER NOT NULL,
                     is_deleted INTEGER NOT NULL DEFAULT 0,
                     retry_count INTEGER NOT NULL DEFAULT 0,
-                    created_at_epoch_ms INTEGER NOT NULL
+                    created_at_epoch_ms INTEGER NOT NULL,
+                    next_attempt_epoch_ms INTEGER NOT NULL DEFAULT 0
                 );
                 """.trimIndent(),
             )
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_cloud_sync_outbox_created ON cloud_sync_outbox(created_at_epoch_ms ASC);")
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_cloud_sync_outbox_next_attempt ON cloud_sync_outbox(next_attempt_epoch_ms ASC);")
 
             db.execSQL(
                 """
@@ -150,10 +154,18 @@ open class WristBriefDatabaseHelper(
                 """.trimIndent(),
             )
         }
+        if (oldVersion < 4) {
+            try {
+                db.execSQL("ALTER TABLE cloud_sync_outbox ADD COLUMN next_attempt_epoch_ms INTEGER NOT NULL DEFAULT 0;")
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_cloud_sync_outbox_next_attempt ON cloud_sync_outbox(next_attempt_epoch_ms ASC);")
+            } catch (_: Exception) {
+                // Ignore if column already exists
+            }
+        }
     }
 
     companion object {
         const val DATABASE_NAME = "wristbrief.db"
-        const val DATABASE_VERSION = 3
+        const val DATABASE_VERSION = 4
     }
 }

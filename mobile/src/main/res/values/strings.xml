@@ -1,8 +1,10 @@
 <resources>
     <string name="app_name">WristBrief</string>
     <string name="nav_today">Today</string>
+    <string name="nav_explore">Explore</string>
     <string name="nav_feeds">Library</string>
     <string name="nav_library">Library</string>
+    <string name="nav_now_playing">Now Playing</string>
     <string name="nav_ai">Ask AI</string>
     <string name="nav_membership">Account</string>
     <string name="nav_settings">Settings</string>
@@ -14,6 +16,14 @@
     <string name="oobe_explore">Explore Library first</string>
     <string name="oobe_welcome_title">The brief that keeps up with you</string>
     <string name="oobe_welcome_body">Follow RSS feeds and podcasts, get a calm daily AI brief, and continue on your watch.</string>
+    <string name="oobe_interests_title">Choose your interests</string>
+    <string name="oobe_interests_body">Pick topics that matter to you. WristBrief curates calm, high-signal recommendations without noise.</string>
+    <string name="oobe_content_title">Add your content</string>
+    <string name="oobe_content_body">Subscribe to RSS and podcast feeds, or import your OPML subscriptions.</string>
+    <string name="oobe_ai_title">Calm AI features</string>
+    <string name="oobe_ai_body">Turn long articles and podcast transcripts into structured, actionable briefs on your schedule.</string>
+    <string name="oobe_ready_title">You’re ready</string>
+    <string name="oobe_ready_body">Your personal feed and daily brief are ready. Explore your library or start reading.</string>
     <string name="oobe_sources_title">Your sources, your choice</string>
     <string name="oobe_sources_body">Add an RSS or Podcast URL, or bring your existing subscriptions with an OPML file. WristBrief only follows sources you choose.</string>
     <string name="oobe_devices_title">Made for every screen</string>

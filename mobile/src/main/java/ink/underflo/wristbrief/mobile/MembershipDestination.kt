@@ -39,6 +39,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.android.billingclient.api.BillingClient.BillingResponseCode
 import kotlinx.coroutines.launch
+import ink.underflo.wristbrief.mobile.artifacts.TranscriptCacheStore
+import ink.underflo.wristbrief.mobile.db.WristBriefDatabaseHelper
+import ink.underflo.wristbrief.mobile.sync.CloudSyncOutboxStore
+import ink.underflo.wristbrief.mobile.sync.SharedPreferencesCloudSyncPreferences
 
 @Composable
 internal fun MembershipDestination(padding: PaddingValues) {
@@ -46,7 +50,21 @@ internal fun MembershipDestination(padding: PaddingValues) {
     val activity = context as? Activity
     val scope = rememberCoroutineScope()
     val sessionPreferences = remember(context) { AccountSessionPreferences(context) }
-    val accountClient = remember(context) { GoogleAccountAuthClient(context, sessionPreferences = sessionPreferences) }
+    val dbHelper = remember(context) { WristBriefDatabaseHelper(context) }
+    val localDataCleaner = remember(context, dbHelper) {
+        AccountLocalDataCleaner(
+            transcriptCache = TranscriptCacheStore(dbHelper),
+            cloudSyncOutbox = CloudSyncOutboxStore(dbHelper),
+            cloudSyncPreferences = SharedPreferencesCloudSyncPreferences(context),
+        )
+    }
+    val accountClient = remember(context, localDataCleaner) {
+        GoogleAccountAuthClient(
+            context,
+            sessionPreferences = sessionPreferences,
+            localDataCleaner = localDataCleaner,
+        )
+    }
     val membershipApi = remember(context) {
         MembershipApiClient(
             sessionProvider = sessionPreferences::read,
@@ -335,10 +353,14 @@ internal fun MembershipDestination(padding: PaddingValues) {
                                 scope.launch {
                                     accountBusy = true
                                     try {
-                                        accountClient.deleteAccount()
-                                        accountSession = null
-                                        serverSnapshot = null
-                                        accountMessage = context.getString(R.string.membership_account_deleted)
+                                        when (accountClient.deleteAccount()) {
+                                            AccountAuthResult.SignedOut -> {
+                                                accountSession = null
+                                                serverSnapshot = null
+                                                accountMessage = context.getString(R.string.membership_account_deleted)
+                                            }
+                                            else -> accountMessage = context.getString(R.string.membership_delete_failed)
+                                        }
                                     } catch (_: Exception) {
                                         accountMessage = context.getString(R.string.membership_delete_failed)
                                     } finally {

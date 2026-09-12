@@ -13,6 +13,7 @@ interface TranscriptCache {
     fun get(contentCode: String): TranscriptPayload?
     fun put(contentCode: String, artifactId: String, payload: TranscriptPayload)
     fun remove(contentCode: String)
+    fun clearAll() {}
 }
 
 class TranscriptCacheStore(
@@ -55,6 +56,10 @@ class TranscriptCacheStore(
     override fun remove(contentCode: String) {
         val db = dbHelper.writableDatabase
         db.delete(TABLE_NAME, "$COL_CONTENT_CODE = ?", arrayOf(contentCode))
+    }
+
+    override fun clearAll() {
+        dbHelper.writableDatabase.delete(TABLE_NAME, null, null)
     }
 
     private fun Cursor.toTranscriptPayload(): TranscriptPayload {

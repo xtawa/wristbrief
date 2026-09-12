@@ -12,6 +12,8 @@ data class EpisodeTranscriptRequest(
 
 interface TranscriptRepository {
     suspend fun fetchTranscript(request: EpisodeTranscriptRequest): TranscriptFetchResult
+    suspend fun pollUntilReady(jobId: String, maxAttempts: Int = 10, delayMs: Long = 1000L): TranscriptFetchResult =
+        TranscriptFetchResult.Processing(contentCode = "", jobId = jobId)
     fun getCached(contentCode: String): TranscriptPayload?
 }
 
@@ -30,6 +32,27 @@ class DefaultTranscriptRepository(
             cacheStore.put(result.contentCode, result.artifactId, result.payload)
         }
         return result
+    }
+
+    override suspend fun pollUntilReady(jobId: String, maxAttempts: Int, delayMs: Long): TranscriptFetchResult {
+        var attempts = 0
+        while (attempts < maxAttempts) {
+            val status = gatewayApi.checkJobStatus(jobId)
+            if (status is TranscriptFetchResult.Ready) {
+                if (status.payload != null) {
+                    cacheStore.put(status.contentCode, status.artifactId, status.payload)
+                }
+                return status
+            }
+            if (status is TranscriptFetchResult.Failure) {
+                return status
+            }
+            attempts++
+            if (attempts < maxAttempts && delayMs > 0) {
+                kotlinx.coroutines.delay(delayMs)
+            }
+        }
+        return TranscriptFetchResult.Processing(contentCode = "", jobId = jobId)
     }
 }
 

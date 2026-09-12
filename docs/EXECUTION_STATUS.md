@@ -27,11 +27,13 @@ To prevent mistaking "code exists" or "local build passed" for true end-to-end p
 | **Batch 2** | **Onboarding to First Content Activation** | Robust 3-min onboarding, Add Feed state machine, OPML import, Today activation, sample feeds | **COMPLETED** | L2 Locally Tested |
 | **Batch 3** | **Local Content Library & Room Migration** | SQLite persistence, item identity, bounded refresh, Today/Library filtering & search | **COMPLETED** | L2 Locally Tested |
 | **Batch 4** | **Podcast Playback & Media3 Loop** | SQLite playback progress, Media3 service/session, Wi-Fi constraints, audio controls | **COMPLETED** | L2 Locally Tested |
-| **Batch 5** | **Wear OS-First UX & Canonical Data Layer** | Watch UX polish, rotary crown support, versioned outbox sync, scoped session bridge | **COMPLETED** | L2 Locally Tested |
+| **Batch 5** | **Wear OS-First UX & Canonical Data Layer** | Watch UX polish, rotary crown support, versioned outbox sync, scoped session bridge | **SOURCE PARTIALLY COMPLETE / CURRENT VERIFICATION PENDING** | Historical evidence only; Android and lifecycle verification pending |
 | **Batch 6** | **AI Daily Brief & Predictable Quotas** | Reserve/commit/release quota lifecycle, cache stampede lock, structured brief output | **COMPLETED** | L2 Locally Tested |
 | **Batch 7** | **Account, Play Billing & Membership Entitlements** | Keystore SessionStore, Play Billing auto-verify/acknowledge, multi-token D1 entitlements | **COMPLETED** | L2 Locally Tested |
 | **Batch 8** | **Production Hardening & Release Gate** | Lockfiles, clean D1 migrations, security audit, release candidate verification record | **COMPLETED** | L2 Locally Tested |
-| **Cloud Sync** | **Cloud Sync, Content Code & Shared Transcripts** | D1 migration 0008, two-stage Content Code, 1.0x/0.2x/0x quota, outbox & conflict resolver | **COMPLETED** | L2 Locally Tested |
+| **Cloud Sync** | **Cloud Sync, Content Code & Shared Transcripts** | D1 migration 0008, two-stage Content Code, 1.0x/0.2x/0x quota, outbox & conflict resolver | **SOURCE PARTIALLY COMPLETE / CURRENT VERIFICATION PENDING** | Queue/worker, app lifecycle, Android, and production verification pending |
+
+> Historical batch entries and their recorded local evidence do not establish current end-to-end or production verification.
 
 ---
 
@@ -444,7 +446,7 @@ To prevent mistaking "code exists" or "local build passed" for true end-to-end p
   - `python scripts/release_guard.py`: Passed with output: `release-guard: Android security, cross-device packaging, string parity, and D1 migrations OK`.
   - `mobile:assembleDebug` & `app:assembleDebug`: Both APKs assembled cleanly.
 - **Roadmap Completion**:
-  - **ALL BATCHES 0 THROUGH 8 COMPLETED AND VERIFIED.**
+  - **Historical source batches 0 through 8 were recorded as complete at the time; current verification is pending where identified in the Review Pass, including Android and Cloud Sync lifecycle coverage.**
 
 ---
 
@@ -482,10 +484,62 @@ To prevent mistaking "code exists" or "local build passed" for true end-to-end p
   - `python scripts/release_guard.py`: Passed (Android security, cross-device packaging, string parity, and 8 D1 migrations OK).
   - `mobile:assembleDebug` & `app:assembleDebug`: Both APKs assembled cleanly without errors.
 
+---
+
+### docs/next Review Pass: Security, Sync Client, Transcript API, UI Alignment & Release Validation
+
+- **Date**: 2026-09-12
+- **Specification Source**: [`docs/next/README.md`](file:///g:/Projects/wristbrief/docs/next/README.md) (5 sub-documents, priority P1–P5)
+- **Status**: **PARTIALLY IMPLEMENTED / VERIFICATION PENDING**. The P1–P5 bullets below record source changes, not completion of the full product or production lifecycle.
+- **Product Outcome (partial source implementation)**:
+  - **P1 — Authorization, Privacy & Cascade Deletion** ([`03-authz-privacy-deletion.md`](file:///g:/Projects/wristbrief/docs/next/03-authz-privacy-deletion.md)):
+    - SSRF URL validation in content resolver rejects non-HTTPS and private/loopback addresses.
+    - `sharePolicy` enforcement is partial: transcript artifacts default to `PRIVATE_ACCOUNT` and avoid silent upgrade, but `PUBLIC_REUSE` can still be explicitly requested without a server-side source/domain/signed-URL eligibility policy; that conditional SEC-02 risk remains PENDING.
+    - Object-level authorization on transcript routes (`handleTranscriptStatus`, `handleTranscriptGet`): unauthorized access returns 404 to prevent resource probing.
+    - `failJob()` releases reserved quota credits on provider failure.
+    - Scoped account deletion removes account-owned D1 migration-0008 rows, deletes private transcript objects when storage is configured, anonymizes retained public artifact creators, and preserves billing history. Mobile and Queue cleanup remains pending.
+    - `InMemoryTranscriptStorage` and `R2TranscriptStorage` implementations created.
+    - 5 dedicated security/authz/deletion tests in `secAuthzDeletion.test.ts`.
+  - **P2 — Cloud Sync Client Integration** ([`01-cloud-sync-client-integration.md`](file:///g:/Projects/wristbrief/docs/next/01-cloud-sync-client-integration.md)):
+    - Android DB version bumped to 4 with `next_attempt_epoch_ms` column in `cloud_sync_outbox`.
+    - Exponential backoff with jitter in `CloudSyncOutboxStore`.
+    - `HttpCloudSyncApi` network client (`CloudSyncApi.kt`).
+    - `CloudSyncCoordinator` orchestrating push/pull with error handling.
+    - Tests: `CloudSyncCoordinatorTest` and `CloudSyncMergeTest`.
+  - **P3 — Transcript Storage & API Client** ([`02-transcript-storage-and-access.md`](file:///g:/Projects/wristbrief/docs/next/02-transcript-storage-and-access.md)):
+    - R2 bucket binding (`TRANSCRIPTS_BUCKET`) and Queue producer binding (`TRANSCRIPT_QUEUE`) in `wrangler.toml`.
+    - `HttpTranscriptGatewayApi` implementing `TranscriptGatewayApi` interface.
+    - `pollUntilReady` with configurable retry in `TranscriptRepository`.
+    - Tests: `TranscriptRepositoryTest`.
+  - **P4 — Phone & Wear UI Alignment** ([`04-phone-wear-ui-alignment.md`](file:///g:/Projects/wristbrief/docs/next/04-phone-wear-ui-alignment.md)):
+    - Wear OS Stage 3: exactly 3 items (`Library`, `Now Playing`, `Settings`) per uidocs spec.
+    - Phone OOBE: 5-step neutral flow (`Welcome`, `Interests`, `Content`, `AiFeatures`, `Ready`) with zero-gradient glass surfaces (`GlassTokens`).
+    - Phone destinations: added `Explore` and `NowPlaying` with dedicated composable destinations.
+    - Transcript navigation: `onOpenTranscript` wired through `ArticleDetailDestination`, `PodcastExpandedSheet`, rendering `TranscriptViewerDestination`.
+    - Full bilingual string parity for all new strings.
+  - **P5 — Release Validation & Documentation Reconciliation** ([`05-release-validation-and-doc-reconciliation.md`](file:///g:/Projects/wristbrief/docs/next/05-release-validation-and-doc-reconciliation.md)):
+    - `gateway/package-lock.json` generated and committed.
+    - Gateway tests, typecheck, and release guard passed in the recorded review evidence; Android suites were not rerun in the current review.
+    - Documentation records the current verification boundary; Android/CI/production reconciliation remains pending.
+- **Verification Level Summary**:
+  - **L1 (Code Exists)**: ⚠️ PARTIAL — relevant source files exist, but Queue/audio worker and complete Cloud Sync lifecycle wiring are not implemented or verified.
+  - **L2 (Locally Tested)**: ⚠️ PARTIAL — verified in this review: Gateway 27 files / 173 tests, Gateway typecheck, and release guard. Mobile and Wear OS suites were not rerun and are not current evidence.
+  - **L3 (CI Verified)**: ⏳ PENDING — requires push to remote and GitHub Actions run on recorded commit SHA.
+  - **L4 (Paired Verified)**: ⏳ PENDING — requires emulators/physical devices, Bluetooth pairing, rotary input, audio route transitions, Activity recreation. Out of scope for this pass.
+  - **L5 (Production Configured)**: ⏳ PENDING — requires live Cloudflare D1/R2/Queue credentials, GCP OAuth, Play Console internal track, provider secrets. Out of scope for this pass.
+- **Evidence** (2026-09-12):
+  - `gateway:npm run typecheck`: Passed (0 errors).
+  - `gateway:npm test`: 27/27 test files passed (173/173 tests, 100%).
+  - `python scripts/release_guard.py`: Passed (Android security, cross-device packaging, string parity, and D1 migrations OK).
+  - **PENDING**: Queue consumer/audio worker, Cloud Sync application lifecycle wiring, Android and Wear OS test/build verification, CI, and production D1/R2/Queue verification.
+  - No physical-device, emulator, or VM validation was performed in this review pass.
 
 
 
 
+# 2026-09-12 Review Pass factual status
 
-
-
+- Verified in the Gateway workspace: 27 test files / 173 tests, TypeScript typecheck, and `release_guard`.
+- Fixed in source: Transcript API client/server contract, default-private transcript sharing and access behavior, and Sync request parameter validation.
+- PENDING: Queue consumer and audio worker, Cloud Sync application wiring, Android and CI verification, and production D1/R2/Queue verification.
+- No physical device, emulator, or VM validation was performed in this pass.

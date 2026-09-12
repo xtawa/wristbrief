@@ -33,14 +33,22 @@ export class D1SyncStore implements SyncStore {
         INSERT INTO devices (id, user_id, platform, display_name, app_version, created_at, last_seen_at)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
-          user_id = excluded.user_id,
           platform = excluded.platform,
           display_name = coalesce(excluded.display_name, devices.display_name),
           app_version = coalesce(excluded.app_version, devices.app_version),
           last_seen_at = excluded.last_seen_at
+        WHERE devices.user_id = excluded.user_id
       `)
       .bind(deviceId, userId, platform, displayName ?? null, appVersion ?? null, now, now)
       .run();
+
+    const registered = await this.db
+      .prepare("SELECT user_id FROM devices WHERE id = ?")
+      .bind(deviceId)
+      .first<{ user_id: string }>();
+    if (!registered || registered.user_id !== userId) {
+      throw new Error("device_id_already_registered");
+    }
   }
 
   async pushMutations(userId: string, request: SyncPushRequest): Promise<SyncPushResponse> {

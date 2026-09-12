@@ -8,6 +8,16 @@ async function issueSession(store: InMemoryAccountSessionStore, userId: string) 
 }
 
 describe("request authentication migration", () => {
+  function accountDb(status: string | null): D1Database {
+    return {
+      prepare: () => ({
+        bind: () => ({
+          first: async () => status === null ? null : { status }
+        })
+      })
+    } as unknown as D1Database;
+  }
+
   it("authenticates WristBrief sessions as their internal user id", async () => {
     const store = new InMemoryAccountSessionStore();
     const issued = await issueSession(store, "google-user-1");
@@ -30,6 +40,28 @@ describe("request authentication migration", () => {
       GATEWAY_TOKEN: "legacy-secret",
       GATEWAY_USER_ID: "legacy-user"
     })).resolves.toEqual({ id: "legacy-user" });
+  });
+
+  it("allows the legacy principal when its persisted account is active", async () => {
+    const request = new Request("https://gateway.example/v1/me", {
+      headers: { Authorization: "Bearer legacy-secret" }
+    });
+    await expect(authenticateRequestUser(request, {
+      ACCOUNT_DB: accountDb("active"),
+      GATEWAY_TOKEN: "legacy-secret",
+      GATEWAY_USER_ID: "legacy-user"
+    })).resolves.toEqual({ id: "legacy-user" });
+  });
+
+  it("rejects the legacy principal when its persisted account is deleted", async () => {
+    const request = new Request("https://gateway.example/v1/me", {
+      headers: { Authorization: "Bearer legacy-secret" }
+    });
+    await expect(authenticateRequestUser(request, {
+      ACCOUNT_DB: accountDb("deleted"),
+      GATEWAY_TOKEN: "legacy-secret",
+      GATEWAY_USER_ID: "legacy-user"
+    })).resolves.toBeNull();
   });
 
   it("fails closed for revoked sessions instead of falling back to legacy auth", async () => {

@@ -342,4 +342,17 @@
     <string name="auth_error_rate_limited">尝试过于频繁，请稍后再试。</string>
     <string name="auth_error_network">网络不可用，请稍后再试。</string>
     <string name="auth_error_generic">登录失败，请稍后再试。</string>
+    <string name="opml_import_from_url_hint">OPML 链接（https://…）</string>
+    <string name="opml_preview_from_url">从链接预览</string>
+    <string name="opml_preview_title">导入预览</string>
+    <string name="opml_preview_summary">将导入 %1$d 个订阅源 · 跳过 %2$d 个重复 · 拒绝 %3$d 个</string>
+    <string name="opml_preview_confirm">导入</string>
+    <string name="opml_preview_error_invalid_url">请输入有效的 OPML 链接。</string>
+    <string name="opml_preview_error_blocked">该链接或其重定向目标不被允许。</string>
+    <string name="opml_preview_error_timeout">链接响应超时。</string>
+    <string name="opml_preview_error_http">服务器返回错误。</string>
+    <string name="opml_preview_error_too_large">文档过大。</string>
+    <string name="opml_preview_error_format">该文档不是有效的 OPML 文件。</string>
+    <string name="opml_preview_error_unauthorized">请登录后从链接导入。</string>
+    <string name="opml_preview_error_generic">无法预览该文档。</string>
 </resources>

@@ -55,6 +55,7 @@ import {
   type EmailAuthEnv
 } from "./emailAuth/emailAuthRoutes";
 import { handleAdminRoute, type AdminRoutesEnv } from "./admin/adminRoutes";
+import { previewOpmlUrl } from "./opml/opmlPreview";
 
 interface Env
   extends ProviderEnv,
@@ -265,6 +266,17 @@ export default {
       } catch {
         return respond({ error: "content_unavailable" }, 503);
       }
+    }
+
+    if (request.method === "POST" && url.pathname === "/v1/opml/preview-url") {
+      if (!user) return respond({ error: "unauthorized" }, 401);
+      const parsedBody = await readJsonBodyLimited<{ url?: unknown }>(request, MAX_AUTH_REQUEST_BYTES);
+      if (parsedBody.error) {
+        return respond({ error: parsedBody.error }, parsedBody.error === "request_too_large" ? 413 : 400);
+      }
+      const preview = await previewOpmlUrl(parsedBody.value.url);
+      if (preview.ok) return respond(preview.body);
+      return respond({ error: preview.code }, preview.status);
     }
 
     if (request.method === "POST" && url.pathname === "/v1/sync/push") {

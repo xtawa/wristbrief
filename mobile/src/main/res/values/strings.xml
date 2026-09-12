@@ -342,4 +342,17 @@
     <string name="auth_error_rate_limited">Too many attempts. Try again later.</string>
     <string name="auth_error_network">Network unavailable. Try again later.</string>
     <string name="auth_error_generic">Sign-in failed. Try again later.</string>
+    <string name="opml_import_from_url_hint">OPML link (https://…)</string>
+    <string name="opml_preview_from_url">Preview from URL</string>
+    <string name="opml_preview_title">Import preview</string>
+    <string name="opml_preview_summary">%1$d feeds to import · %2$d duplicates skipped · %3$d rejected</string>
+    <string name="opml_preview_confirm">Import</string>
+    <string name="opml_preview_error_invalid_url">Enter a valid OPML link.</string>
+    <string name="opml_preview_error_blocked">This link or its redirects are not allowed.</string>
+    <string name="opml_preview_error_timeout">The link took too long to respond.</string>
+    <string name="opml_preview_error_http">The server returned an error.</string>
+    <string name="opml_preview_error_too_large">The document is too large.</string>
+    <string name="opml_preview_error_format">The document is not a valid OPML file.</string>
+    <string name="opml_preview_error_unauthorized">Sign in to import from a link.</string>
+    <string name="opml_preview_error_generic">Could not preview the document.</string>
 </resources>

@@ -53,6 +53,11 @@ class SqliteMobileInboxStore(
         return result
     }
 
+    override fun deleteItemsForFeed(feedId: String) {
+        val db = dbHelper.writableDatabase
+        db.delete("feed_items", "feed_id = ?", arrayOf(feedId))
+    }
+
     override fun save(items: List<MobileFeedItem>) {
         val db = dbHelper.writableDatabase
         db.beginTransaction()

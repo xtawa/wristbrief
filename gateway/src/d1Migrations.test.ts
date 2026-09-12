@@ -12,9 +12,9 @@ describe("D1 SQL Migrations Chain", () => {
       .filter((file) => file.endsWith(".sql"))
       .sort();
 
-    expect(migrationFiles.length).toBeGreaterThanOrEqual(9);
+    expect(migrationFiles.length).toBeGreaterThanOrEqual(10);
     expect(migrationFiles[0]).toBe("0001_membership.sql");
-    expect(migrationFiles[migrationFiles.length - 1]).toBe("0009_admin_and_email_auth.sql");
+    expect(migrationFiles[migrationFiles.length - 1]).toBe("0010_sync_integrity.sql");
 
     const db = new DatabaseSync(":memory:");
 

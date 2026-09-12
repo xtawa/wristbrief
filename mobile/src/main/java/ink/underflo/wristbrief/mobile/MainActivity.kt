@@ -105,10 +105,24 @@ import ink.underflo.wristbrief.mobile.media.PodcastExpandedSheet
 import ink.underflo.wristbrief.mobile.media.PodcastMiniPlayer
 import ink.underflo.wristbrief.mobile.media.PodcastPlaybackRequest
 import ink.underflo.wristbrief.mobile.media.PodcastPlayerState
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); setContent { WristBriefMobileApp() } }
+}
+
+/**
+ * Late-bound subscription lifecycle hooks: the feed manager is constructed before
+ * the inbox repository, so the bindings are assigned after both exist.
+ */
+private class MobileFeedListenerBindings : MobileFeedListener {
+    var onAdded: (MobileFeedSubscription) -> Unit = {}
+    var onUpdated: (MobileFeedSubscription) -> Unit = {}
+    var onRemoved: (MobileFeedSubscription) -> Unit = {}
+    override fun onSubscriptionAdded(feed: MobileFeedSubscription) = onAdded(feed)
+    override fun onSubscriptionUpdated(feed: MobileFeedSubscription) = onUpdated(feed)
+    override fun onSubscriptionRemoved(feed: MobileFeedSubscription) = onRemoved(feed)
 }
 
 @Composable fun WristBriefMobileApp() {
@@ -132,22 +146,14 @@ class MainActivity : ComponentActivity() {
             LegacyDataMigration.performIfNeeded(context, sqliteFeedStore, sqliteInboxStore, sqlitePodcastStore)
         }
 
-        val feedManager = remember(context, sqliteFeedStore) {
-            MobileFeedManager(
-                sqliteFeedStore,
-                HttpFeedProbe(),
-                GoogleWearFeedSyncPublisher(context),
-            )
-        }
         val syncManager = remember(context) { PhoneItemStateSyncManager(context) }
 
         // Cloud sync runtime: the coordinator (push outbox + pull + merge) that
         // existed but was never wired into the app. Cycles start on app start,
-        // ON_RESUME, and after every local item-state mutation; signed-out
-        // users never start a cycle. Failures leave mutations in the outbox
-        // with exponential backoff.
+        // ON_RESUME, and after every local mutation; signed-out users never
+        // start a cycle. Failures leave mutations in the outbox with backoff.
         val cloudSyncOutboxStore = remember(dbHelper) { CloudSyncOutboxStore(dbHelper) }
-        val cloudSyncRuntime = remember(context, dbHelper, feedManager, cloudSyncOutboxStore, accountSessionPreferences) {
+        val cloudSyncRuntime = remember(context, dbHelper, sqliteFeedStore, cloudSyncOutboxStore, accountSessionPreferences) {
             val wearFeedPublisher = GoogleWearFeedSyncPublisher(context)
             CloudSyncRuntime(
                 coordinator = CloudSyncCoordinator(
@@ -156,7 +162,7 @@ class MainActivity : ComponentActivity() {
                     merge = CloudSyncMerge(dbHelper),
                     preferences = SharedPreferencesCloudSyncPreferences(context),
                     wearPublisher = WearSyncNotifier {
-                        runCatching { wearFeedPublisher.publish(feedManager.feeds()) }
+                        runCatching { wearFeedPublisher.publish(sqliteFeedStore.load()) }
                     },
                 ),
                 sessionTokenProvider = { accountSessionPreferences.read()?.sessionToken },
@@ -164,6 +170,24 @@ class MainActivity : ComponentActivity() {
         }
         DisposableEffect(cloudSyncRuntime) {
             onDispose { cloudSyncRuntime.dispose() }
+        }
+
+        // Subscription lifecycle: additions/removals enqueue cloud mutations and
+        // refresh the inbox; deletions also clear the feed's cached items
+        // (local cleanup only — the cloud tombstone never deletes shared content).
+        val appScope = remember { kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default) }
+        DisposableEffect(appScope) {
+            onDispose { appScope.cancel() }
+        }
+        val feedListener = remember { MobileFeedListenerBindings() }
+        val feedManager = remember(context, sqliteFeedStore, cloudSyncOutboxStore, feedListener) {
+            MobileFeedManager(
+                sqliteFeedStore,
+                HttpFeedProbe(),
+                GoogleWearFeedSyncPublisher(context),
+                cloudOutbox = cloudSyncOutboxStore,
+                listener = feedListener,
+            )
         }
         val inboxRepository = remember(context, feedManager, sqliteInboxStore, cloudSyncOutboxStore, cloudSyncRuntime) {
             MobileInboxRepository(
@@ -176,6 +200,16 @@ class MainActivity : ComponentActivity() {
                 ),
                 fetcher = HttpFeedItemFetcher(),
             )
+        }
+        feedListener.onAdded = {
+            cloudSyncRuntime.requestSync()
+            appScope.launch { runCatching { inboxRepository.refresh() } }
+        }
+        feedListener.onUpdated = { cloudSyncRuntime.requestSync() }
+        feedListener.onRemoved = { feed ->
+            cloudSyncRuntime.requestSync()
+            sqliteInboxStore.deleteItemsForFeed(feed.id)
+            appScope.launch { runCatching { inboxRepository.refresh() } }
         }
 
         if (!onboardingComplete) {
@@ -360,6 +394,7 @@ class MainActivity : ComponentActivity() {
                 onOnboardingActionConsumed = { onboardingAction = null },
                 appPreferences = appPreferences,
                 onThemeChanged = { themeMode = it },
+                feedManager = feedManager,
             )
         } else {
             MobileShell(

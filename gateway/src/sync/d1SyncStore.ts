@@ -177,9 +177,17 @@ export class D1SyncStore implements SyncStore {
 
   private async applySubscriptionMutation(userId: string, mutation: SyncMutation, now: number): Promise<void> {
     const subId = mutation.entityId;
+    const payload = mutation.payload as SubscriptionPayload;
+    // Resolve by subscription_id OR by normalized feed URL: the same source can
+    // arrive with a different subscription_id (e.g. older normalization), and a
+    // user must never end up with two rows for one feed (0010 unique index).
     const existing = await this.db
-      .prepare("SELECT * FROM user_subscriptions WHERE user_id = ? AND subscription_id = ?")
-      .bind(userId, subId)
+      .prepare(
+        `SELECT * FROM user_subscriptions
+         WHERE user_id = ? AND (subscription_id = ? OR (feed_url != '' AND lower(feed_url) = lower(?)))
+         LIMIT 1`
+      )
+      .bind(userId, subId, mutation.deleted ? "" : payload.feedUrl)
       .first<Record<string, unknown>>();
 
     if (mutation.deleted) {
@@ -187,7 +195,7 @@ export class D1SyncStore implements SyncStore {
       if (existing) {
         await this.db
           .prepare("UPDATE user_subscriptions SET deleted_at = ?, updated_at = ?, revision = revision + 1 WHERE user_id = ? AND subscription_id = ?")
-          .bind(mutation.updatedAt, now, userId, subId)
+          .bind(mutation.updatedAt, now, userId, String(existing.subscription_id))
           .run();
       } else {
         await this.db
@@ -202,7 +210,6 @@ export class D1SyncStore implements SyncStore {
       return;
     }
 
-    const payload = mutation.payload as SubscriptionPayload;
     if (existing) {
       // If deleted_at exists and is newer than mutation.updatedAt, reject stale resurrection
       if (typeof existing.deleted_at === "number" && existing.deleted_at >= mutation.updatedAt) {
@@ -231,28 +238,52 @@ export class D1SyncStore implements SyncStore {
           payload.watchKeywords ? JSON.stringify(payload.watchKeywords) : null,
           now,
           userId,
-          subId
+          String(existing.subscription_id)
         )
         .run();
     } else {
-      await this.db
-        .prepare(`
-          INSERT INTO user_subscriptions (
-            user_id, subscription_id, feed_url, title, category, enabled, send_to_watch, watch_keywords_json, revision, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
-        `)
-        .bind(
-          userId,
-          subId,
-          payload.feedUrl,
-          payload.title ?? null,
-          payload.category ?? null,
-          payload.enabled === false ? 0 : 1,
-          payload.sendToWatch === false ? 0 : 1,
-          payload.watchKeywords ? JSON.stringify(payload.watchKeywords) : null,
-          now
-        )
-        .run();
+      try {
+        await this.db
+          .prepare(`
+            INSERT INTO user_subscriptions (
+              user_id, subscription_id, feed_url, title, category, enabled, send_to_watch, watch_keywords_json, revision, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+          `)
+          .bind(
+            userId,
+            subId,
+            payload.feedUrl,
+            payload.title ?? null,
+            payload.category ?? null,
+            payload.enabled === false ? 0 : 1,
+            payload.sendToWatch === false ? 0 : 1,
+            payload.watchKeywords ? JSON.stringify(payload.watchKeywords) : null,
+            now
+          )
+          .run();
+      } catch (error) {
+        // Lost a race against the (user_id, lower(feed_url)) unique index:
+        // another push just created the row. Re-apply as an update by URL.
+        if (!isUniqueViolation(error)) throw error;
+        await this.db
+          .prepare(
+            `UPDATE user_subscriptions SET
+              title = coalesce(?, title), category = coalesce(?, category), enabled = ?,
+              send_to_watch = ?, watch_keywords_json = ?, deleted_at = NULL, updated_at = ?, revision = revision + 1
+             WHERE user_id = ? AND lower(feed_url) = lower(?)`
+          )
+          .bind(
+            payload.title ?? null,
+            payload.category ?? null,
+            payload.enabled === false ? 0 : 1,
+            payload.sendToWatch === false ? 0 : 1,
+            payload.watchKeywords ? JSON.stringify(payload.watchKeywords) : null,
+            now,
+            userId,
+            payload.feedUrl
+          )
+          .run();
+      }
     }
   }
 
@@ -408,4 +439,9 @@ export class D1SyncStore implements SyncStore {
         .run();
     }
   }
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /UNIQUE constraint/i.test(message);
 }

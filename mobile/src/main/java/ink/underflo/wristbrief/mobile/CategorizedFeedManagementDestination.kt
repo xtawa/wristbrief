@@ -40,17 +40,15 @@ import kotlinx.coroutines.launch
 @Composable
 internal fun CategorizedFeedManagementDestination(
     padding: PaddingValues,
+    feedManager: MobileFeedManager,
     onboardingAction: OnboardingAction? = null,
     onOnboardingActionConsumed: () -> Unit = {},
 ) {
     val context = LocalContext.current
-    val manager = remember {
-        MobileFeedManager(
-            SharedPreferencesMobileFeedStore(context),
-            HttpFeedProbe(),
-            GoogleWearFeedSyncPublisher(context),
-        )
-    }
+    // Shares the app-wide manager (SQLite store, cloud outbox, Wear publisher).
+    // Previously this screen built its own manager on SharedPreferences, which
+    // diverged from the SQLite-backed list after the one-shot legacy migration.
+    val manager = feedManager
     val scope = rememberCoroutineScope()
     var feeds by remember { mutableStateOf(manager.feeds()) }
     var editing by remember { mutableStateOf<MobileFeedSubscription?>(null) }

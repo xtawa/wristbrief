@@ -82,6 +82,8 @@ fun mobileItemId(
 interface MobileInboxStore {
     fun load(): List<MobileFeedItem>
     fun save(items: List<MobileFeedItem>)
+    /** Optional capability: drop cached items belonging to one feed (subscription deletion cleanup). */
+    fun deleteItemsForFeed(feedId: String) {}
 }
 
 internal fun decodeMobileFeedItems(raw: String): List<MobileFeedItem> = runCatching {

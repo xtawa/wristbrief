@@ -319,6 +319,8 @@ private class MobileFeedListenerBindings : MobileFeedListener {
         }
 
         var name by rememberSaveable { mutableStateOf(initialMobileDestination().name) }
+        // Normalize stale saved selections (e.g. the retired Now Playing tab).
+        if (MobileDestination.valueOf(name) == MobileDestination.NowPlaying) name = MobileDestination.Today.name
         var selectedArticle by remember { mutableStateOf<MobileFeedItem?>(null) }
         var aiPrefilledTitle by rememberSaveable { mutableStateOf("") }
         var aiPrefilledContent by rememberSaveable { mutableStateOf("") }
@@ -498,12 +500,15 @@ private class MobileFeedListenerBindings : MobileFeedListener {
 ) {
     BoxWithConstraints {
         val useRail = maxWidth >= 600.dp
+        // Bottom bar / rail show the four primary destinations per uidocs;
+        // playback is reached through the mini/expanded player surfaces.
+        val destinations = MobileDestination.entries.filter { it.showsInBottomBar }
         Row(Modifier.fillMaxSize()) {
             if (useRail) NavigationRail(
                 containerColor = GlassTokens.surfaceGlass(darkTheme),
                 contentColor = GlassTokens.textPrimary(darkTheme),
             ) {
-                MobileDestination.entries.forEach { item ->
+                destinations.forEach { item ->
                     NavigationRailItem(
                         selected = item == destination,
                         onClick = { select(item) },
@@ -561,7 +566,6 @@ private class MobileFeedListenerBindings : MobileFeedListener {
                             )
                         }
                         if (!useRail) {
-                            val destinations = MobileDestination.entries
                             val selectedIndex = destinations.indexOf(destination)
                             GlassBottomBar(
                                 items = destinations.map { item ->

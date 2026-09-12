@@ -1,6 +1,6 @@
 <resources>
     <string name="app_name">WristBrief</string>
-    <string name="nav_today">今日</string>
+    <string name="nav_today">首页</string>
     <string name="nav_explore">发现</string>
     <string name="nav_feeds">资料库</string>
     <string name="nav_library">资料库</string>

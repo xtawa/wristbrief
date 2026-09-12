@@ -1,6 +1,6 @@
 <resources>
     <string name="app_name">WristBrief</string>
-    <string name="nav_today">Today</string>
+    <string name="nav_today">Home</string>
     <string name="nav_explore">Explore</string>
     <string name="nav_feeds">Library</string>
     <string name="nav_library">Library</string>

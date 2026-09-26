@@ -13,6 +13,7 @@ Read `docs/PRODUCT_DESIGN_CONSTRAINTS.md` before changing phone or Wear UI. Read
 - Do not expose secrets, add BYOK flows, or claim availability for incomplete AI, audio, billing, or cross-device paths.
 - Keep `/admin` restricted to the provisioned sole administrator. Do not add web registration, secondary admin promotion, public recovery, or a shortcut around the first-login password change. Mobile user registration is a separate API policy.
 - Store persistent data through numbered SQLite migrations; encrypt SMTP and AI provider credentials and keep them out of read responses and audit logs. Protect management writes with session, origin and CSRF checks. A feature without its server worker must report unavailable instead of claiming a queued success.
+- Configure speech recognition and speech synthesis as separate tasks. Keep provider keys server-side, persist transcript jobs, bound downloaded media and generated audio, and release reservations on failed processing. FFmpeg is installed in the server image; see `docs/AUDIO_PIPELINE.md` for formats and limits.
 
 ## Decision order
 

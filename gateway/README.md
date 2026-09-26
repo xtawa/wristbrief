@@ -16,7 +16,7 @@ npm start
 
 Browse `/admin/login`. Sign in as `zeromostia@gmail.com` with the temporary password. The first sign-in requires a new password before accessing any management route. Remove the temporary password from the deployment environment after this step. Server migrations apply on startup. Start with a private data directory; never commit the `.sqlite` database, object storage, secrets, or a populated environment file.
 
-For production set `NODE_ENV=production`, `WRISTBRIEF_PUBLIC_ORIGIN=https://your-public-domain` and run the server behind a TLS reverse proxy. The listener defaults to `127.0.0.1:8787`; keep it private and proxy HTTPS traffic to it. Persist and back up both `WRISTBRIEF_DATA_DIR/wristbrief.sqlite` (including WAL consistency) and `WRISTBRIEF_DATA_DIR/objects`. Back up `WRISTBRIEF_MASTER_KEY` separately; losing it prevents decrypting SMTP and AI provider credentials. SQLite supports one server process against this database. Use a process supervisor for restart and monitoring.
+The bundled [Docker image](Dockerfile) installs FFmpeg and FFprobe from Debian packages. For a local Node start, install both binaries on `PATH`. For production set `NODE_ENV=production`, `WRISTBRIEF_PUBLIC_ORIGIN=https://your-public-domain` and run the server behind a TLS reverse proxy. The listener defaults to `127.0.0.1:8787`; keep it private and proxy HTTPS traffic to it. Persist and back up both `WRISTBRIEF_DATA_DIR/wristbrief.sqlite` (including WAL consistency) and `WRISTBRIEF_DATA_DIR/objects`. Back up `WRISTBRIEF_MASTER_KEY` separately; losing it prevents decrypting SMTP and AI provider credentials. SQLite supports one server process against this database. Use a process supervisor for restart and monitoring.
 
 ## Admin console
 
@@ -32,6 +32,6 @@ The initial monthly AI limits are 10 for FREE and 100 for PRO, adjustable with `
 
 Google Cloud is optional for this server. To keep Android Google sign-in, set `GOOGLE_OAUTH_CLIENT_ID` and configure the Android OAuth client. For Google Play subscriptions, set the Play service account and package/product settings; realtime notifications additionally need authenticated Pub/Sub push. Neither the admin web login nor SMTP nor AI provider management uses Google OAuth. See [server architecture](../docs/SERVER_BACKEND_ARCHITECTURE.md).
 
-Asynchronous transcript generation is not yet connected to a server-side audio transcription worker. In server mode, requests for new transcript jobs return `503 transcript_worker_unavailable` instead of leaving an unfinishable queued job. Do not advertise this feature as ready until a durable worker is installed.
+STT and TTS use separately configured audio providers. The server persists transcript jobs, converts and splits podcast audio using bundled FFmpeg, then submits clips to an enabled STT provider. A TTS endpoint returns MP3 from enabled MiMo or Deepgram. Configure keys and enable presets in `/admin/audio`; absent keys return a clear unavailable response. See [audio pipeline](../docs/AUDIO_PIPELINE.md) for limits and the unimplemented Android TTS UI.
 
 Verify with `npm run typecheck` and `npm test`.

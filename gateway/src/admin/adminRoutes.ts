@@ -101,7 +101,7 @@ export async function handleAdminRoute(request: Request, env: AdminRoutesEnv, re
            <p><a href="/admin/providers">Manage providers</a></p>
          </div>
          ${env.SINGLE_ADMIN_MODE ? `<div class="card"><h2>People and delivery</h2>
-           <p><a href="/admin/users">Manage users and membership</a> · <a href="/admin/smtp">SMTP email</a> · <a href="/admin/provider-keys">Provider keys</a></p></div>` : ""}
+           <p><a href="/admin/users">Manage users and membership</a> · <a href="/admin/smtp">SMTP email</a> · <a href="/admin/provider-keys">Provider keys</a> · <a href="/admin/audio">Speech providers</a></p></div>` : ""}
          <p><a href="/admin/audit">Audit log</a> · <button id="logout">Sign out</button></p>
          ${logoutScript()}`
       ),
@@ -147,6 +147,46 @@ export async function handleAdminRoute(request: Request, env: AdminRoutesEnv, re
       <p><a href="/admin/providers">Models</a> · <a href="/admin">Dashboard</a></p><script>${csrfCookieScript()}
       document.getElementById('save').onclick=async()=>{const res=await fetch('/v1/admin/provider-keys',{method:'PUT',headers:{'Content-Type':'application/json','X-CSRF-Token':csrfToken()},body:JSON.stringify({slot:document.getElementById('slot').value,secret:document.getElementById('secret').value})});
       const body=await res.json().catch(()=>({}));document.getElementById('msg').textContent=res.ok?'Saved':body.error||'Update failed';document.getElementById('secret').value='';};</script>`), 200, requestId);
+  }
+
+  if (env.SINGLE_ADMIN_MODE && request.method === "GET" && path === "/admin/audio") {
+    const auth = await requireAdminUser(request, adminStore, sessions);
+    if (!auth.ok) return redirect("/admin/login");
+    const rows = (await db.prepare("SELECT id, capability, adapter, model, voice, secret_ref, enabled, priority FROM audio_provider_configs ORDER BY capability, priority").all<{
+      id: string; capability: string; adapter: string; model: string; voice: string | null; secret_ref: string; enabled: number; priority: number
+    }>()).results;
+    return htmlResponse(adminPage("Speech providers", `<h1>Speech providers</h1><p>STT transcribes podcast audio. TTS turns text into MP3. Both start disabled until you save a key and enable a provider.</p>
+      <div class="card"><table><thead><tr><th>ID</th><th>Task</th><th>Service</th><th>Model</th><th>Voice</th><th>Key slot</th><th>Priority</th><th>Enabled</th><th></th></tr></thead><tbody>
+      ${rows.map((r) => `<tr data-id="${escapeHtml(r.id)}"><td>${escapeHtml(r.id)}</td><td>${escapeHtml(r.capability)}</td><td>${escapeHtml(r.adapter)}</td><td><input data-field="model" value="${escapeHtml(r.model)}"></td><td><input data-field="voice" value="${escapeHtml(r.voice ?? "")}"></td><td><select data-field="secretRef">${Array.from({length:10},(_,i)=>`<option ${r.secret_ref===`AI_PROVIDER_SECRET_${i+1}`?"selected":""}>AI_PROVIDER_SECRET_${i+1}</option>`).join("")}</select></td><td><input data-field="priority" type="number" value="${r.priority}"></td><td><input data-field="enabled" type="checkbox" ${r.enabled?"checked":""}></td><td><button data-save="${escapeHtml(r.id)}">Save</button></td></tr>`).join("")}</tbody></table><p id="msg" role="status"></p></div>
+      <p><a href="/admin/provider-keys">Save API keys</a> · <a href="/admin">Dashboard</a></p><script>${csrfCookieScript()}
+      document.querySelectorAll('[data-save]').forEach(b=>b.onclick=async()=>{const tr=b.closest('tr');const field=k=>tr.querySelector('[data-field="'+k+'"]');const res=await fetch('/v1/admin/audio/'+encodeURIComponent(b.dataset.save),{method:'PATCH',headers:{'Content-Type':'application/json','X-CSRF-Token':csrfToken()},body:JSON.stringify({model:field('model').value,voice:field('voice').value,secretRef:field('secretRef').value,priority:Number(field('priority').value),enabled:field('enabled').checked})});document.getElementById('msg').textContent=res.ok?'Saved':(await res.json()).error;});</script>`),200,requestId);
+  }
+
+  if (env.SINGLE_ADMIN_MODE && path === "/v1/admin/audio" && request.method === "GET") {
+    const auth = await requireAdminUser(request, adminStore, sessions);
+    if (!auth.ok) return respond({error:auth.error},auth.status);
+    const rows = await db.prepare("SELECT id, capability, adapter, model, voice, secret_ref, enabled, priority FROM audio_provider_configs ORDER BY capability, priority").all();
+    return respond({providers:rows.results});
+  }
+
+  if (env.SINGLE_ADMIN_MODE && path.startsWith("/v1/admin/audio/") && request.method === "PATCH") {
+    const auth = await requireAdminUser(request, adminStore, sessions);
+    if (!auth.ok) return respond({error:auth.error},auth.status);
+    if (!(await requireAdminCsrf(request,auth.session))) return respond({error:"csrf_required"},403);
+    const id = decodeURIComponent(path.slice("/v1/admin/audio/".length));
+    const existing = await db.prepare("SELECT id FROM audio_provider_configs WHERE id = ?").bind(id).first();
+    if (!existing) return respond({error:"provider_not_found"},404);
+    const body = await readJson(request);
+    if (!body || typeof body.model !== "string" || !/^[a-zA-Z0-9._-]{2,100}$/.test(body.model) ||
+      typeof body.voice !== "string" || body.voice.length > 80 ||
+      typeof body.secretRef !== "string" || !/^AI_PROVIDER_SECRET_([1-9]|10)$/.test(body.secretRef) ||
+      typeof body.enabled !== "boolean" || !Number.isInteger(body.priority) || (body.priority as number) < 0 || (body.priority as number) > 1000) {
+      return respond({error:"invalid_audio_provider"},400);
+    }
+    await db.prepare("UPDATE audio_provider_configs SET model = ?, voice = ?, secret_ref = ?, enabled = ?, priority = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+      .bind(body.model,body.voice || null,body.secretRef,body.enabled?1:0,body.priority,id).run();
+    await audit.record({actorUserId:auth.userId,action:"audio_provider_updated",targetType:"audio_provider",targetId:id,requestId});
+    return respond({ok:true});
   }
 
   if (request.method === "GET" && path === "/admin/login") {

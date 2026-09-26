@@ -13,7 +13,7 @@ Android phone and Wear OS clients use HTTPS API routes. A private Node.js proces
 | Content and sync | Existing authenticated API routes use SQLite and a local filesystem object adapter. Podcast audio remains a remote URL. |
 | Billing | Existing Google Play server verification may be enabled with a service account. RTDN push remains optional and requires authenticated Pub/Sub. An admin membership override is manual, and billing refresh can supersede it. |
 | Mail | SMTP settings are encrypted with AES-256-GCM using `WRISTBRIEF_MASTER_KEY`; email delivery is unavailable until saved. |
-| Transcript jobs | New requests explicitly report unavailable until a durable audio-processing worker is implemented. |
+| Transcript jobs | SQLite-backed worker fetches, converts and splits audio using FFmpeg, calls enabled MiMo/Deepgram STT, persists transcript artifacts and releases credits on failure. TTS is a separate authenticated MP3 endpoint. See [audio pipeline](AUDIO_PIPELINE.md). |
 
 ## First deployment
 

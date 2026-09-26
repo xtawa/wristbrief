@@ -62,6 +62,15 @@ it("requires the sole administrator to rotate the bootstrap password and encrypt
     body: JSON.stringify({ slot: "AI_PROVIDER_SECRET_1", secret: "sensitive-provider-key-123" })
   });
   expect(save.status).toBe(200);
+  const audioPage = await fetch(`${origin}/admin/audio`, { headers: { Cookie: nextCookies } });
+  expect((await audioPage.text())).toContain("mimo-v2.5-asr");
+  const activateTts = await fetch(`${origin}/v1/admin/audio/mimo-tts`, {
+    method: "PATCH", headers: { "Content-Type": "application/json", Cookie: nextCookies, "X-CSRF-Token": nextCsrf!, Origin: "http://localhost:8787" },
+    body: JSON.stringify({ model: "mimo-v2.5-tts", voice: "mimo_default", secretRef: "AI_PROVIDER_SECRET_1", enabled: true, priority: 10 })
+  });
+  expect(activateTts.status).toBe(200);
+  const audioList = await (await fetch(`${origin}/v1/admin/audio`, { headers: { Cookie: nextCookies } })).json() as {providers: Array<{id:string;enabled:number}>};
+  expect(audioList.providers.find((p) => p.id === "mimo-tts")?.enabled).toBe(1);
   const disk = await readFile(join(dir, "wristbrief.sqlite"));
   expect(disk.includes(Buffer.from("sensitive-provider-key-123"))).toBe(false);
   expect((await fetch(`${origin}/v1/admin/users`, { headers: { Cookie: nextCookies } })).status).toBe(200);

@@ -29,7 +29,7 @@ This tracks code existence, local unit tests, CI test evidence, device verificat
 
 The gateway runs as a long-lived Node.js service with SQLite and an administrator-only web console. See [gateway setup](gateway/README.md) and [backend architecture](docs/SERVER_BACKEND_ARCHITECTURE.md). The fixed web administrator is provisioned from a private temporary password and must change it on first login. Android Google sign-in and Google Play subscriptions are optional integrations; the admin console does not use Google OAuth.
 
-Cloudflare deployment scripts and older deployment guides describe a retired architecture and must not be used for this server release. Transcript generation requires a future durable audio worker and currently returns an explicit unavailable response.
+Cloudflare deployment scripts and older deployment guides describe a retired architecture and must not be used for this server release. Transcript generation requires a configured STT provider; the server includes an FFmpeg-based persistent worker. TTS is available as a server API when a provider is enabled; Android playback UI integration remains separate.
 
 ## Local Validation
 

@@ -6,6 +6,9 @@ import { openServerDatabase } from "./database";
 import { localObjectStore } from "./storage";
 import { ensureServerAdmin } from "./bootstrap";
 import { ServerSettings } from "./settings";
+import { AudioJobRunner, selectedProvider, synthesize } from "./audio";
+import { authenticateRequestUser } from "../src/requestAuth";
+import { createMembershipService } from "../src/membership";
 
 export async function startServer(config: NodeJS.ProcessEnv = process.env) {
   const dataDir = resolve(config.WRISTBRIEF_DATA_DIR || "./data");
@@ -48,6 +51,8 @@ export async function startServer(config: NodeJS.ProcessEnv = process.env) {
   };
   Object.assign(runtime, env);
   await settings.load();
+  const audio = new AudioJobRunner(runtime as unknown as ConstructorParameters<typeof AudioJobRunner>[0]);
+  runtime.TRANSCRIPT_QUEUE = audio.queue;
 
   const server = createServer(async (req, res) => {
     try {
@@ -61,7 +66,14 @@ export async function startServer(config: NodeJS.ProcessEnv = process.env) {
       const body = req.method === "GET" || req.method === "HEAD" ? undefined : Readable.toWeb(req) as unknown as ReadableStream;
       const init = { method: req.method, headers, body, duplex: body ? "half" : undefined } as unknown as RequestInit;
       const request = new Request(target, init);
-      const response = await worker.fetch(request, runtime as unknown as Parameters<typeof worker.fetch>[1]);
+      if (target.pathname === "/v1/transcripts/request" && req.method === "POST" &&
+          !(await selectedProvider(runtime as Parameters<typeof selectedProvider>[0], "stt"))) {
+        send(res, Response.json({ error: "stt_provider_unavailable" }, { status: 503 }));
+        return;
+      }
+      const response = target.pathname === "/v1/audio/speech" ?
+        await speechRequest(request, runtime) :
+        await worker.fetch(request, runtime as unknown as Parameters<typeof worker.fetch>[1]);
       send(res, response);
     } catch (error) {
       console.error("Gateway request failed", error instanceof Error ? error.name : "unknown");
@@ -72,8 +84,44 @@ export async function startServer(config: NodeJS.ProcessEnv = process.env) {
   const port = Number(config.PORT || 8787);
   const host = config.HOST || "127.0.0.1";
   await new Promise<void>((resolveReady) => server.listen(port, host, resolveReady));
+  audio.start();
+  server.on("close", () => audio.stop());
   console.log(`WristBrief server listening on ${host}:${port}`);
-  return { server, sqlite, db, env };
+  return { server, sqlite, db, env, audio };
+}
+
+async function speechRequest(request: Request, runtime: Record<string, unknown>): Promise<Response> {
+  if (request.method !== "POST") return Response.json({ error: "method_not_allowed" }, { status: 405 });
+  const user = await authenticateRequestUser(request, runtime as Parameters<typeof authenticateRequestUser>[1]);
+  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+  if (Number(request.headers.get("content-length")) > 8192) return Response.json({ error: "request_too_large" }, { status: 413 });
+  const reader = request.body?.getReader();
+  let total = 0;
+  const chunks: Uint8Array[] = [];
+  if (reader) while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > 8192) { await reader.cancel(); return Response.json({ error: "request_too_large" }, { status: 413 }); }
+    chunks.push(value);
+  }
+  let body: { text?: unknown };
+  try { body = JSON.parse(Buffer.concat(chunks).toString("utf8")); }
+  catch { return Response.json({ error: "invalid_json" }, { status: 400 }); }
+  const text = typeof body?.text === "string" ? body.text.trim() : "";
+  if (!text || text.length > 2000) return Response.json({ error: "invalid_text" }, { status: 400 });
+  const selected = await selectedProvider(runtime as Parameters<typeof selectedProvider>[0], "tts");
+  if (!selected) return Response.json({ error: "tts_provider_unavailable" }, { status: 503 });
+  const membership = createMembershipService(runtime as Parameters<typeof createMembershipService>[0]);
+  const reserved = await membership.reserveAiQuota(user.id);
+  if (!reserved.allowed) return Response.json({ error: "managed_ai_quota_unavailable" }, { status: 429 });
+  try {
+    const data = await synthesize(selected.config, selected.key, text);
+    return new Response(Buffer.from(data), { headers: { "Content-Type": "audio/mpeg", "Cache-Control": "no-store" } });
+  } catch {
+    await membership.releaseAiQuota(user.id);
+    return Response.json({ error: "tts_generation_failed" }, { status: 502 });
+  }
 }
 
 function send(res: ServerResponse, response: Response): void {

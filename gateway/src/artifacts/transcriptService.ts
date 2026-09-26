@@ -163,7 +163,7 @@ export class TranscriptService {
       }
       try {
         await this.artifactStore.resetJobForRetry(existingJob.id);
-        await this.enqueueJob(existingJob.id, content.id, language);
+        await this.enqueueJob(existingJob.id, content.id, language, episode.audioUrl, episode.durationMs);
       } catch (error) {
         try {
           await this.quotaStore.release(retryTx.id);
@@ -200,7 +200,7 @@ export class TranscriptService {
         attemptCount: 1,
         errorCode: null
       });
-      await this.enqueueJob(job.id, content.id, language);
+      await this.enqueueJob(job.id, content.id, language, episode.audioUrl, episode.durationMs);
       return { status: "processing", contentCode: content.contentCode, jobId: job.id };
     } catch (error) {
       try {
@@ -222,7 +222,8 @@ export class TranscriptService {
   async completeJobWithArtifact(
     jobId: string,
     transcript: TranscriptPayload,
-    storage?: TranscriptStorage
+    storage?: TranscriptStorage,
+    source: { provider: string; model: string } = { provider: "managed", model: "unknown" }
   ): Promise<TranscriptArtifactRecord> {
     const job = await this.artifactStore.getJobById(jobId);
     if (!job) throw new Error(`Job not found: ${jobId}`);
@@ -255,8 +256,8 @@ export class TranscriptService {
         contentId: job.contentId,
         language: job.language,
         artifactVersion: job.requestedVersion,
-        provider: "managed",
-        model: "whisper-large-v3",
+        provider: source.provider,
+        model: source.model,
         status: "ready",
         objectKeyJson,
         objectKeyText,
@@ -302,8 +303,8 @@ export class TranscriptService {
     await this.artifactStore.updateJobStatus(jobId, "failed", errorCode);
   }
 
-  private async enqueueJob(jobId: string, contentId: string, language: string): Promise<void> {
+  private async enqueueJob(jobId: string, contentId: string, language: string, audioUrl: string, durationMs?: number): Promise<void> {
     if (!this.queue) return;
-    await this.queue.send({ jobId, contentId, language, artifactType: "transcript" });
+    await this.queue.send({ jobId, contentId, language, audioUrl, durationMs, artifactType: "transcript" });
   }
 }

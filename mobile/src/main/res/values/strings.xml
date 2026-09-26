@@ -26,7 +26,7 @@
     <string name="oobe_welcome_title">The brief that keeps up with you</string>
     <string name="oobe_welcome_body">Follow RSS feeds and podcasts, get a calm daily AI brief, and continue on your watch.</string>
     <string name="oobe_interests_title">Choose your interests</string>
-    <string name="oobe_interests_body">Pick topics that matter to you. WristBrief curates calm, high-signal recommendations without noise.</string>
+    <string name="oobe_interests_body">Choose which starter feeds to see next. You can add any source later.</string>
     <string name="oobe_interest_tech">Technology</string>
     <string name="oobe_interest_design">Design</string>
     <string name="oobe_interest_science">Science</string>
@@ -89,7 +89,7 @@
     <string name="today_greeting_morning">Good morning</string>
     <string name="today_greeting_afternoon">Good afternoon</string>
     <string name="today_greeting_evening">Good evening</string>
-    <string name="today_sources_count">%1$d sources</string>
+    <string name="today_sources_count">%1$d articles</string>
     <string name="today_spoken_brief">Spoken Audio Brief</string>
     <string name="today_spoken_brief_sub">Natural neural voiceover · 4 min 12 sec</string>
     <string name="today_key_points">Key Points</string>
@@ -111,7 +111,7 @@
     <string name="today_brief_action">Open Ask AI</string>
     <string name="today_continue_reading">Continue reading</string>
     <string name="today_continue_listening">Continue listening</string>
-    <string name="today_latest">Latest unread</string>
+    <string name="today_latest">Recent from your sources</string>
     <string name="today_saved">Saved for later</string>
     <string name="today_view_all">View all in Library</string>
     <string name="action_read">Read</string>
@@ -171,6 +171,16 @@
     <string name="daily_brief_close">Close</string>
     <string name="daily_brief_meta_info">%1$d articles · Generated at %2$s</string>
     <string name="daily_brief_up_to_date">Brief is already up to date with current unread articles.</string>
+    <string name="daily_brief_new_items">New articles are available. Update this brief to include them.</string>
+    <string name="today_search_library">Search your library</string>
+    <string name="today_audio_in_progress">In progress</string>
+    <string name="today_next_to_read">Next to read</string>
+    <string name="today_audio_label">Audio</string>
+    <string name="today_article_label">Article</string>
+    <string name="today_episode_label">Audio episode</string>
+    <string name="today_category_empty">No items in this category yet</string>
+    <string name="today_show_all">Show all items</string>
+    <string name="today_generated_at">Generated at %1$s</string>
     <string name="ai_prompt_summarize">Summarize core points</string>
     <string name="ai_prompt_takeaways">Actionable takeaways</string>
     <string name="ai_prompt_critique">What to question</string>

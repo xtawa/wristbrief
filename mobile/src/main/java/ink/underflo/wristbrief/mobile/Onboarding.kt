@@ -103,17 +103,20 @@ internal fun WristBriefOnboarding(
     val scope = rememberCoroutineScope()
     var addedSampleIds by remember { mutableStateOf(setOf<String>()) }
     var addingSampleIds by remember { mutableStateOf(setOf<String>()) }
-    var selectedInterests by remember { mutableStateOf(setOf("tech", "news")) }
+    var selectedInterests by rememberSaveable { mutableStateOf(setOf("tech", "news")) }
 
     val interestTopics = remember {
         listOf(
             InterestItem("tech", R.string.oobe_interest_tech),
-            InterestItem("design", R.string.oobe_interest_design),
-            InterestItem("science", R.string.oobe_interest_science),
             InterestItem("podcasts", R.string.oobe_interest_podcasts),
             InterestItem("news", R.string.oobe_interest_news),
-            InterestItem("culture", R.string.oobe_interest_culture),
         )
+    }
+    val recommendedFeeds = SampleFeeds.curatedFeeds.filter { feed ->
+        selectedInterests.isEmpty() ||
+            ("tech" in selectedInterests && feed.category.equals("Tech", ignoreCase = true)) ||
+            ("news" in selectedInterests && feed.category.equals("News", ignoreCase = true)) ||
+            ("podcasts" in selectedInterests && feed.isPodcast)
     }
 
     Surface(
@@ -241,7 +244,7 @@ internal fun WristBriefOnboarding(
                         }
 
                         OnboardingPage.Content -> {
-                            if (onAddSampleFeed != null && SampleFeeds.curatedFeeds.isNotEmpty()) {
+                            if (onAddSampleFeed != null && recommendedFeeds.isNotEmpty()) {
                                 Spacer(Modifier.height(24.dp))
                                 Text(
                                     text = stringResource(R.string.sample_feeds_title),
@@ -250,7 +253,7 @@ internal fun WristBriefOnboarding(
                                     color = GlassTokens.textPrimary(darkTheme),
                                 )
                                 Spacer(Modifier.height(10.dp))
-                                SampleFeeds.curatedFeeds.forEach { sample ->
+                                recommendedFeeds.forEach { sample ->
                                     val isAdded = sample.id in addedSampleIds
                                     val isAdding = sample.id in addingSampleIds
                                     OutlinedButton(
@@ -283,7 +286,14 @@ internal fun WristBriefOnboarding(
                                             )
                                         }
                                         Spacer(Modifier.size(8.dp))
-                                        Text(sample.title)
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(sample.title, style = MaterialTheme.typography.labelLarge)
+                                            Text(
+                                                sample.description,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
                                     }
                                 }
                             }

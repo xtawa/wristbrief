@@ -26,7 +26,7 @@
     <string name="oobe_welcome_title">跟得上你的每日简报</string>
     <string name="oobe_welcome_body">关注 RSS 与播客，让 AI 每天整理重点，并在手表上快速浏览。</string>
     <string name="oobe_interests_title">选择感兴趣的主题</string>
-    <string name="oobe_interests_body">挑选你关心的领域，WristBrief 会提供安静、高信息密度的内容推荐。</string>
+    <string name="oobe_interests_body">选择下一步显示的入门订阅源，之后仍可添加任何来源。</string>
     <string name="oobe_interest_tech">科技</string>
     <string name="oobe_interest_design">设计</string>
     <string name="oobe_interest_science">科学</string>

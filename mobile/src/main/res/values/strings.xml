@@ -26,7 +26,7 @@
     <string name="oobe_welcome_title">The brief that keeps up with you</string>
     <string name="oobe_welcome_body">Follow RSS feeds and podcasts, get a calm daily AI brief, and continue on your watch.</string>
     <string name="oobe_interests_title">Choose your interests</string>
-    <string name="oobe_interests_body">Pick topics that matter to you. WristBrief curates calm, high-signal recommendations without noise.</string>
+    <string name="oobe_interests_body">Choose which starter feeds to see next. You can add any source later.</string>
     <string name="oobe_interest_tech">Technology</string>
     <string name="oobe_interest_design">Design</string>
     <string name="oobe_interest_science">Science</string>

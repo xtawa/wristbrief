@@ -379,6 +379,9 @@ export async function handleAdminRoute(request: Request, env: AdminRoutesEnv, re
     const body = await readJson(request);
     const mode = (body as { registrationMode?: unknown })?.registrationMode;
     if (mode !== "OPEN" && mode !== "CLOSED") return respond({ error: "invalid_request" }, 400);
+    if (env.SINGLE_ADMIN_MODE && mode === "OPEN" && env.ADMIN_SETTINGS_SERVICE?.smtpStatus().configured !== true) {
+      return respond({ error: "smtp_not_configured" }, 409);
+    }
     const before = await adminStore.readRegistrationMode();
     await adminStore.writeRegistrationMode(mode, auth.userId);
     await audit.record({

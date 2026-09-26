@@ -52,6 +52,11 @@ it("requires the sole administrator to rotate the bootstrap password and encrypt
   expect(relogin.status).toBe(200);
   const nextCookies = relogin.headers.getSetCookie().map((value) => value.split(";")[0]).join("; ");
   const nextCsrf = /wristbrief_admin_csrf=([^;]+)/.exec(nextCookies)?.[1];
+  const earlyRegistration = await fetch(`${origin}/v1/admin/settings`, {
+    method: "PATCH", headers: { "Content-Type": "application/json", Cookie: nextCookies, "X-CSRF-Token": nextCsrf!, Origin: "http://localhost:8787" },
+    body: JSON.stringify({ registrationMode: "OPEN" })
+  });
+  expect(earlyRegistration.status).toBe(409);
   const save = await fetch(`${origin}/v1/admin/provider-keys`, {
     method: "PUT", headers: { "Content-Type": "application/json", Cookie: nextCookies, "X-CSRF-Token": nextCsrf!, Origin: "http://localhost:8787" },
     body: JSON.stringify({ slot: "AI_PROVIDER_SECRET_1", secret: "sensitive-provider-key-123" })
@@ -75,4 +80,9 @@ it("requires the sole administrator to rotate the bootstrap password and encrypt
   });
   expect(smtp.status).toBe(200);
   expect((await readFile(join(dir, "wristbrief.sqlite"))).includes(Buffer.from("smtp-private-password"))).toBe(false);
+  const registration = await fetch(`${origin}/v1/admin/settings`, {
+    method: "PATCH", headers: { "Content-Type": "application/json", Cookie: nextCookies, "X-CSRF-Token": nextCsrf!, Origin: "http://localhost:8787" },
+    body: JSON.stringify({ registrationMode: "OPEN" })
+  });
+  expect(registration.status).toBe(200);
 });

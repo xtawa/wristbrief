@@ -90,6 +90,11 @@ export function dashboardPage(options: {
   <p><a href="/admin/overview">Open the operational overview</a></p>
 </div>
 <div class="card">
+  <h2>Reader and feeds</h2>
+  <p>RSS and Atom subscriptions are fetched on each reader’s Android device. This console has no feed-fetch telemetry: job counts above do not indicate RSS health.</p>
+  <p class="muted">For a feed that will not update, check its URL and the error shown in the mobile app. If a publisher provides an excerpt only, readers can open the original site from the article view.</p>
+</div>
+<div class="card">
   <h2>People and delivery</h2>
   <p><a href="/admin/users">Users and membership</a> · <a href="/admin/smtp">SMTP email</a> · <a href="/admin/provider-keys">Provider keys</a> · <a href="/admin/audio">Speech providers</a></p>
 </div>
@@ -160,7 +165,7 @@ ${errorSummary(options.errors ?? [], options.errorPrefix ?? "")}
     <div><dt>Failed</dt><dd>${overview.jobs.failed}</dd></div>
     <div><dt>Transcript artifacts</dt><dd>${overview.artifacts.total}</dd></div>
   </dl>
-  <div class="card wide"><table>
+  <div class="table-scroll"><table>
     <caption class="muted">Jobs by status</caption>
     <thead><tr><th scope="col">Status</th><th scope="col">Jobs</th><th scope="col">Share</th></tr></thead>
     <tbody>${statusRows}</tbody>

@@ -6,8 +6,23 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import ink.underflo.wristbrief.mobile.ArticleContentSanitizer
+import androidx.compose.ui.graphics.Color
 
 class ArticleDocumentTest {
+    @Test
+    fun linksCarryAnActualTapTargetInTheNativeReader() {
+        val content = listOf(ArticleInline.Text("Open "), ArticleInline.Link("source", "https://example.com/story"))
+            .toAnnotatedString(Color.Blue)
+        assertEquals("Open source", content.text)
+        assertEquals("https://example.com/story", content.getStringAnnotations("URL", 5, 5).single().item)
+    }
+
+    @Test
+    fun marksShortGatewayRssFallbackAsAnExcerpt() {
+        val payload = """{"source":"rss","document":{"title":"Short","blocks":[{"type":"paragraph","spans":[{"type":"text","text":"Just a teaser."}]}]}}"""
+        assertTrue(decodeArticleDocument(payload)!!.isExcerpt)
+    }
+
     @Test
     fun decodesTheGatewayDocumentPayload() {
         val raw = """

@@ -4,6 +4,8 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import java.io.ByteArrayInputStream
+import java.io.IOException
 import org.junit.Test
 
 class MobileInboxRepositoryTest {
@@ -190,5 +192,30 @@ class MobileInboxRepositoryTest {
         assertEquals(2, ids.distinct().size)
         assertTrue(ids.contains("feed-1:guid:duplicate-guid-1"))
         assertTrue(ids.contains("feed-2:guid:duplicate-guid-1"))
+    }
+
+    @Test
+    fun savedArticleSurvivesWhenFeedStopsPublishingIt() = runBlocking {
+        val feed = MobileFeedSubscription(id = "feed", title = "Reading", url = "https://example.com/feed")
+        val store = InMemoryInboxStore().apply {
+            savedItems = listOf(MobileFeedItem("older", feed.id, feed.title, "Older article", "https://example.com/older", "Full cached text", null, null, 10L))
+        }
+        val states = InMemoryItemStateAdapter().apply { setSaved("older", true) }
+        val repo = MobileInboxRepository(
+            MobileFeedManager(InMemoryFeedStore(listOf(feed)), FakeFeedProbe(), FakeFeedSyncPublisher()),
+            store, states, FakeItemFetcher(mapOf(feed.url to listOf(ParsedFeedItem("New article", "https://example.com/new", "New", null, null, "new")))),
+            clock = { 20L },
+        )
+
+        repo.refresh()
+        assertEquals(listOf("older"), repo.savedItems().map { it.id })
+        assertEquals(2, repo.items().size)
+    }
+
+    @Test
+    fun largeFeedStopsAtConfiguredByteLimit() {
+        val stream = BoundedFeedInputStream(ByteArrayInputStream(ByteArray(6) { 65 }), 5)
+        val buffer = ByteArray(6)
+        org.junit.Assert.assertThrows(IOException::class.java) { stream.read(buffer) }
     }
 }

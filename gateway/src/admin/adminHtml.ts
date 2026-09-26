@@ -44,6 +44,7 @@ h3 { font-size:15px; margin:0 0 8px; }
 p { margin:0 0 10px; }
 .card { background:#fff; border:1px solid var(--edge); border-radius:18px; padding:22px; margin:16px 0; box-shadow:0 8px 28px #143c3009; }
 .card.wide { overflow-x:auto; }
+.table-scroll { overflow-x:auto; margin-top:16px; }
 label { color:var(--muted); font-size:13px; font-weight:650; }
 input,select,button,textarea { font:inherit; }
 input:not([type=checkbox]),select { display:block; width:100%; min-width:0; padding:10px 12px; margin-top:5px; border:1px solid #bed0cb; border-radius:9px; background:#fff; color:var(--ink); }
@@ -58,7 +59,14 @@ a { color:var(--accent); text-underline-offset:3px; font-weight:650; }
 .req { color:var(--danger); }
 .skip { position:absolute; left:-9999px; top:0; background:#fff; padding:10px 14px; border-radius:0 0 10px 0; }
 .skip:focus { left:0; z-index:5; }
-.crumbs { display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center; margin:0 0 18px; padding:0; list-style:none; font-size:13px; }
+.admin-nav { display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px 26px; margin:0 0 28px; border-bottom:1px solid var(--edge); padding:0 0 16px; }
+.nav-group { min-width:0; }
+.nav-label { display:block; color:var(--muted); font-size:11px; font-weight:750; letter-spacing:.09em; text-transform:uppercase; margin-bottom:7px; }
+.crumbs { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:0; padding:0; list-style:none; font-size:13px; }
+.crumbs a { display:block; border-radius:8px; padding:7px 9px; text-decoration:none; }
+.crumbs a:hover { background:#e6eeea; text-decoration:underline; }
+.crumbs a[aria-current=page] { color:#fff; background:var(--accent); }
+.nav-logout { margin-left:auto; }
 .crumbs form { display:inline; }
 .crumbs button { min-height:34px; padding:6px 12px; }
 .field { margin:0 0 14px; }
@@ -97,7 +105,7 @@ dl.stats dt { color:var(--muted); font-size:11px; text-transform:uppercase; lett
 dl.stats dd { margin:4px 0 0; font-size:22px; font-weight:800; }
 details { margin:8px 0; }
 summary { cursor:pointer; font-weight:650; color:var(--accent); }
-@media(max-width:640px){main{padding:24px 12px 64px}.card{padding:15px}td,th{padding:8px 6px}dl.stats dd{font-size:19px}}
+@media(max-width:640px){main{padding:24px 12px 64px}.card{padding:15px}td,th{padding:8px 6px}dl.stats dd{font-size:19px}.admin-nav{gap:12px}.nav-logout{margin-left:0}.nav-group{width:100%}}
 </style>
 </head>
 <body>

@@ -117,6 +117,8 @@ describe("the console works without JavaScript", () => {
       expect(page.text.includes('<a class="skip" href="#main-content">Skip to main content</a>'), `${path} needs the skip link`).toBe(true);
       expect(page.text.includes('<main id="main-content">'), `${path} needs the main landmark`).toBe(true);
       expect(page.text.includes('<ul class="crumbs">'), `${path} needs the section nav`).toBe(true);
+      expect(page.text.includes('<nav class="admin-nav" aria-label="Admin sections">'), `${path} needs a named section nav`).toBe(true);
+      expect(page.text.includes('>Workspace</span>') && page.text.includes('>Manage</span>'), `${path} needs navigation groups`).toBe(true);
       expect(page.text.includes('action="/admin/logout"'), `${path} needs a reachable sign-out form`).toBe(true);
       expect(page.text.includes('aria-current="page"'), `${path} needs to mark the current section`).toBe(true);
     }
@@ -134,6 +136,13 @@ describe("the console works without JavaScript", () => {
     // lookbehind keeps max-width/min-width out of the check.
     expect(/(?<![-a-z])width:\s*\d{3,}px/.test(text)).toBe(false);
     expect(/style="width:/.test(text)).toBe(false);
+  });
+
+  it("does not confuse gateway jobs with device RSS health", async () => {
+    const { setup, env, session } = await pageFixture();
+    const { text } = await readPage(setup, env, session, "/admin");
+    expect(text).toContain("RSS and Atom subscriptions are fetched on each reader’s Android device");
+    expect(text).toContain("job counts above do not indicate RSS health");
   });
 
   it("exposes each critical action as a submittable form", async () => {

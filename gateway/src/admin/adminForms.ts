@@ -273,14 +273,17 @@ export const ADMIN_NAV: NavItem[] = [
  * with the keyboard and without JavaScript.
  */
 export function adminNav(current: string, formToken: string): string {
-  const links = ADMIN_NAV.map((item) =>
+  const link = (item: NavItem) =>
     item.key === current
       ? `<li><a href="${escapeHtml(item.href)}" aria-current="page"><strong>${escapeHtml(item.label)}</strong></a></li>`
-      : `<li><a href="${escapeHtml(item.href)}">${escapeHtml(item.label)}</a></li>`
-  ).join("");
-  return `<ul class="crumbs">${links}
-  <li><form method="post" action="/admin/logout">${formSecurityFields(formToken)}<button type="submit" class="secondary">Sign out</button></form></li>
-</ul>`;
+      : `<li><a href="${escapeHtml(item.href)}">${escapeHtml(item.label)}</a></li>`;
+  const primary = ADMIN_NAV.slice(0, 3).map(link).join("");
+  const services = ADMIN_NAV.slice(3).map(link).join("");
+  return `<nav class="admin-nav" aria-label="Admin sections">
+  <div class="nav-group"><span class="nav-label">Workspace</span><ul class="crumbs">${primary}</ul></div>
+  <div class="nav-group"><span class="nav-label">Manage</span><ul class="crumbs">${services}</ul></div>
+  <div class="nav-logout"><form method="post" action="/admin/logout">${formSecurityFields(formToken)}<button type="submit" class="secondary">Sign out</button></form></div>
+</nav>`;
 }
 
 /**

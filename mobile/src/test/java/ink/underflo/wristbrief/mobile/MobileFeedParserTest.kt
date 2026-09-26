@@ -3,6 +3,7 @@ package ink.underflo.wristbrief.mobile
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Test
 import java.io.ByteArrayInputStream
 
@@ -93,5 +94,25 @@ class MobileFeedParserTest {
         val item = parser.parse(ByteArrayInputStream(xml.toByteArray())).single()
 
         assertEquals(fullContent, item.description)
+    }
+
+    @Test
+    fun parsesAtomXhtmlContentWithoutLosingParagraphs() {
+        val xml = """<feed xmlns="http://www.w3.org/2005/Atom" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+            <entry><title>Readable article</title><link href="https://example.com/read" />
+            <summary>Short excerpt</summary>
+            <content type="xhtml"><xhtml:div><xhtml:p>First &amp; useful paragraph.</xhtml:p><xhtml:p>Second paragraph.</xhtml:p></xhtml:div></content>
+            </entry></feed>"""
+
+        val item = parser.parse(ByteArrayInputStream(xml.toByteArray())).single()
+        assertEquals("https://example.com/read", item.link)
+        assertEquals("<div><p>First &amp; useful paragraph.</p><p>Second paragraph.</p></div>", item.description)
+    }
+
+    @Test
+    fun refusesHtmlMistakenForAnEmptyFeed() {
+        assertThrows(IllegalArgumentException::class.java) {
+            parser.parse(ByteArrayInputStream("<html><body>Sign in to read</body></html>".toByteArray()))
+        }
     }
 }

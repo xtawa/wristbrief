@@ -144,6 +144,13 @@
     <string name="article_original_link_body">在浏览器中打开此文章，以查看原网页版式、多媒体内容或评论。</string>
     <string name="article_open_browser">在浏览器中打开</string>
     <string name="article_loading">正在加载全文…</string>
+    <string name="article_excerpt_notice">此处仅有订阅源摘要。若要阅读完整文章，请打开原文网页。</string>
+    <string name="article_no_content">此条目没有可阅读的正文。如果发布者提供了原文网页，可在下方打开。</string>
+    <string name="article_ai_scope_note">AI 只会参考上方可用的文字，不会读取完整网页或音频。</string>
+    <string name="reader_appearance_action">Aa</string>
+    <string name="reader_text_size">字号</string>
+    <string name="reader_text_size_option">%1$d%% 字号</string>
+    <string name="reader_done">完成</string>
     <string name="article_reading_meta">%1$s · %2$d 词</string>
     <string name="article_time_yesterday">昨天 %1$s</string>
     <string name="article_show_notes">节目说明</string>

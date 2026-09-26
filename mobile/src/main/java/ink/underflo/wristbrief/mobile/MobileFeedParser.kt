@@ -33,11 +33,16 @@ class MobileFeedParser {
         var published: String? = null
         var audioUrl: String? = null
         var guid: String? = null
+        var rootSeen = false
 
         while (event != XmlPullParser.END_DOCUMENT) {
             when (event) {
                 XmlPullParser.START_TAG -> {
                     val name = parser.name.lowercase()
+                    if (!rootSeen) {
+                        require(name == "rss" || name == "feed" || name == "rdf") { "URL did not return an RSS/Atom feed" }
+                        rootSeen = true
+                    }
                     when (name) {
                         "item", "entry" -> {
                             inItem = true
@@ -59,7 +64,7 @@ class MobileFeedParser {
                             // element as the local name "encoded" when namespace
                             // processing is enabled. Keep the richest field so
                             // a short summary cannot overwrite full content.
-                            val candidate = parser.nextText().trim()
+                            val candidate = readContent(parser).trim()
                             if (candidate.isNotBlank() && candidate.length > (description?.length ?: 0)) {
                                 description = candidate
                             }
@@ -108,6 +113,34 @@ class MobileFeedParser {
             }
             event = parser.next()
         }
+        require(rootSeen) { "URL did not return an RSS/Atom feed" }
         return items
+    }
+
+    /** Atom content may contain real XHTML child elements, not just a CDATA string. */
+    private fun readContent(parser: XmlPullParser): String {
+        val result = StringBuilder()
+        var depth = 1
+        var markup = false
+        val xhtml = parser.getAttributeValue(null, "type").equals("xhtml", ignoreCase = true)
+        while (depth > 0) {
+            when (parser.next()) {
+                XmlPullParser.START_TAG -> {
+                    depth++
+                    markup = true
+                    result.append('<').append(parser.name).append('>')
+                }
+                XmlPullParser.TEXT, XmlPullParser.CDSECT -> {
+                    val value = parser.text.orEmpty()
+                    result.append(if (xhtml || markup) value.replace("&", "&amp;").replace("<", "&lt;") else value)
+                }
+                XmlPullParser.END_TAG -> {
+                    if (depth > 1) result.append("</").append(parser.name).append('>')
+                    depth--
+                }
+                XmlPullParser.END_DOCUMENT -> throw IllegalArgumentException("Incomplete feed content")
+            }
+        }
+        return result.toString()
     }
 }

@@ -2,6 +2,7 @@ package ink.underflo.wristbrief.mobile
 
 import android.content.Context
 import java.io.InputStream
+import java.io.FilterInputStream
 import java.net.URI
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -141,6 +142,7 @@ class HttpFeedItemFetcher(
     private val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
+        .callTimeout(30, TimeUnit.SECONDS)
         .build(),
     private val parser: MobileFeedParser = MobileFeedParser(),
 ) : FeedItemFetcher {
@@ -153,9 +155,38 @@ class HttpFeedItemFetcher(
         response.use { resp ->
             check(resp.isSuccessful) { "HTTP ${resp.code}" }
             check(resp.request.url.isHttps) { "Redirected to insecure URL" }
-            val stream = resp.body?.byteStream() ?: return@withContext emptyList()
-            parser.parse(stream)
+            val body = resp.body ?: return@withContext emptyList()
+            check(body.contentLength() <= MAX_FEED_BYTES) {
+                "Feed exceeds the 4 MiB limit"
+            }
+            parser.parse(BoundedFeedInputStream(body.byteStream(), MAX_FEED_BYTES))
         }
+    }
+}
+
+internal const val MAX_FEED_BYTES = 4L * 1024 * 1024
+
+/** Enforces a byte limit even when the feed server omits Content-Length. */
+internal class BoundedFeedInputStream(stream: InputStream, private val maxBytes: Long) : FilterInputStream(stream) {
+    private var consumed = 0L
+
+    override fun read(): Int {
+        val value = super.read()
+        if (value != -1) checkLimit(1)
+        return value
+    }
+
+    override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+        // FilterInputStream.read(byte[], …) may call our read() in some JDKs;
+        // call the underlying stream directly to count each byte only once.
+        val count = `in`.read(buffer, offset, length)
+        if (count > 0) checkLimit(count.toLong())
+        return count
+    }
+
+    private fun checkLimit(count: Long) {
+        consumed += count
+        if (consumed > maxBytes) throw java.io.IOException("Feed exceeds the 4 MiB limit")
     }
 }
 
@@ -267,22 +298,27 @@ class MobileInboxRepository(
         }
 
         val previous = store.load()
-        val retained = if (failedTitles.isNotEmpty()) {
-            val failedIds = feeds.filter { it.title in failedTitles }.map { it.id }.toSet()
-            previous.filter { it.feedId in failedIds }
-        } else {
-            emptyList()
-        }
-
+        val failedIds = feeds.indices.filter { feedResults[it].isFailure }.map { feeds[it].id }.toSet()
+        val subscribedIds = feeds.map { it.id }.toSet()
+        // A feed may publish only its newest N entries. Keep a user's saved
+        // articles even after they leave that moving window, but never keep
+        // content from a removed subscription.
+        val retained = previous.filter { it.feedId in failedIds || (it.feedId in subscribedIds && isSaved(it.id)) }
         val combined = (fetchedItems + retained)
             .distinctBy { it.id }
-            .sortedByDescending { it.cachedAtEpochMs }
-            .take(500)
+            .sortedWith(compareByDescending<MobileFeedItem> {
+                it.published?.let(::parseArticleInstant)?.toEpochMilli() ?: it.cachedAtEpochMs
+            }.thenByDescending { it.cachedAtEpochMs })
+        val visible = combined.filterNot { isSaved(it.id) }.take(500)
+        val saved = combined.filter { isSaved(it.id) }
+        val stored = (visible + saved).sortedWith(compareByDescending<MobileFeedItem> {
+            it.published?.let(::parseArticleInstant)?.toEpochMilli() ?: it.cachedAtEpochMs
+        }.thenByDescending { it.cachedAtEpochMs })
 
-        store.save(combined)
+        store.save(stored)
 
         return MobileRefreshResult(
-            totalCount = combined.size,
+            totalCount = stored.size,
             failedFeedTitles = failedTitles,
             isOfflineFallback = failedTitles.isNotEmpty() && combined.isNotEmpty(),
         )

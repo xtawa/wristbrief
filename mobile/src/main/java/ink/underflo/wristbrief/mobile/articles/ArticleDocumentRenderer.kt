@@ -1,6 +1,7 @@
 package ink.underflo.wristbrief.mobile.articles
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +16,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -38,38 +40,56 @@ import ink.underflo.wristbrief.mobile.ui.AppIconKind
 fun ArticleDocumentRenderer(
     document: ArticleDocument,
     imageContent: @Composable (ArticleBlock.Image) -> Unit,
+    textScale: Float = 1f,
 ) {
+    val uriHandler = LocalUriHandler.current
+    val bodyStyle = MaterialTheme.typography.bodyLarge.copy(
+        fontSize = MaterialTheme.typography.bodyLarge.fontSize * textScale,
+        lineHeight = MaterialTheme.typography.bodyLarge.lineHeight * textScale * 1.35f,
+    )
+    @Composable
+    fun LinkedText(spans: List<ArticleInline>, modifier: Modifier = Modifier, style: androidx.compose.ui.text.TextStyle = bodyStyle) {
+        val annotated = spans.toAnnotatedString()
+        ClickableText(
+            text = annotated,
+            style = style.copy(color = MaterialTheme.colorScheme.onSurface),
+            modifier = modifier,
+            onClick = { offset ->
+                annotated.getStringAnnotations("URL", offset, offset).firstOrNull()?.item
+                    ?.takeIf { it.startsWith("https://") || it.startsWith("http://") }
+                    ?.let { uriHandler.openUri(it) }
+            },
+        )
+    }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         document.blocks.forEach { block ->
             when (block) {
-                is ArticleBlock.Paragraph -> Text(
-                    text = block.spans.toAnnotatedString(),
-                    style = MaterialTheme.typography.bodyLarge.copy(lineHeight = MaterialTheme.typography.bodyLarge.lineHeight * 1.2f),
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                is ArticleBlock.Heading -> Text(
-                    text = block.spans.toAnnotatedString(),
+                is ArticleBlock.Paragraph -> LinkedText(block.spans)
+                is ArticleBlock.Heading -> LinkedText(
+                    spans = block.spans,
                     style = when (block.level) {
                         1 -> MaterialTheme.typography.headlineSmall
                         2 -> MaterialTheme.typography.titleLarge
                         else -> MaterialTheme.typography.titleMedium
-                    },
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    }.copy(fontSize = when (block.level) {
+                        1 -> MaterialTheme.typography.headlineSmall.fontSize * textScale
+                        2 -> MaterialTheme.typography.titleLarge.fontSize * textScale
+                        else -> MaterialTheme.typography.titleMedium.fontSize * textScale
+                    }, fontWeight = FontWeight.SemiBold),
                 )
                 is ArticleBlock.UnorderedList -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     block.items.forEach { spans ->
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             AppIcon(AppIconKind.Bullet, Modifier.size(18.dp), MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(spans.toAnnotatedString(), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+                            LinkedText(spans)
                         }
                     }
                 }
                 is ArticleBlock.OrderedList -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     block.items.forEachIndexed { index, spans ->
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text("${index + 1}.", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(spans.toAnnotatedString(), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+                            Text("${index + 1}.", style = bodyStyle, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            LinkedText(spans)
                         }
                     }
                 }
@@ -85,10 +105,9 @@ fun ArticleDocumentRenderer(
                                 .fillMaxWidth(0.02f)
                                 .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.6f), RoundedCornerShape(2.dp)),
                         )
-                        Text(
-                            text = block.spans.toAnnotatedString(),
-                            style = MaterialTheme.typography.bodyLarge.copy(fontStyle = FontStyle.Italic),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        LinkedText(
+                            spans = block.spans,
+                            style = bodyStyle.copy(fontStyle = FontStyle.Italic),
                             modifier = Modifier.padding(14.dp),
                         )
                     }
@@ -144,7 +163,11 @@ fun List<ArticleInline>.toAnnotatedString(linkColor: androidx.compose.ui.graphic
             is ArticleInline.Bold -> withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(span.text) }
             is ArticleInline.Italic -> withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { append(span.text) }
             is ArticleInline.Code -> withStyle(SpanStyle(fontFamily = FontFamily.Monospace)) { append(span.text) }
-            is ArticleInline.Link -> withStyle(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)) { append(span.text) }
+            is ArticleInline.Link -> {
+                pushStringAnnotation("URL", span.url)
+                withStyle(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)) { append(span.text) }
+                pop()
+            }
         }
     }
 }

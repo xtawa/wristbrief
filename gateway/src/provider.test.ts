@@ -10,6 +10,44 @@ import {
   type AiProvider
 } from "./provider";
 import { BRIEF_PROMPT_VERSION, BRIEF_SCHEMA_VERSION, type StructuredBrief } from "./structuredBrief";
+import { setSafeFetchResolverOverride, setSafeFetchTransportOverride, type SafeHttpTransport } from "./net/safeRemoteFetcher";
+
+/**
+ * Provider POSTs go through the SSRF-safe pinned transport (resolve, screen
+ * every answer, pin the connect), not global fetch. These tests install a
+ * transport double that reproduces the old `fetch(url, init)` view, so the
+ * handlers below keep asserting the same method, headers, body and signal.
+ */
+type TransportCall = { url: string; init: RequestInit };
+
+function usePinnedTransport(handler: (url: string, init?: RequestInit) => Response | Promise<Response>): TransportCall[] {
+  const calls: TransportCall[] = [];
+  setSafeFetchResolverOverride(async () => ["93.184.216.34"]);
+  const transport: SafeHttpTransport = {
+    async request(request) {
+      const init: RequestInit = {
+        method: request.method ?? "GET",
+        headers: request.headers,
+        body: typeof request.body === "string" ? request.body : undefined,
+        // The pinned transport refuses a 3xx by construction; the captured init
+        // keeps the flag so the existing assertion stays meaningful.
+        redirect: "error",
+        signal: request.signal
+      };
+      calls.push({ url: request.url.toString(), init });
+      const response = await handler(request.url.toString(), init);
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      return {
+        status: response.status,
+        headers: { get: (name: string) => response.headers.get(name) },
+        body: { async *[Symbol.asyncIterator]() { if (bytes.byteLength) yield bytes; } },
+        destroy: () => {}
+      };
+    }
+  };
+  setSafeFetchTransportOverride(transport);
+  return calls;
+}
 
 const env = {
   AI_API_KEY: "provider-secret",
@@ -47,7 +85,11 @@ const anthropicBody = (value: unknown) => new Response(JSON.stringify({
   content: [{ type: "text", text: typeof value === "string" ? value : JSON.stringify(value) }]
 }), { status: 200, headers: { "Content-Type": "application/json" } });
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  setSafeFetchTransportOverride(null);
+  setSafeFetchResolverOverride(null);
+});
 
 describe("AI provider registry", () => {
   it("registers and resolves providers by server-side id", () => {
@@ -89,24 +131,24 @@ describe("AI provider registry", () => {
 
 describe("provider routing and security", () => {
   it("routes OpenRouter through its fixed managed endpoint", async () => {
-    const upstreamFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      expect(String(input)).toBe("https://openrouter.ai/api/v1/chat/completions");
+    const calls = usePinnedTransport(async (url, init) => {
+      expect(url).toBe("https://openrouter.ai/api/v1/chat/completions");
       expect(init?.headers).toMatchObject({ Authorization: "Bearer openrouter-secret" });
       expect(init?.redirect).toBe("error");
       expect(JSON.parse(String(init?.body)).model).toBe("openrouter/test-model");
       return openAiBody(structured);
     });
-    vi.stubGlobal("fetch", upstreamFetch);
 
     await expect(
       new OpenRouterProvider(env.OPENROUTER_API_KEY, env.OPENROUTER_MODEL).summarize({ content: "Body" })
     ).resolves.toMatchObject({ model: "openrouter/test-model", summary: "Concise.", structured: { long: structured.long } });
+    expect(calls).toHaveLength(1);
   });
 
   it("routes Gemini through native generateContent without placing the key in the URL", async () => {
-    const upstreamFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      expect(String(input)).toBe("https://generativelanguage.googleapis.com/v1beta/models/gemini-test:generateContent");
-      expect(String(input)).not.toContain("gemini-secret");
+    const calls = usePinnedTransport(async (url, init) => {
+      expect(url).toBe("https://generativelanguage.googleapis.com/v1beta/models/gemini-test:generateContent");
+      expect(url).not.toContain("gemini-secret");
       expect(init?.headers).toMatchObject({ "x-goog-api-key": "gemini-secret" });
       expect(init?.redirect).toBe("error");
       const body = JSON.parse(String(init?.body));
@@ -114,16 +156,16 @@ describe("provider routing and security", () => {
       expect(body.contents[0].role).toBe("user");
       return geminiBody(structured);
     });
-    vi.stubGlobal("fetch", upstreamFetch);
 
     await expect(
       new GeminiProvider(env.GEMINI_API_KEY, env.GEMINI_MODEL).summarize({ content: "Body" })
     ).resolves.toMatchObject({ model: "gemini-test", summary: "Concise.", structured: { long: structured.long } });
+    expect(calls).toHaveLength(1);
   });
 
   it("routes Anthropic through native Messages API with proper headers", async () => {
-    const upstreamFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      expect(String(input)).toBe("https://api.anthropic.com/v1/messages");
+    const calls = usePinnedTransport(async (url, init) => {
+      expect(url).toBe("https://api.anthropic.com/v1/messages");
       expect(init?.headers).toMatchObject({
         "x-api-key": "anthropic-secret",
         "anthropic-version": "2023-06-01"
@@ -135,19 +177,18 @@ describe("provider routing and security", () => {
       expect(body.messages[0].role).toBe("user");
       return anthropicBody(structured);
     });
-    vi.stubGlobal("fetch", upstreamFetch);
 
     await expect(
       new AnthropicProvider(env.ANTHROPIC_API_KEY, env.ANTHROPIC_MODEL).summarize({ content: "Body" })
     ).resolves.toMatchObject({ model: "claude-3-5-haiku-20241022", summary: "Concise.", structured: { long: structured.long } });
+    expect(calls).toHaveLength(1);
   });
 
   it("keeps the OpenAI-compatible HTTPS guard", async () => {
-    const upstreamFetch = vi.fn();
-    vi.stubGlobal("fetch", upstreamFetch);
+    const calls = usePinnedTransport(() => openAiBody(structured));
     expect(() => new OpenAiCompatibleProvider({ ...env, AI_BASE_URL: "http://provider.example/v1" }))
       .toThrowError(ProviderError);
-    expect(upstreamFetch).not.toHaveBeenCalled();
+    expect(calls).toHaveLength(0);
   });
 
   it("enforces an exact server-side host allowlist", () => {
@@ -175,32 +216,30 @@ describe("provider routing and security", () => {
 
 describe("provider reliability", () => {
   it.each([429, 500, 503])("retries retryable upstream status %s once", async (status) => {
-    const upstreamFetch = vi.fn()
-      .mockResolvedValueOnce(new Response("do-not-expose", { status }))
-      .mockResolvedValueOnce(openAiBody(structured));
-    vi.stubGlobal("fetch", upstreamFetch);
+    const calls = usePinnedTransport((_url, _init) => {
+      if (calls.length === 1) return new Response("do-not-expose", { status });
+      return openAiBody(structured);
+    });
 
     await expect(new OpenAiCompatibleProvider(env).summarize({ content: "Body" }))
       .resolves.toMatchObject({ summary: "Concise." });
-    expect(upstreamFetch).toHaveBeenCalledTimes(2);
+    expect(calls).toHaveLength(2);
   });
 
   it.each([400, 401, 403])("does not retry non-retryable upstream status %s", async (status) => {
-    const upstreamFetch = vi.fn(async () => new Response("secret upstream body", { status }));
-    vi.stubGlobal("fetch", upstreamFetch);
+    const calls = usePinnedTransport(() => new Response("secret upstream body", { status }));
 
     await expect(new OpenAiCompatibleProvider(env).summarize({ content: "Body" }))
       .rejects.toMatchObject<Partial<ProviderError>>({ code: "provider_error", upstreamStatus: status });
-    expect(upstreamFetch).toHaveBeenCalledTimes(1);
+    expect(calls).toHaveLength(1);
   });
 
   it("aborts timed-out calls and retries only within the configured bound", async () => {
-    const upstreamFetch = vi.fn((_input: RequestInfo | URL, init?: RequestInit) =>
+    const calls = usePinnedTransport((_url, init) =>
       new Promise<Response>((_resolve, reject) => {
         init?.signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
       })
     );
-    vi.stubGlobal("fetch", upstreamFetch);
 
     await expect(new OpenAiCompatibleProvider({
       ...env,
@@ -208,15 +247,55 @@ describe("provider reliability", () => {
       AI_PROVIDER_MAX_RETRIES: "1"
     }).summarize({ content: "Body" }))
       .rejects.toMatchObject<Partial<ProviderError>>({ code: "provider_timeout" });
-    expect(upstreamFetch).toHaveBeenCalledTimes(2);
+    expect(calls).toHaveLength(2);
   });
 
   it("does not retry malformed successful JSON", async () => {
-    const upstreamFetch = vi.fn(async () => new Response("{", { status: 200 }));
-    vi.stubGlobal("fetch", upstreamFetch);
+    const calls = usePinnedTransport(() => new Response("{", { status: 200 }));
 
     await expect(new OpenAiCompatibleProvider(env).summarize({ content: "Body" }))
       .rejects.toMatchObject<Partial<ProviderError>>({ code: "invalid_provider_response" });
-    expect(upstreamFetch).toHaveBeenCalledTimes(1);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("refuses a provider redirect instead of following it", async () => {
+    const calls = usePinnedTransport(() => new Response(null, {
+      status: 302,
+      headers: { Location: "http://169.254.169.254/latest/meta-data" }
+    }));
+
+    await expect(new OpenAiCompatibleProvider(env).summarize({ content: "Body" }))
+      .rejects.toMatchObject<Partial<ProviderError>>({ code: "provider_error", upstreamStatus: 302 });
+    // The Location was never requested.
+    expect(calls).toHaveLength(1);
+  });
+
+  it("refuses a provider host that resolves to a private or metadata address", async () => {
+    const calls = usePinnedTransport(() => openAiBody(structured));
+    for (const address of ["127.0.0.1", "10.0.0.5", "169.254.169.254", "::ffff:169.254.169.254", "64:ff9b::a9fe:a9fe"]) {
+      setSafeFetchResolverOverride(async () => [address]);
+      await expect(new OpenAiCompatibleProvider(env).summarize({ content: "Body" }))
+        .rejects.toMatchObject<Partial<ProviderError>>({ code: "invalid_provider_url" });
+    }
+    expect(calls).toHaveLength(0);
+  });
+
+  it("refuses a mixed answer set and a rebinding second answer", async () => {
+    const calls = usePinnedTransport(() => openAiBody(structured));
+    setSafeFetchResolverOverride(async () => ["93.184.216.34", "127.0.0.1"]);
+    await expect(new OpenAiCompatibleProvider(env).summarize({ content: "Body" }))
+      .rejects.toMatchObject<Partial<ProviderError>>({ code: "invalid_provider_url" });
+    expect(calls).toHaveLength(0);
+
+    // A second resolution that would return a private address is never consulted:
+    // the first screened answer is pinned for the connection.
+    let resolutions = 0;
+    setSafeFetchResolverOverride(async () => {
+      resolutions += 1;
+      return resolutions === 1 ? ["93.184.216.34"] : ["127.0.0.1"];
+    });
+    await expect(new OpenAiCompatibleProvider(env).summarize({ content: "Body" }))
+      .resolves.toMatchObject({ summary: "Concise." });
+    expect(resolutions).toBe(1);
   });
 });

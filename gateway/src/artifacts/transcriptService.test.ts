@@ -66,8 +66,12 @@ describe("TranscriptService, Shared Cache & 1/5 Quota", () => {
       const resC = await service.requestTranscript(userC, episodeInput);
       expect(resC.status).toBe("processing");
       if (resC.status === "processing") {
-        // Must join the existing job!
-        expect(resC.jobId).toBe(resA.jobId);
+        // Must join the existing work item, but with C's own pollable request id.
+        expect(resC.jobId).toMatch(/^jobu_/);
+        expect(resC.jobId).not.toBe(resA.jobId);
+        const follower = await artifactStore.getJobFollowerById(resC.jobId);
+        expect(follower?.jobId).toBe(resA.jobId);
+        expect(follower?.userId).toBe(userC);
       }
 
       // Complete job with simulated transcription artifact

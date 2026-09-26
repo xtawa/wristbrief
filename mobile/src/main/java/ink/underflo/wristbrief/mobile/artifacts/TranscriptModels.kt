@@ -93,10 +93,48 @@ sealed interface TranscriptFetchResult {
     data class Processing(
         val contentCode: String,
         val jobId: String,
+        /**
+         * Raw gateway job status (`queued`, `running`, `processing`). A queued job is
+         * waiting for a worker while running/processing means conversion or
+         * recognition is under way, and the phone must be able to tell them apart.
+         * Null when the phone has not yet observed a server status.
+         */
+        val status: String? = null,
+        /**
+         * Cadence the server asked for: a `pollAfterMs` body field or a `Retry-After`
+         * response header. Null when the server did not ask for one, in which case the
+         * caller keeps its own steady cadence instead of inventing a value.
+         */
+        val pollAfterMs: Long? = null,
     ) : TranscriptFetchResult
 
     data class Failure(
         val errorCode: String,
         val message: String,
-    ) : TranscriptFetchResult
+        /**
+         * Optional so existing construction sites keep compiling; read failures through
+         * [isRetryable] rather than assuming a classification.
+         */
+        val kind: TranscriptFailureKind? = null,
+    ) : TranscriptFetchResult {
+        val isRetryable: Boolean
+            get() = (kind ?: TranscriptGatewayErrors.classify(errorCode)).retryable
+    }
+}
+
+/**
+ * Whether asking the gateway again can change the outcome.
+ *
+ * This is the discriminator the UI uses to decide whether RETRY may be offered: a terminal
+ * failure would only fail again, so showing a retry action for it would be a false promise.
+ */
+enum class TranscriptFailureKind(val retryable: Boolean) {
+    /** Transport error, timeout, HTTP 5xx, HTTP 429: retrying can help. */
+    RETRYABLE(true),
+
+    /** Bad request, gone/not-yours job, missing grant: retrying cannot help. */
+    TERMINAL(false),
+
+    /** The caller has no usable session; a retry needs a sign-in first. */
+    UNAUTHORIZED(false),
 }

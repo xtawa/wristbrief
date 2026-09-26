@@ -29,7 +29,8 @@ function createTestDatabase(): D1Database {
     "0006_legacy_migration_grants.sql",
     "0007_play_purchase_entitlements.sql",
     "0008_cloud_sync_and_content_registry.sql",
-    "0009_admin_and_email_auth.sql"
+    "0009_admin_and_email_auth.sql",
+    "0015_shared_transcript_jobs.sql"
   ];
   for (const file of files) {
     const sql = readFileSync(join(migrationsDir, file), "utf-8");
@@ -250,6 +251,13 @@ describe("SEC-03: Account Deletion Complete Cleanup", () => {
     await db.prepare("INSERT INTO user_sync_cursors (user_id, device_id, cursor_value, updated_at) VALUES (?, 'dev_1', 42, 1000)").bind(userId).run();
     await db.prepare("INSERT INTO user_artifact_access (user_id, artifact_id, content_id, access_source, first_accessed_at, last_accessed_at, quota_units_charged) VALUES (?, 'art_1', 'cnt_1', 'creator', 1000, 1000, 1.0)").bind(userId).run();
     await db.prepare("INSERT INTO artifact_jobs (id, dedupe_key, user_id, content_id, artifact_type, language, status, attempt_count, created_at, updated_at) VALUES ('job_del', 'dedupe_del', ?, 'cnt_1', 'transcript', 'en', 'queued', 1, 1000, 1000)").bind(userId).run();
+    // 0015: a per-user follower request that joined another account's in-flight job.
+    await db.prepare(`
+      INSERT INTO transcript_job_followers (
+        id, job_id, user_id, content_id, language, status, attempt_count, error_code,
+        normal_units, quota_multiplier, quota_units, artifact_id, created_at, updated_at
+      ) VALUES ('jobu_del', 'job_leader_other', ?, 'cnt_1', 'en', 'queued', 1, NULL, 60, 0.2, 12, NULL, 1000, 1000)
+    `).bind(userId).run();
     await db.prepare("INSERT INTO credit_transactions (id, user_id, operation_type, reference_id, units, multiplier, status, created_at) VALUES ('tx_del', ?, 'transcript_generation', 'job_del', 1.0, 1.0, 'RESERVED', 1000)").bind(userId).run();
     await db.prepare("INSERT INTO transcript_artifacts (id, content_id, language, artifact_version, status, share_policy, created_by_user_id, created_at, updated_at) VALUES ('art_priv', 'cnt_priv', 'en', 1, 'ready', 'PRIVATE_ACCOUNT', ?, 1000, 1000)").bind(userId).run();
 
@@ -272,6 +280,9 @@ describe("SEC-03: Account Deletion Complete Cleanup", () => {
     expect(access).toBeNull();
     const job = await db.prepare("SELECT * FROM artifact_jobs WHERE user_id = ?").bind(userId).first();
     expect(job).toBeNull();
+    // 0015 follower requests are purged with the account they belong to.
+    const follower = await db.prepare("SELECT * FROM transcript_job_followers WHERE user_id = ?").bind(userId).first();
+    expect(follower).toBeNull();
     const tx = await db.prepare("SELECT * FROM credit_transactions WHERE user_id = ?").bind(userId).first();
     expect(tx).toBeNull();
     const privArt = await db.prepare("SELECT * FROM transcript_artifacts WHERE created_by_user_id = ? AND share_policy = 'PRIVATE_ACCOUNT'").bind(userId).first();

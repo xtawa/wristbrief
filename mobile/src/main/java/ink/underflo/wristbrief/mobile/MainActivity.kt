@@ -14,7 +14,9 @@ import ink.underflo.wristbrief.mobile.artifacts.EpisodeTranscriptRequest
 import ink.underflo.wristbrief.mobile.artifacts.HttpTranscriptGatewayApi
 import ink.underflo.wristbrief.mobile.artifacts.TranscriptCacheStore
 import ink.underflo.wristbrief.mobile.artifacts.TranscriptFetchResult
+import ink.underflo.wristbrief.mobile.artifacts.TranscriptJobService
 import ink.underflo.wristbrief.mobile.artifacts.TranscriptViewerDestination
+import ink.underflo.wristbrief.mobile.db.SqliteTranscriptJobStore
 import ink.underflo.wristbrief.mobile.media.PodcastProgressStore
 import ink.underflo.wristbrief.mobile.navigation.MobileBackHandler
 import ink.underflo.wristbrief.mobile.sync.CloudSyncCoordinator
@@ -121,6 +123,18 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); setContent { WristBriefMobileApp() } }
 }
+
+/**
+ * Which episode the transcript viewer is showing. The job itself is owned by
+ * [TranscriptJobService]; this only holds the presentation context so closing the
+ * viewer does not touch the running job.
+ */
+private data class TranscriptEpisodeContext(
+    val audioUrl: String,
+    val title: String?,
+    val guid: String? = null,
+    val request: EpisodeTranscriptRequest,
+)
 
 /**
  * Late-bound subscription lifecycle hooks: the feed manager is constructed before
@@ -267,6 +281,33 @@ private class MobileFeedListenerBindings : MobileFeedListener {
         val transcriptRepo = remember(transcriptCache, transcriptGateway) {
             DefaultTranscriptRepository(transcriptCache, transcriptGateway)
         }
+        // Long transcript jobs outlive the transcript screen and the process: the job is
+        // persisted in SQLite and re-armed on launch, so leaving the page or restarting
+        // the app never cancels it and the finished transcript stays openable.
+        val transcriptJobStore = remember(dbHelper) { SqliteTranscriptJobStore(dbHelper) }
+        val transcriptJobService = remember(transcriptRepo, transcriptGateway, transcriptJobStore) {
+            TranscriptJobService(
+                repository = transcriptRepo,
+                gatewayApi = transcriptGateway,
+                store = transcriptJobStore,
+                scope = appScope,
+            )
+        }
+        val activeTranscriptJobs by transcriptJobService.activeJobs.collectAsState()
+
+        // Re-arming runs at app start, not only when the transcript screen opens.
+        LaunchedEffect(transcriptJobService) {
+            transcriptJobService.resumePending()
+        }
+
+        // Speech preview: short text only, played through the app's Media3 stack.
+        LaunchedEffect(Unit) {
+            ink.underflo.wristbrief.mobile.audio.Media3SpeechPreviewPlayer.clearStalePreviews(context)
+        }
+        val speechPreviewScope = remember { kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main) }
+        DisposableEffect(speechPreviewScope) {
+            onDispose { speechPreviewScope.cancel() }
+        }
 
         // Full-text reader: the media proxy is authenticated, so article images
         // load through a dedicated Coil ImageLoader that attaches the session.
@@ -306,38 +347,46 @@ private class MobileFeedListenerBindings : MobileFeedListener {
             onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
         }
 
-        var activeTranscriptRequest by remember { mutableStateOf<EpisodeTranscriptRequest?>(null) }
-        var activeTranscriptState by remember { mutableStateOf<TranscriptFetchResult?>(null) }
+        // The transcript screen is open while an episode context is selected. The job
+        // itself lives in TranscriptJobService + SQLite, so closing this screen — or the
+        // whole process — does not cancel it.
+        var activeTranscriptEpisode by remember { mutableStateOf<TranscriptEpisodeContext?>(null) }
 
-        LaunchedEffect(activeTranscriptRequest) {
-            val req = activeTranscriptRequest ?: return@LaunchedEffect
-            val cached = transcriptRepo.getCached(req.audioUrl)
-            if (cached != null) {
-                activeTranscriptState = TranscriptFetchResult.Ready(
-                    contentCode = cached.contentCode,
-                    artifactId = "",
-                    source = "cache",
-                    quota = ink.underflo.wristbrief.mobile.artifacts.TranscriptQuotaInfo(0, 0f, 0f),
-                    payload = cached,
-                )
-                return@LaunchedEffect
-            }
-            val initial = transcriptRepo.fetchTranscript(req)
-            activeTranscriptState = initial
-            if (initial is TranscriptFetchResult.Processing) {
-                val polled = transcriptRepo.pollUntilReady(initial.jobId)
-                activeTranscriptState = polled
-            }
-        }
-
-        fun openTranscriptForEpisode(audioUrl: String, title: String?, feedUrl: String? = null, guid: String? = null) {
-            activeTranscriptRequest = EpisodeTranscriptRequest(
+        fun openTranscriptForEpisode(
+            audioUrl: String,
+            title: String?,
+            feedUrl: String? = null,
+            guid: String? = null,
+            durationMs: Long? = null,
+        ) {
+            val request = EpisodeTranscriptRequest(
                 audioUrl = audioUrl,
                 feedUrl = feedUrl,
                 guid = guid,
                 title = title,
+                durationMs = durationMs,
             )
-            activeTranscriptState = TranscriptFetchResult.Processing(contentCode = "", jobId = "")
+            activeTranscriptEpisode = TranscriptEpisodeContext(
+                audioUrl = audioUrl,
+                title = title,
+                guid = guid,
+                request = request,
+            )
+            transcriptJobService.open(request)
+        }
+
+        val transcriptEpisode = activeTranscriptEpisode
+        val transcriptJob = transcriptEpisode?.let { activeTranscriptJobs[it.audioUrl] }
+        val transcriptViewState = if (transcriptEpisode == null) {
+            null
+        } else {
+            val cached = transcriptJob?.contentCode?.let { transcriptRepo.getCached(it) }
+                ?: transcriptRepo.getCached(transcriptEpisode.audioUrl)
+            ink.underflo.wristbrief.mobile.artifacts.TranscriptJobPresentation.from(
+                job = transcriptJob,
+                payload = cached,
+                cachedPayload = null,
+            )
         }
 
         var name by rememberSaveable { mutableStateOf(initialMobileDestination().name) }
@@ -355,6 +404,56 @@ private class MobileFeedListenerBindings : MobileFeedListener {
             onDispose { playerController.release() }
         }
         val playerState by playerController.state.collectAsState()
+
+        // Short-text speech preview ("试听"): one Media3 player, previews only. Podcast
+        // playback pauses first so only one player ever holds the audio focus.
+        val speechPreviewController = remember(context, accountSessionPreferences) {
+            ink.underflo.wristbrief.mobile.audio.SpeechPreviewController.create(
+                context = context,
+                scope = speechPreviewScope,
+                api = ink.underflo.wristbrief.mobile.audio.HttpSpeechPreviewApi(BuildConfig.GATEWAY_BASE_URL) {
+                    accountSessionPreferences.read()?.sessionToken
+                },
+                onBeforePlay = { playerController.pause() },
+            )
+        }
+        DisposableEffect(speechPreviewController) {
+            onDispose { speechPreviewController.release() }
+        }
+        val speechPreviewState by speechPreviewController.state.collectAsState()
+
+        // Deep-linking the reader to the episode the transcript belongs to: seek when the
+        // episode is already loaded, otherwise start it and let the effect below seek as
+        // soon as it is the current episode.
+        var pendingTranscriptSeekMs by remember { mutableStateOf<Long?>(null) }
+        fun seekToTranscriptSegment(positionMs: Long) {
+            val episode = transcriptEpisode ?: return
+            val current = playerState.currentEpisode
+            if (current != null && (current.audioUrl == episode.audioUrl || current.id == episode.guid)) {
+                playerController.seekTo(positionMs)
+                return
+            }
+            if (episode.audioUrl.startsWith("https://", ignoreCase = true)) {
+                pendingTranscriptSeekMs = positionMs
+                playerController.play(
+                    PodcastPlaybackRequest(
+                        id = episode.guid ?: episode.audioUrl,
+                        title = episode.title ?: episode.audioUrl,
+                        audioUrl = episode.audioUrl,
+                        feedTitle = "",
+                    ),
+                )
+            }
+        }
+
+        LaunchedEffect(pendingTranscriptSeekMs, playerState.currentEpisode) {
+            val target = pendingTranscriptSeekMs ?: return@LaunchedEffect
+            val episode = transcriptEpisode ?: return@LaunchedEffect
+            val current = playerState.currentEpisode ?: return@LaunchedEffect
+            if (current.audioUrl != episode.audioUrl && current.id != episode.guid) return@LaunchedEffect
+            playerController.seekTo(target)
+            pendingTranscriptSeekMs = null
+        }
 
         fun playPodcast(item: MobileFeedItem) {
             val audioUrl = item.audioUrl ?: item.link ?: return
@@ -383,29 +482,40 @@ private class MobileFeedListenerBindings : MobileFeedListener {
         MobileBackHandler(
             hasActiveDialog = false, // destination-owned dialogs install their own inner BackHandler
             expandedPlayerVisible = showExpandedPlayer,
-            transcriptViewerVisible = activeTranscriptState != null,
+            transcriptViewerVisible = activeTranscriptEpisode != null,
             articleDetailVisible = selectedArticle != null,
             settingsVisible = showSettings,
             exitHintShownAtEpochMs = exitHintShownAtMs,
             onExitHintChanged = { exitHintShownAtMs = it },
             onDismissExpandedPlayer = { showExpandedPlayer = false },
-            onCloseTranscriptViewer = {
-                activeTranscriptRequest = null
-                activeTranscriptState = null
-            },
+            // Closing the viewer leaves the job running in the background.
+            onCloseTranscriptViewer = { activeTranscriptEpisode = null },
             onCloseArticleDetail = { selectedArticle = null },
             onCloseSettings = { showSettings = false },
         )
 
-        if (activeTranscriptState != null) {
+        speechPreviewController.let { preview ->
+            // Leaving the article stops the preview so it never plays on another screen.
+            DisposableEffect(selectedArticle) {
+                onDispose { preview.stop() }
+            }
+        }
+
+        val viewerState = transcriptViewState
+        if (viewerState != null && transcriptEpisode != null) {
             TranscriptViewerDestination(
-                state = activeTranscriptState!!,
-                onBack = {
-                    activeTranscriptRequest = null
-                    activeTranscriptState = null
-                },
-                onSeekToMs = { ms ->
-                    playerController.seekTo(ms)
+                state = viewerState,
+                onBack = { activeTranscriptEpisode = null },
+                onSeekToMs = { ms -> seekToTranscriptSegment(ms) },
+                onRetry = {
+                    val request = transcriptEpisode.request
+                    if ((viewerState as? ink.underflo.wristbrief.mobile.artifacts.TranscriptUiState.Failed)
+                            ?.retryable == true
+                    ) {
+                        transcriptJobService.retryJob(request)
+                    } else {
+                        transcriptJobService.refreshJob(request.audioUrl)
+                    }
                 },
                 darkTheme = darkTheme,
             )
@@ -433,6 +543,10 @@ private class MobileFeedListenerBindings : MobileFeedListener {
                 },
                 articleRepository = articleRepository,
                 articleImageLoader = articleImageLoader,
+                speechPreviewState = speechPreviewState,
+                onSpeechPlayPause = { request -> speechPreviewController.onPlayPauseRequested(request) },
+                onSpeechRetry = { request -> speechPreviewController.retry(request) },
+                onSpeechStop = { speechPreviewController.stop() },
                 darkTheme = darkTheme,
             )
         } else if (showSettings) {
@@ -471,6 +585,8 @@ private class MobileFeedListenerBindings : MobileFeedListener {
                     openTranscriptForEpisode(
                         audioUrl = ep.audioUrl,
                         title = ep.title,
+                        guid = ep.id,
+                        feedUrl = null,
                     )
                 },
                 onAskAi = { title, content ->
@@ -504,6 +620,8 @@ private class MobileFeedListenerBindings : MobileFeedListener {
                         openTranscriptForEpisode(
                             audioUrl = ep.audioUrl,
                             title = ep.title,
+                            guid = ep.id,
+                            feedUrl = null,
                         )
                     }
                 },

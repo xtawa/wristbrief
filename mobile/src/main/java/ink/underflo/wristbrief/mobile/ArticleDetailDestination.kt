@@ -89,6 +89,10 @@ internal fun ArticleDetailDestination(
     onOpenTranscript: ((MobileFeedItem) -> Unit)? = null,
     articleRepository: ink.underflo.wristbrief.mobile.articles.ArticleRepository? = null,
     articleImageLoader: coil.ImageLoader? = null,
+    speechPreviewState: ink.underflo.wristbrief.mobile.audio.SpeechPreviewUiState? = null,
+    onSpeechPlayPause: ((ink.underflo.wristbrief.mobile.audio.SpeechPreviewRequest) -> Unit)? = null,
+    onSpeechRetry: ((ink.underflo.wristbrief.mobile.audio.SpeechPreviewRequest) -> Unit)? = null,
+    onSpeechStop: (() -> Unit)? = null,
     darkTheme: Boolean = androidx.compose.foundation.isSystemInDarkTheme(),
 ) {
     val context = LocalContext.current
@@ -416,9 +420,23 @@ internal fun ArticleDetailDestination(
                     }
                 }
 
+                // Short-text speech preview. Only a bounded sample can be read aloud, so
+                // this card is explicit about the 2000-character bound and about the voice
+                // being AI-generated; it never claims to read the whole piece.
+                if (speechPreviewState != null && onSpeechPlayPause != null) {
+                    item {
+                        ink.underflo.wristbrief.mobile.audio.SpeechPreviewCard(
+                            state = speechPreviewState,
+                            onPlayPause = onSpeechPlayPause,
+                            onRetry = onSpeechRetry ?: onSpeechPlayPause,
+                            onStop = onSpeechStop ?: {},
+                            darkTheme = darkTheme,
+                        )
+                    }
+                }
+
                 // Fallback action to view original website / episode
-                item {
-                    GlassSurface(
+                item {                    GlassSurface(
                         modifier = Modifier.fillMaxWidth(),
                         cornerRadius = GlassTokens.CardRadius,
                         darkTheme = darkTheme,
@@ -701,22 +719,6 @@ private fun PodcastEpisodeDetailHeader(
                         AppIcon(AppIconKind.Podcast, Modifier.size(28.dp), GlassTokens.accentTeal(darkTheme))
                     }
                 }
-                Surface(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(8.dp),
-                    shape = RoundedCornerShape(4.dp),
-                    color = GlassTokens.surfaceContainer(darkTheme),
-                ) {
-                    Text(
-                        text = stringResource(R.string.podcast_lossless_badge),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = GlassTokens.accentTeal(darkTheme),
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
-                    )
-                }
             }
         }
 
@@ -742,19 +744,16 @@ private fun PodcastEpisodeDetailHeader(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                // Only observable facts here. The previous "128kbps AAC" label was a
+                // hard-coded claim the client cannot verify (the gateway transcodes audio
+                // to 16 kHz mono MP3), so it was removed rather than replaced.
                 item.published?.let { pubDate ->
                     Text(
                         text = formattedArticleTimestamp(pubDate),
                         style = MaterialTheme.typography.labelSmall,
                         color = GlassTokens.textSecondary(darkTheme),
                     )
-                    Text("·", color = GlassTokens.hairline(darkTheme))
                 }
-                Text(
-                    text = stringResource(R.string.podcast_audio_format),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = GlassTokens.textSecondary(darkTheme),
-                )
             }
         }
 
@@ -888,12 +887,22 @@ private fun PodcastEpisodeAiBriefCard(
                         color = GlassTokens.textPrimary(darkTheme),
                     )
                 }
+                val briefText = remember(takeaways) {
+                    takeaways.joinToString(" ") { (topic, detail) -> "$topic: $detail" }
+                }
+                // Derived from the lines actually shown, so the badge cannot claim a fixed
+                // reading time for every episode. It recomputes when the content changes.
+                val briefReadingTime = remember(briefText) {
+                    ArticleContentSanitizer.formatReadingTime(
+                        ArticleContentSanitizer.readingTimeMinutesFor(briefText),
+                    )
+                }
                 Surface(
                     shape = RoundedCornerShape(999.dp),
                     color = GlassTokens.primaryContainer(darkTheme),
                 ) {
                     Text(
-                        text = stringResource(R.string.podcast_ai_brief_read_time),
+                        text = briefReadingTime,
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.SemiBold,
                         color = GlassTokens.accentTeal(darkTheme),

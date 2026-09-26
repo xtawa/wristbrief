@@ -1,6 +1,6 @@
 import type { D1AdminStore } from "./adminStore";
 import type { AdminWebSessionService, AdminWebSession } from "./adminSession";
-import { verifyCsrfTokenAsync, verifySameOrigin, verifySecFetchSite } from "./adminCsrf";
+import { verifyAdminFormToken, verifyCsrfTokenAsync, verifySameOrigin, verifySecFetchSite } from "./adminCsrf";
 
 export type AdminAuthOutcome =
   | { ok: true; session: AdminWebSession; userId: string }
@@ -27,10 +27,22 @@ export async function requireAdminUser(
   return { ok: true, session, userId: session.userId };
 }
 
+/**
+ * Same-origin + CSRF gate for a mutating admin request.
+ *
+ * Two accepted proofs, both scoped to the same session and both still behind the
+ * Origin / Sec-Fetch-Site checks:
+ *  - `X-CSRF-Token` header (page scripts, double submit against the cookie);
+ *  - the derived form token from a real `<form>` submission, so critical actions
+ *    remain possible with JavaScript disabled.
+ */
 export async function requireAdminCsrf(
   request: Request,
-  session: AdminWebSession
+  session: AdminWebSession,
+  formToken?: string | null
 ): Promise<boolean> {
   if (!verifySameOrigin(request) || !verifySecFetchSite(request)) return false;
-  return verifyCsrfTokenAsync(session.csrfSecretHash, request.headers.get("X-CSRF-Token"));
+  const headerToken = request.headers.get("X-CSRF-Token");
+  if (headerToken && (await verifyCsrfTokenAsync(session.csrfSecretHash, headerToken))) return true;
+  return verifyAdminFormToken(session, formToken);
 }

@@ -1,13 +1,20 @@
 /**
- * Hostname / literal-IP policy for all server-side remote fetches (OPML URL
- * import, article extraction, image proxy). Shared by every fetcher — there is
- * deliberately no second SSRF policy in this codebase.
+ * IP / hostname policy for every server-side remote fetch (OPML URL import,
+ * article extraction, image proxy, podcast audio download). Shared by every
+ * fetcher — there is deliberately no second SSRF policy in this codebase.
  *
- * Honest boundary: Cloudflare Workers cannot resolve DNS before fetch(), so
- * this policy validates hostnames and literal IP addresses only. DNS rebinding
- * (a public hostname that resolves to a private address) is a residual risk
- * that must be documented, not pretended away; production mitigations are
- * deployment-level (egress restrictions) or an external resolver.
+ * Two checks, one policy:
+ *  - `checkRemoteHost` screens what the URL literally says (scheme-relative
+ *    hostname, literal IPv4/IPv6, legacy decimal shorthand, blocked suffixes).
+ *  - `checkRemoteAddress` screens the address a socket would actually be opened
+ *    to. It is applied to every DNS answer of every request and every redirect
+ *    hop, and the connection is then pinned to the screened address.
+ *
+ * The gateway runs as a long-lived Node 22 process (gateway/server/index.ts), so
+ * DNS *is* resolvable before connecting. An earlier revision of this file
+ * assumed a Cloudflare Worker runtime that could not resolve DNS before
+ * fetch(); that premise no longer holds. See safeRemoteFetcher.ts for the
+ * resolve → screen → pin connect path.
  */
 export type HostVerdict = { allowed: true } | { allowed: false; reason: "blocked_hostname" | "blocked_ip" };
 
@@ -66,6 +73,31 @@ export function checkRemoteHost(rawHostname: string): HostVerdict {
   return { allowed: true };
 }
 
+/**
+ * Screens a single resolved/given IP address literal — the address a socket
+ * will be opened to. IPv4-mapped (`::ffff:a.b.c.d`) and NAT64 (`64:ff9b::/96`)
+ * forms are unwrapped and screened as the IPv4 address they address. Anything
+ * that is not a well-formed IP literal is refused (fail closed): a resolver
+ * answer must be an address, never a hostname.
+ */
+export function checkRemoteAddress(rawAddress: string): HostVerdict {
+  const address = rawAddress.trim().toLowerCase();
+  if (!address) return { allowed: false, reason: "blocked_ip" };
+
+  if (address.includes(":")) {
+    // Strip IPv6 brackets, then apply the IPv6 policy (zone indices included).
+    const bare = address.startsWith("[") && address.endsWith("]") ? address.slice(1, -1) : address;
+    return isBlockedIpv6(bare) ? { allowed: false, reason: "blocked_ip" } : { allowed: true };
+  }
+
+  const octets = address.split(".");
+  if (octets.length !== 4 || octets.some((octet) => !/^\d{1,3}$/.test(octet) || Number(octet) > 255)) {
+    return { allowed: false, reason: "blocked_ip" };
+  }
+  const packed = ((Number(octets[0]) << 24) | (Number(octets[1]) << 16) | (Number(octets[2]) << 8) | Number(octets[3])) >>> 0;
+  return isBlockedIpv4(packed) ? { allowed: false, reason: "blocked_ip" } : { allowed: true };
+}
+
 function isBlockedIpv4(packed: number): boolean {
   const first = (packed >>> 24) & 0xff;
   const second = (packed >>> 16) & 0xff;
@@ -77,6 +109,10 @@ function isBlockedIpv4(packed: number): boolean {
   if (first === 192 && second === 168) return true;
   // 100.64/10 (CGNAT) — not publicly routable.
   if (first === 100 && second >= 64 && second <= 127) return true;
+  // 192.0.0/24 (IETF protocol assignments) and 198.18/15 (benchmarking) are not
+  // usable public destinations either.
+  if (first === 192 && second === 0) return true;
+  if (first === 198 && (second === 18 || second === 19)) return true;
   return false;
 }
 
@@ -102,6 +138,10 @@ function isBlockedIpv6(host: string): boolean {
     const packed = ((groups[6] << 16) | groups[7]) >>> 0;
     return isBlockedIpv4(packed);
   }
+  // 2002::/16 (6to4) and 2001::/32 (Teredo) embed an IPv4 address in a way that
+  // resolvers and middleboxes disagree about; refuse them rather than guess.
+  if (first === 0x2002) return true;
+  if (first === 0x2001 && second === 0x0000) return true;
   return false;
 }
 

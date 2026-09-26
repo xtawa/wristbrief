@@ -4,6 +4,7 @@ import {
   parseStructuredBrief,
   type StructuredBrief
 } from "./structuredBrief";
+import { decodeUtf8, safePinnedPost } from "./net/safeRemoteFetcher";
 
 export type SummaryInput = { title?: string; content: string };
 export type SummaryOutput = { summary: string; model: string; structured: StructuredBrief };
@@ -307,34 +308,55 @@ async function completeOpenAi(
   return content;
 }
 
+/** URL-policy refusals share the code the https + allowlist guard already uses. */
+const URL_POLICY_FAILURES = new Set<string>(["invalid_url", "blocked_scheme", "blocked_host", "credentials_in_url", "redirect_blocked", "too_many_redirects"]);
+
+function providerHeaders(headers: HeadersInit | undefined): Record<string, string> | undefined {
+  if (!headers) return undefined;
+  if (headers instanceof Headers) return Object.fromEntries(headers.entries());
+  if (Array.isArray(headers)) return Object.fromEntries(headers as Array<[string, string]>);
+  return { ...headers };
+}
+
+function providerBody(body: BodyInit | null | undefined): string | Uint8Array | undefined {
+  if (typeof body === "string") return body;
+  if (body instanceof Uint8Array) return body;
+  if (body instanceof ArrayBuffer) return new Uint8Array(body);
+  return undefined;
+}
+
 async function fetchJson(url: string, init: RequestInit, policy: RequestPolicy): Promise<unknown> {
+  // https-only plus the exact server-side host allowlist, before any DNS work.
   requireAllowedHttpsUrl(url, policy.allowedHosts);
 
   for (let attempt = 0; attempt <= policy.maxRetries; attempt += 1) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), policy.timeoutMs);
     try {
-      const upstream = await fetch(url, { ...init, signal: controller.signal, redirect: "error" });
+      // The provider POST runs the same SSRF policy as every other outbound
+      // request: the hostname is resolved, EVERY answer is screened, the socket
+      // is pinned to the screened address, one deadline covers connect + headers
+      // + the whole bounded body read, and a 3xx is refused (never followed) so
+      // credentials and user content cannot be moved to another host.
+      const upstream = await safePinnedPost(url, {
+        method: typeof init.method === "string" ? init.method : "POST",
+        headers: providerHeaders(init.headers),
+        body: providerBody(init.body),
+        timeoutMs: policy.timeoutMs
+      });
       if (!upstream.ok) {
-        const error = new ProviderError("provider_error", upstream.status);
-        if (attempt < policy.maxRetries && isRetryableProviderError(error)) continue;
-        throw error;
+        if (upstream.error === "timeout") throw new ProviderError("provider_timeout");
+        if (URL_POLICY_FAILURES.has(upstream.error)) throw new ProviderError("invalid_provider_url");
+        // Includes a 3xx response: redirects are refused, not followed.
+        throw new ProviderError("provider_error", upstream.status);
       }
       try {
-        return await upstream.json();
+        return JSON.parse(decodeUtf8(upstream.bytes)) as unknown;
       } catch {
         throw new ProviderError("invalid_provider_response");
       }
     } catch (error) {
-      const safeError = controller.signal.aborted
-        ? new ProviderError("provider_timeout")
-        : error instanceof ProviderError
-          ? error
-          : new ProviderError("provider_error");
+      const safeError = error instanceof ProviderError ? error : new ProviderError("provider_error");
       if (attempt < policy.maxRetries && isRetryableProviderError(safeError)) continue;
       throw safeError;
-    } finally {
-      clearTimeout(timer);
     }
   }
 

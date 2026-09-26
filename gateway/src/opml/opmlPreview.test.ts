@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { previewOpmlUrl } from "./opmlPreview";
 import { parseOpmlDocument } from "./opmlParser";
+import { setSafeFetchResolverOverride, setSafeFetchTransportOverride } from "../net/safeRemoteFetcher";
 
 const OPML = (feeds: Array<{ url: string; title?: string }>, folder?: string) => `<?xml version="1.0"?>
 <opml version="2.0"><head><title>Subs</title></head><body>
@@ -10,8 +11,34 @@ ${feeds.map((feed) => `<outline type="rss" xmlUrl="${feed.url}" text="${feed.tit
 ${folder ? "</outline>" : ""}
 </body></opml>`;
 
+/**
+ * The remote fetch is SSRF-safe and DNS-pinned in Node, so tests drive it
+ * through the transport/resolver seam instead of stubbing global `fetch`.
+ * Returns the list of URLs that were actually fetched.
+ */
+function useResponseTransport(factory: (url: string) => Response | Promise<Response>) {
+  const calls: string[] = [];
+  setSafeFetchResolverOverride(async () => ["93.184.216.34"]);
+  setSafeFetchTransportOverride({
+    async request({ url }) {
+      calls.push(url.toString());
+      const response = await factory(url.toString());
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      return {
+        status: response.status,
+        headers: { get: (name: string) => response.headers.get(name) },
+        body: { async *[Symbol.asyncIterator]() { if (bytes.byteLength) yield bytes; } },
+        destroy: () => {}
+      };
+    }
+  });
+  return calls;
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
+  setSafeFetchTransportOverride(null);
+  setSafeFetchResolverOverride(null);
 });
 
 describe("opmlParser", () => {
@@ -51,8 +78,9 @@ describe("opmlParser", () => {
 
 describe("previewOpmlUrl", () => {
   it("returns a preview with source, feeds, and summary", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(OPML([{ url: "https://a.example/rss", title: "A" }, { url: "https://b.example/rss", title: "B" }], "News"), { status: 200 })));
+    const calls = useResponseTransport(async () => new Response(OPML([{ url: "https://a.example/rss", title: "A" }, { url: "https://b.example/rss", title: "B" }], "News"), { status: 200 }));
     const result = await previewOpmlUrl("https://example.com/subscriptions.opml");
+    expect(calls).toEqual(["https://example.com/subscriptions.opml"]);
     expect(result.ok).toBe(true);
     expect(result.body.source).toEqual({ type: "url", displayUrl: "https://example.com/subscriptions.opml" });
     expect(result.body.feeds).toHaveLength(2);
@@ -61,7 +89,7 @@ describe("previewOpmlUrl", () => {
   });
 
   it("reports invalid feed URLs and duplicates in the summary", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(OPML([{ url: "https://a.example/rss" }, { url: "https://a.example/rss" }, { url: "http://insecure.example/rss" }]), { status: 200 })));
+    useResponseTransport(async () => new Response(OPML([{ url: "https://a.example/rss" }, { url: "https://a.example/rss" }, { url: "http://insecure.example/rss" }])));
     const result = await previewOpmlUrl("https://example.com/sub.opml");
     expect(result.ok).toBe(true);
     expect(result.body.summary.valid).toBe(1);
@@ -71,18 +99,20 @@ describe("previewOpmlUrl", () => {
   });
 
   it("maps fetch failures to the OPML error codes", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 302, headers: { Location: "https://127.0.0.1/x" } })));
+    useResponseTransport(async () => new Response(null, { status: 302, headers: { Location: "https://127.0.0.1/x" } }));
     const redirected = await previewOpmlUrl("https://example.com/sub.opml");
     expect(redirected.ok).toBe(false);
     expect(redirected.code).toBe("REDIRECT_BLOCKED");
 
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("server err", { status: 500 })));
+    useResponseTransport(async () => new Response("server err", { status: 500 }));
     const httpError = await previewOpmlUrl("https://example.com/sub.opml");
     expect(httpError.code).toBe("HTTP_ERROR");
     expect(httpError.status).toBe(502);
 
+    const blockedCalls = useResponseTransport(async () => { throw new Error("should not fetch"); });
     const blocked = await previewOpmlUrl("https://192.168.0.10/sub.opml");
     expect(blocked.code).toBe("FETCH_BLOCKED_HOST");
+    expect(blockedCalls).toHaveLength(0);
 
     const badRequest = await previewOpmlUrl(42);
     expect(badRequest.code).toBe("INVALID_URL");
@@ -90,7 +120,7 @@ describe("previewOpmlUrl", () => {
   });
 
   it("maps parse failures to the OPML error codes", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("<html>not opml</html>", { status: 200 })));
+    useResponseTransport(async () => new Response("<html>not opml</html>", { status: 200 }));
     const result = await previewOpmlUrl("https://example.com/sub.opml");
     expect(result.ok).toBe(false);
     expect(result.code).toBe("MISSING_ROOT");

@@ -46,9 +46,43 @@ export interface ArtifactJobRecord {
   updatedAt: number;
 }
 
+/**
+ * A per-user request that joined an already in-flight artifact job.
+ *
+ * The underlying work item stays `artifact_jobs.id` (the leader); this row only carries
+ * the joining user's own pollable id, status view, and shared-cache reservation so that
+ * two users asking for the same content never share a job id or a billing row.
+ */
+export interface JobFollowerRecord {
+  id: string;
+  jobId: string;
+  userId: string;
+  contentId: string;
+  language: string;
+  status: "queued" | "running" | "completed" | "failed";
+  attemptCount: number;
+  errorCode: string | null;
+  normalUnits: number;
+  quotaMultiplier: number;
+  quotaUnits: number;
+  artifactId: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface ArtifactStore {
   findArtifactById(artifactId: string): Promise<TranscriptArtifactRecord | null>;
   findPreferredArtifactForContent(contentId: string, language?: string): Promise<TranscriptArtifactRecord | null>;
+  /**
+   * The best ready artifact this specific user is allowed to read: their own artifact,
+   * an artifact they hold an access grant for, or a PUBLIC_REUSE artifact. Never returns
+   * another account's PRIVATE_ACCOUNT artifact, so callers can keep 404-on-unauthorized.
+   */
+  findReadableArtifactForContent(
+    userId: string,
+    contentId: string,
+    language?: string
+  ): Promise<TranscriptArtifactRecord | null>;
   createArtifact(record: Omit<TranscriptArtifactRecord, "createdAt" | "updatedAt">): Promise<TranscriptArtifactRecord>;
   hasUserAccess(userId: string, artifactId: string): Promise<boolean>;
   getUserAccessForContent(userId: string, contentId: string): Promise<UserArtifactAccessRecord | null>;
@@ -62,8 +96,32 @@ export interface ArtifactStore {
   createJob(job: Omit<ArtifactJobRecord, "createdAt" | "updatedAt">): Promise<ArtifactJobRecord>;
   getJobById(jobId: string): Promise<ArtifactJobRecord | null>;
   getJobByDedupeKey(dedupeKey: string): Promise<ArtifactJobRecord | null>;
+  /** Most recent job this user owns for one content+language (any status). */
+  findJobForUserContent(
+    userId: string,
+    contentId: string,
+    language: string
+  ): Promise<ArtifactJobRecord | null>;
+  /**
+   * Next free artifact version for a content+language. Private content is generated
+   * per user, and transcript_artifacts is UNIQUE(content_id, language,
+   * artifact_version), so each private generation needs its own version slot.
+   */
+  allocateArtifactVersion(contentId: string, language: string): Promise<number>;
   updateJobStatus(jobId: string, status: "queued" | "running" | "completed" | "failed", errorCode?: string): Promise<void>;
   resetJobForRetry?(jobId: string): Promise<void>;
+  createJobFollower(
+    follower: Omit<JobFollowerRecord, "createdAt" | "updatedAt">
+  ): Promise<JobFollowerRecord>;
+  getJobFollowerById(followerId: string): Promise<JobFollowerRecord | null>;
+  getJobFollowerForUser(jobId: string, userId: string): Promise<JobFollowerRecord | null>;
+  listJobFollowers(jobId: string): Promise<JobFollowerRecord[]>;
+  updateJobFollowerStatus(
+    followerId: string,
+    status: "queued" | "running" | "completed" | "failed",
+    errorCode?: string | null,
+    artifactId?: string | null
+  ): Promise<void>;
   revokeUserAccess?(userId: string, artifactId: string): Promise<void>;
   deleteArtifact?(artifactId: string): Promise<void>;
 }
@@ -91,6 +149,34 @@ export class D1ArtifactStore implements ArtifactStore {
 
     const stmt = this.db.prepare(query);
     const row = await stmt.bind(...bindings).first<Record<string, unknown>>();
+    return row ? this.mapArtifact(row) : null;
+  }
+
+  async findReadableArtifactForContent(
+    userId: string,
+    contentId: string,
+    language = "auto"
+  ): Promise<TranscriptArtifactRecord | null> {
+    let query = `
+      SELECT * FROM transcript_artifacts a
+      WHERE a.content_id = ? AND a.status = 'ready'
+        AND (
+          a.created_by_user_id = ?
+          OR a.share_policy = 'PUBLIC_REUSE'
+          OR EXISTS (
+            SELECT 1 FROM user_artifact_access ua
+            WHERE ua.user_id = ? AND ua.artifact_id = a.id
+          )
+        )`;
+    const bindings: unknown[] = [contentId, userId, userId];
+
+    if (language !== "auto") {
+      query += " AND a.language = ?";
+      bindings.push(language);
+    }
+    query += " ORDER BY a.artifact_version DESC LIMIT 1";
+
+    const row = await this.db.prepare(query).bind(...bindings).first<Record<string, unknown>>();
     return row ? this.mapArtifact(row) : null;
   }
 
@@ -246,6 +332,38 @@ export class D1ArtifactStore implements ArtifactStore {
     return row ? this.mapJob(row) : null;
   }
 
+  async findJobForUserContent(
+    userId: string,
+    contentId: string,
+    language: string
+  ): Promise<ArtifactJobRecord | null> {
+    const row = await this.db
+      .prepare(`
+        SELECT * FROM artifact_jobs
+        WHERE user_id = ? AND content_id = ? AND language = ? AND artifact_type = 'transcript'
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+      `)
+      .bind(userId, contentId, language)
+      .first<Record<string, unknown>>();
+    return row ? this.mapJob(row) : null;
+  }
+
+  async allocateArtifactVersion(contentId: string, language: string): Promise<number> {
+    const row = await this.db
+      .prepare(`
+        SELECT
+          COALESCE((SELECT MAX(artifact_version) FROM transcript_artifacts WHERE content_id = ? AND language = ?), 0) AS max_artifact,
+          COALESCE((SELECT MAX(requested_version) FROM artifact_jobs WHERE content_id = ? AND language = ?), 0) AS max_job
+      `)
+      .bind(contentId, language, contentId, language)
+      .first<Record<string, unknown>>();
+
+    const maxArtifact = Number(row?.max_artifact ?? 0);
+    const maxJob = Number(row?.max_job ?? 0);
+    return Math.max(maxArtifact, maxJob) + 1;
+  }
+
   async updateJobStatus(
     jobId: string,
     status: "queued" | "running" | "completed" | "failed",
@@ -262,6 +380,82 @@ export class D1ArtifactStore implements ArtifactStore {
     await this.db
       .prepare("UPDATE artifact_jobs SET status = 'queued', error_code = NULL, attempt_count = attempt_count + 1, updated_at = ? WHERE id = ? AND status = 'failed'")
       .bind(Date.now(), jobId)
+      .run();
+  }
+
+  async createJobFollower(
+    follower: Omit<JobFollowerRecord, "createdAt" | "updatedAt">
+  ): Promise<JobFollowerRecord> {
+    const now = Date.now();
+    await this.db
+      .prepare(`
+        INSERT INTO transcript_job_followers (
+          id, job_id, user_id, content_id, language, status, attempt_count, error_code,
+          normal_units, quota_multiplier, quota_units, artifact_id, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      .bind(
+        follower.id,
+        follower.jobId,
+        follower.userId,
+        follower.contentId,
+        follower.language,
+        follower.status,
+        follower.attemptCount,
+        follower.errorCode,
+        follower.normalUnits,
+        follower.quotaMultiplier,
+        follower.quotaUnits,
+        follower.artifactId,
+        now,
+        now
+      )
+      .run();
+
+    return {
+      ...follower,
+      createdAt: now,
+      updatedAt: now
+    };
+  }
+
+  async getJobFollowerById(followerId: string): Promise<JobFollowerRecord | null> {
+    const row = await this.db
+      .prepare("SELECT * FROM transcript_job_followers WHERE id = ?")
+      .bind(followerId)
+      .first<Record<string, unknown>>();
+    return row ? this.mapJobFollower(row) : null;
+  }
+
+  async getJobFollowerForUser(jobId: string, userId: string): Promise<JobFollowerRecord | null> {
+    const row = await this.db
+      .prepare("SELECT * FROM transcript_job_followers WHERE job_id = ? AND user_id = ?")
+      .bind(jobId, userId)
+      .first<Record<string, unknown>>();
+    return row ? this.mapJobFollower(row) : null;
+  }
+
+  async listJobFollowers(jobId: string): Promise<JobFollowerRecord[]> {
+    const result = await this.db
+      .prepare("SELECT * FROM transcript_job_followers WHERE job_id = ? ORDER BY created_at ASC, id ASC")
+      .bind(jobId)
+      .all<Record<string, unknown>>();
+    return (result.results ?? []).map((row) => this.mapJobFollower(row));
+  }
+
+  async updateJobFollowerStatus(
+    followerId: string,
+    status: "queued" | "running" | "completed" | "failed",
+    errorCode: string | null = null,
+    artifactId: string | null = null
+  ): Promise<void> {
+    await this.db
+      .prepare(`
+        UPDATE transcript_job_followers
+        SET status = ?, error_code = ?, artifact_id = coalesce(?, artifact_id), updated_at = ?
+        WHERE id = ?
+      `)
+      .bind(status, errorCode, artifactId, Date.now(), followerId)
       .run();
   }
 
@@ -302,6 +496,25 @@ export class D1ArtifactStore implements ArtifactStore {
       leaseExpiresAt: typeof row.lease_expires_at === "number" ? row.lease_expires_at : null,
       attemptCount: Number(row.attempt_count || 1),
       errorCode: row.error_code ? String(row.error_code) : null,
+      createdAt: Number(row.created_at),
+      updatedAt: Number(row.updated_at)
+    };
+  }
+
+  private mapJobFollower(row: Record<string, unknown>): JobFollowerRecord {
+    return {
+      id: String(row.id),
+      jobId: String(row.job_id),
+      userId: String(row.user_id),
+      contentId: String(row.content_id),
+      language: String(row.language),
+      status: (row.status as JobFollowerRecord["status"]) || "queued",
+      attemptCount: Number(row.attempt_count || 1),
+      errorCode: row.error_code ? String(row.error_code) : null,
+      normalUnits: Number(row.normal_units || 0),
+      quotaMultiplier: Number(row.quota_multiplier || 0),
+      quotaUnits: Number(row.quota_units || 0),
+      artifactId: row.artifact_id ? String(row.artifact_id) : null,
       createdAt: Number(row.created_at),
       updatedAt: Number(row.updated_at)
     };

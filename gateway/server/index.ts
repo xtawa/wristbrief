@@ -7,6 +7,7 @@ import { localObjectStore } from "./storage";
 import { ensureServerAdmin } from "./bootstrap";
 import { ServerSettings } from "./settings";
 import { AudioJobRunner, selectedProvider, synthesize } from "./audio";
+import { configureFetchConcurrency, fetchConcurrencyState } from "../src/net/safeRemoteFetcher";
 import { authenticateRequestUser } from "../src/requestAuth";
 import { createMembershipService } from "../src/membership";
 
@@ -41,6 +42,11 @@ export async function startServer(config: NodeJS.ProcessEnv = process.env) {
     PUBSUB_PUSH_AUDIENCE: config.PUBSUB_PUSH_AUDIENCE,
     RESEND_API_KEY: config.RESEND_API_KEY,
     RESEND_FROM_EMAIL: config.RESEND_FROM_EMAIL,
+    // Audio job settlement and recovery limits (see docs/AUDIO_PIPELINE.md).
+    TRANSCRIPT_MAX_DURATION_MS: config.TRANSCRIPT_MAX_DURATION_MS,
+    TRANSCRIPT_MAX_BILLABLE_MINUTES: config.TRANSCRIPT_MAX_BILLABLE_MINUTES,
+    TRANSCRIPT_MAX_ATTEMPTS: config.TRANSCRIPT_MAX_ATTEMPTS,
+    TRANSCRIPT_LEASE_MS: config.TRANSCRIPT_LEASE_MS,
     ADMIN_RECOVERY_SECRET: undefined,
     ADMIN_SETTINGS_SERVICE: settings,
     EMAIL_SENDER: settings,
@@ -51,6 +57,10 @@ export async function startServer(config: NodeJS.ProcessEnv = process.env) {
   };
   Object.assign(runtime, env);
   await settings.load();
+  // Bound simultaneous outbound fetches (the SSRF-safe transport applies it to
+  // every hop, including redirects).
+  const fetchConcurrency = Number(config.WRISTBRIEF_FETCH_CONCURRENCY);
+  if (Number.isFinite(fetchConcurrency) && fetchConcurrency >= 1) configureFetchConcurrency(fetchConcurrency);
   const audio = new AudioJobRunner(runtime as unknown as ConstructorParameters<typeof AudioJobRunner>[0]);
   runtime.TRANSCRIPT_QUEUE = audio.queue;
 
@@ -86,7 +96,7 @@ export async function startServer(config: NodeJS.ProcessEnv = process.env) {
   await new Promise<void>((resolveReady) => server.listen(port, host, resolveReady));
   audio.start();
   server.on("close", () => audio.stop());
-  console.log(`WristBrief server listening on ${host}:${port}`);
+  console.log(`WristBrief server listening on ${host}:${port} (outbound fetch limit ${fetchConcurrencyState().limit})`);
   return { server, sqlite, db, env, audio };
 }
 

@@ -90,4 +90,11 @@ object ArticleContentSanitizer {
             "$minutes min read"
         }
     }
+
+    /**
+     * Reading time derived from the text that is actually shown: Latin words at 200 wpm,
+     * CJK characters at 350 cpm, matching [sanitize]. A screen must only display this when
+     * it has real text, never as a fixed badge.
+     */
+    fun readingTimeMinutesFor(plainText: String): Int = sanitize(plainText).readingTimeMinutes
 }

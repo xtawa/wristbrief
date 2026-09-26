@@ -181,7 +181,9 @@ fun PodcastMiniPlayer(
 
 /**
  * SCREEN 15: Expanded Now Playing Player following Stitch WristBrief Android Design System.
- * Features tactile waveform scrubber, lossless profile badge, and Live Key Insights dock.
+ * The waveform scrubber is driven by real player position. A "lossless profile badge" and a
+ * "Live Key Insights" dock were removed in the phone UX review; see
+ * `docs/next/07-phone-ux-review.md`.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -312,6 +314,9 @@ fun PodcastExpandedContent(
             color = GlassTokens.surfaceContainerHigh(darkTheme),
             shadowElevation = 12.dp,
         ) {
+            // The previous "LOSSLESS 24-BIT" badge was removed: the client cannot observe
+            // the codec, bitrate or losslessness of the stream, and the gateway transcodes
+            // audio to 16 kHz mono MP3. No replacement value was invented.
             Box(contentAlignment = Alignment.Center) {
                 Surface(
                     modifier = Modifier.size(72.dp),
@@ -321,22 +326,6 @@ fun PodcastExpandedContent(
                     Box(contentAlignment = Alignment.Center) {
                         AppIcon(AppIconKind.Podcast, Modifier.size(36.dp), GlassTokens.accentTeal(darkTheme))
                     }
-                }
-                Surface(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(10.dp),
-                    shape = RoundedCornerShape(6.dp),
-                    color = GlassTokens.surfaceContainer(darkTheme),
-                ) {
-                    Text(
-                        text = stringResource(R.string.podcast_lossless_badge),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = GlassTokens.accentTeal(darkTheme),
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                    )
                 }
             }
         }
@@ -422,17 +411,6 @@ fun PodcastExpandedContent(
                     fontWeight = FontWeight.SemiBold,
                     color = GlassTokens.accentTeal(darkTheme),
                 )
-                Surface(
-                    shape = RoundedCornerShape(4.dp),
-                    color = GlassTokens.surfaceContainerHigh(darkTheme),
-                ) {
-                    Text(
-                        text = stringResource(R.string.podcast_chapter_indicator, 1, 4),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = GlassTokens.textSecondary(darkTheme),
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                    )
-                }
                 val remainingMs = (state.durationMs - state.currentPositionMs).coerceAtLeast(0L)
                 Text(
                     text = if (state.durationMs > 0L) "-${formatPlaybackTime(remainingMs, 0L)}" else "--:--",
@@ -559,163 +537,77 @@ fun PodcastExpandedContent(
             }
         }
 
-        // SCREEN 15: AI Live Key Insights (Neutral Glass Dock)
-        GlassSurface(
+        // SCREEN 15 previously rendered a "Live Key Insights" dock here. It was removed:
+        // its two "insight" bullets were hard-coded sample sentences about unrelated
+        // technology presented as this episode's content, and its "Syncing" badge claimed
+        // an ongoing background capability the client cannot observe. Nothing replaced it;
+        // the real user-initiated actions below remain.
+
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            strong = true,
-            cornerRadius = GlassTokens.HeroRadius,
-            darkTheme = darkTheme,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Column(
-                modifier = Modifier.padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+            Surface(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(999.dp))
+                    .clickable {
+                        onAskAiClip?.invoke(
+                            episode.title,
+                            "Clip from ${episode.title} (${formatPlaybackTime(state.currentPositionMs, 0L)}): Edge compute and localized AI models."
+                        )
+                    },
+                shape = RoundedCornerShape(999.dp),
+                color = GlassTokens.primaryContainer(darkTheme),
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        AppIcon(AppIconKind.Spark, Modifier.size(18.dp), GlassTokens.accentTeal(darkTheme))
-                        Text(
-                            text = stringResource(R.string.podcast_live_insights),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = GlassTokens.textPrimary(darkTheme),
-                        )
-                    }
-                    Surface(
-                        shape = RoundedCornerShape(999.dp),
-                        color = GlassTokens.primaryContainer(darkTheme),
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(5.dp)
-                                    .clip(CircleShape)
-                                    .background(GlassTokens.accentTeal(darkTheme)),
-                            )
-                            Text(
-                                text = stringResource(R.string.podcast_live_syncing),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = GlassTokens.accentTeal(darkTheme),
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                        }
-                    }
+                    AppIcon(AppIconKind.Spark, Modifier.size(12.dp), GlassTokens.accentTeal(darkTheme))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = stringResource(R.string.podcast_ask_ai_clip),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = GlassTokens.accentTeal(darkTheme),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
+            }
 
-                // Active insight takeaways
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.Top,
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .padding(top = 6.dp)
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(GlassTokens.accentTeal(darkTheme)),
-                        )
-                        Text(
-                            text = "Edge Silicon Optimization: Speculative token offloading drops packet dependency and delivers microsecond response times.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = GlassTokens.textSecondary(darkTheme),
-                            lineHeight = 18.sp,
-                        )
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.Top,
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .padding(top = 6.dp)
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(GlassTokens.accentTeal(darkTheme)),
-                        )
-                        Text(
-                            text = "Local Vector Retrieval: Quantized embeddings enable fast similarity queries with minimal memory footprint.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = GlassTokens.textSecondary(darkTheme),
-                            lineHeight = 18.sp,
-                        )
-                    }
-                }
-
-                // Dynamic Exploration Chips
+            Surface(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(999.dp))
+                    .clickable {
+                        // No highlight store exists, so this must not report a successful
+                        // save for something that was never persisted.
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.podcast_highlight_store_unavailable),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    },
+                shape = RoundedCornerShape(999.dp),
+                color = GlassTokens.surfaceContainerHigh(darkTheme),
+            ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
                 ) {
-                    Surface(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(999.dp))
-                            .clickable {
-                                onAskAiClip?.invoke(
-                                    episode.title,
-                                    "Clip from ${episode.title} (${formatPlaybackTime(state.currentPositionMs, 0L)}): Edge compute and localized AI models."
-                                )
-                            },
-                        shape = RoundedCornerShape(999.dp),
-                        color = GlassTokens.primaryContainer(darkTheme),
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center,
-                        ) {
-                            AppIcon(AppIconKind.Spark, Modifier.size(12.dp), GlassTokens.accentTeal(darkTheme))
-                            Spacer(Modifier.width(4.dp))
-                            Text(
-                                text = stringResource(R.string.podcast_ask_ai_clip),
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = GlassTokens.accentTeal(darkTheme),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
-
-                    Surface(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(999.dp))
-                            .clickable {
-                                Toast.makeText(context, context.getString(R.string.podcast_highlight_saved), Toast.LENGTH_SHORT).show()
-                            },
-                        shape = RoundedCornerShape(999.dp),
-                        color = GlassTokens.surfaceContainerHigh(darkTheme),
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center,
-                        ) {
-                            AppIcon(AppIconKind.Bookmark, Modifier.size(12.dp), GlassTokens.textSecondary(darkTheme))
-                            Spacer(Modifier.width(4.dp))
-                            Text(
-                                text = stringResource(R.string.podcast_save_highlight),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = GlassTokens.textSecondary(darkTheme),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
+                    AppIcon(AppIconKind.Bookmark, Modifier.size(12.dp), GlassTokens.textSecondary(darkTheme))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = stringResource(R.string.podcast_save_highlight),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = GlassTokens.textSecondary(darkTheme),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
         }

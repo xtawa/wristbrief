@@ -72,11 +72,13 @@ class HttpTranscriptGatewayApi(
                 if (responseCode !in 200..299) {
                     val errorStream = conn.errorStream ?: conn.inputStream
                     val errorMsg = BufferedReader(InputStreamReader(errorStream, Charsets.UTF_8)).use { it.readTextLimited() }
-                    return@withContext TranscriptFetchResult.Failure("HTTP_$responseCode", errorMsg)
+                    return@withContext TranscriptResponseParser.parseErrorResponse(responseCode, errorMsg)
                 }
 
                 val responseBody = BufferedReader(InputStreamReader(conn.inputStream, Charsets.UTF_8)).use { it.readTextLimited() }
-                parseTranscriptResponse(responseBody, token)
+                TranscriptResponseParser.parseRequestResponse(responseBody) { code ->
+                    fetchTranscriptContent(code, token)
+                }
             } catch (e: Exception) {
                 TranscriptFetchResult.Failure("NETWORK_ERROR", e.message ?: "Failed to connect")
             }
@@ -103,11 +105,19 @@ class HttpTranscriptGatewayApi(
                 if (responseCode !in 200..299) {
                     val errorStream = conn.errorStream ?: conn.inputStream
                     val errorMsg = BufferedReader(InputStreamReader(errorStream, Charsets.UTF_8)).use { it.readTextLimited() }
-                    return@withContext TranscriptFetchResult.Failure("HTTP_$responseCode", errorMsg)
+                    // 404 job_not_found means the id is unknown OR belongs to another user.
+                    // Either way it is a real "not yours / gone" outcome, not a transient error.
+                    return@withContext TranscriptResponseParser.parseErrorResponse(responseCode, errorMsg)
                 }
 
                 val responseBody = BufferedReader(InputStreamReader(conn.inputStream, Charsets.UTF_8)).use { it.readTextLimited() }
-                parseJobStatusResponse(responseBody, token)
+                // The server's requested cadence is honoured when it sends one; otherwise the
+                // caller falls back to its own steady cadence rather than a guessed value.
+                TranscriptResponseParser.parseJobStatusResponse(
+                    jsonText = responseBody,
+                    fetchContent = { code -> fetchTranscriptContent(code, token) },
+                    retryAfterMs = TranscriptResponseParser.parseRetryAfterMs(conn.getHeaderField("Retry-After")),
+                )
             } catch (e: Exception) {
                 TranscriptFetchResult.Failure("NETWORK_ERROR", e.message ?: "Failed to connect")
             }
@@ -138,106 +148,4 @@ class HttpTranscriptGatewayApi(
                 null
             }
         }
-
-    private suspend fun parseTranscriptResponse(jsonText: String, token: String?): TranscriptFetchResult {
-        val root = json.parseToJsonElement(jsonText).jsonObject
-        val status = root["status"]?.jsonPrimitive?.content ?: ""
-        val contentCode = root["contentCode"]?.jsonPrimitive?.content ?: ""
-
-        return when (status.lowercase()) {
-            "ready" -> {
-                val artifactId = root["artifactId"]?.jsonPrimitive?.content ?: ""
-                val source = root["source"]?.jsonPrimitive?.content ?: "unknown"
-                val quotaObj = root["quota"]?.jsonObject
-                val normalUnits = quotaObj?.get("normalUnits")?.jsonPrimitive?.content?.toIntOrNull() ?: 1
-                val multiplier = quotaObj?.get("multiplier")?.jsonPrimitive?.floatOrNull ?: 1.0f
-                val chargedUnits = quotaObj?.get("chargedUnits")?.jsonPrimitive?.floatOrNull ?: multiplier * normalUnits
-
-                val payloadObj = root["payload"]?.jsonObject
-                val payload = if (payloadObj != null) {
-                    TranscriptPayload.fromJsonString(payloadObj.toString())
-                } else if (contentCode.isNotEmpty()) {
-                    fetchTranscriptContent(contentCode, token)
-                } else {
-                    null
-                }
-
-                TranscriptFetchResult.Ready(
-                    contentCode = contentCode,
-                    artifactId = artifactId,
-                    source = source,
-                    quota = TranscriptQuotaInfo(
-                        normalUnits = normalUnits,
-                        multiplier = multiplier,
-                        chargedUnits = chargedUnits,
-                    ),
-                    payload = payload,
-                )
-            }
-            "processing" -> {
-                val jobId = root["jobId"]?.jsonPrimitive?.content ?: ""
-                TranscriptFetchResult.Processing(
-                    contentCode = contentCode,
-                    jobId = jobId,
-                )
-            }
-            else -> {
-                val error = root["error"]?.jsonPrimitive?.content ?: "UNKNOWN_RESPONSE"
-                val message = root["message"]?.jsonPrimitive?.content ?: jsonText
-                TranscriptFetchResult.Failure(error, message)
-            }
-        }
-    }
-
-    private suspend fun parseJobStatusResponse(jsonText: String, token: String?): TranscriptFetchResult {
-        val root = json.parseToJsonElement(jsonText).jsonObject
-        val status = root["status"]?.jsonPrimitive?.content ?: ""
-        val jobId = root["jobId"]?.jsonPrimitive?.content ?: ""
-        val contentCode = root["contentCode"]?.jsonPrimitive?.content ?: ""
-
-        return when (status.lowercase()) {
-            "completed" -> {
-                val artifactId = root["artifactId"]?.jsonPrimitive?.content ?: ""
-                val quotaObj = root["quota"]?.jsonObject
-                val normalUnits = quotaObj?.get("normalUnits")?.jsonPrimitive?.content?.toIntOrNull() ?: 1
-                val multiplier = quotaObj?.get("multiplier")?.jsonPrimitive?.floatOrNull ?: 1.0f
-                val chargedUnits = quotaObj?.get("chargedUnits")?.jsonPrimitive?.floatOrNull ?: multiplier * normalUnits
-
-                val payloadObj = root["payload"]?.jsonObject
-                val payload = if (payloadObj != null) {
-                    TranscriptPayload.fromJsonString(payloadObj.toString())
-                } else if (contentCode.isNotEmpty()) {
-                    fetchTranscriptContent(contentCode, token)
-                } else {
-                    null
-                }
-
-                TranscriptFetchResult.Ready(
-                    contentCode = contentCode,
-                    artifactId = artifactId,
-                    source = "generation",
-                    quota = TranscriptQuotaInfo(
-                        normalUnits = normalUnits,
-                        multiplier = multiplier,
-                        chargedUnits = chargedUnits,
-                    ),
-                    payload = payload,
-                )
-            }
-            "queued", "running", "processing" -> {
-                TranscriptFetchResult.Processing(
-                    contentCode = contentCode,
-                    jobId = jobId,
-                )
-            }
-            "failed" -> {
-                val error = root["errorCode"]?.jsonPrimitive?.content ?: "JOB_FAILED"
-                TranscriptFetchResult.Failure("JOB_FAILED", error)
-            }
-            else -> {
-                val error = root["error"]?.jsonPrimitive?.content ?: "UNKNOWN_STATUS"
-                TranscriptFetchResult.Failure(error, jsonText)
-            }
-        }
-    }
 }

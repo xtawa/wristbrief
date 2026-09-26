@@ -3,6 +3,41 @@ import worker from "./index";
 import { BRIEF_PROMPT_VERSION, BRIEF_SCHEMA_VERSION, type StructuredBrief } from "./structuredBrief";
 import { InMemoryMembershipStore } from "./membership";
 import { InMemorySummaryCache, buildSummaryCacheKey } from "./summaryCache";
+import { setSafeFetchResolverOverride, setSafeFetchTransportOverride, type SafeHttpTransport } from "./net/safeRemoteFetcher";
+
+/**
+ * The AI provider POST runs through the SSRF-safe pinned transport (resolve,
+ * screen every answer, pin the connect), not global fetch. This double gives the
+ * tests the same `fetch(url, init)` view so their assertions stay unchanged.
+ */
+type TransportCall = { url: string; init: RequestInit };
+
+function usePinnedTransport(handler: (url: string, init?: RequestInit) => Response | Promise<Response>): TransportCall[] {
+  const calls: TransportCall[] = [];
+  setSafeFetchResolverOverride(async () => ["93.184.216.34"]);
+  const transport: SafeHttpTransport = {
+    async request(request) {
+      const init: RequestInit = {
+        method: request.method ?? "GET",
+        headers: request.headers,
+        body: typeof request.body === "string" ? request.body : undefined,
+        redirect: "error",
+        signal: request.signal
+      };
+      calls.push({ url: request.url.toString(), init });
+      const response = await handler(request.url.toString(), init);
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      return {
+        status: response.status,
+        headers: { get: (name: string) => response.headers.get(name) },
+        body: { async *[Symbol.asyncIterator]() { if (bytes.byteLength) yield bytes; } },
+        destroy: () => {}
+      };
+    }
+  };
+  setSafeFetchTransportOverride(transport);
+  return calls;
+}
 
 const env = {
   AI_API_KEY: "provider-secret",
@@ -37,7 +72,11 @@ function openAiBody(value: unknown): Response {
   }), { status: 200, headers: { "Content-Type": "application/json" } });
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  setSafeFetchTransportOverride(null);
+  setSafeFetchResolverOverride(null);
+});
 
 describe("WristBrief gateway", () => {
   it("returns health with a request id and without provider access", async () => {
@@ -66,8 +105,7 @@ describe("WristBrief gateway", () => {
   });
 
   it("enforces the raw request byte limit before provider work", async () => {
-    const upstreamFetch = vi.fn();
-    vi.stubGlobal("fetch", upstreamFetch);
+    const calls = usePinnedTransport(() => openAiBody(structured));
     const request = new Request("https://gateway.example/v1/summary", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${env.GATEWAY_TOKEN}` },
@@ -76,7 +114,7 @@ describe("WristBrief gateway", () => {
     const response = await worker.fetch(request, env);
     expect(response.status).toBe(413);
     await expect(response.json()).resolves.toEqual({ error: "request_too_large" });
-    expect(upstreamFetch).not.toHaveBeenCalled();
+    expect(calls).toHaveLength(0);
   });
 
   it("enforces the summary content character limit", async () => {
@@ -102,15 +140,14 @@ describe("WristBrief gateway", () => {
   });
 
   it("returns compatibility summary plus validated structured brief including the phone summary", async () => {
-    const upstreamFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      expect(String(input)).toBe("https://provider.example/v1/chat/completions");
+    const calls = usePinnedTransport(async (url, init) => {
+      expect(url).toBe("https://provider.example/v1/chat/completions");
       expect(init?.headers).toMatchObject({
         "Content-Type": "application/json",
         "Authorization": "Bearer provider-secret"
       });
       return openAiBody(structured);
     });
-    vi.stubGlobal("fetch", upstreamFetch);
 
     const response = await worker.fetch(summaryRequest("Long feed content"), env);
     expect(response.status).toBe(200);
@@ -119,18 +156,17 @@ describe("WristBrief gateway", () => {
       model: "test-model",
       structured
     });
-    expect(upstreamFetch).toHaveBeenCalledTimes(1);
+    expect(calls).toHaveLength(1);
   });
 
   it("falls back only after a retryable provider failure", async () => {
-    const upstreamFetch = vi.fn(async (input: RequestInfo | URL) => {
-      if (String(input).startsWith("https://provider.example/")) {
+    const calls = usePinnedTransport(async (url) => {
+      if (url.startsWith("https://provider.example/")) {
         return new Response("private primary body", { status: 503 });
       }
-      expect(String(input)).toBe("https://openrouter.ai/api/v1/chat/completions");
+      expect(url).toBe("https://openrouter.ai/api/v1/chat/completions");
       return openAiBody(structured);
     });
-    vi.stubGlobal("fetch", upstreamFetch);
 
     const response = await worker.fetch(summaryRequest("hello"), {
       ...env,
@@ -145,12 +181,11 @@ describe("WristBrief gateway", () => {
       model: "openrouter/fallback",
       structured: { long: structured.long }
     });
-    expect(upstreamFetch).toHaveBeenCalledTimes(2);
+    expect(calls).toHaveLength(2);
   });
 
   it.each([400, 401, 403])("never hides upstream auth/client status %s with fallback", async (status) => {
-    const upstreamFetch = vi.fn(async () => new Response("secret upstream body", { status }));
-    vi.stubGlobal("fetch", upstreamFetch);
+    const calls = usePinnedTransport(() => new Response("secret upstream body", { status }));
 
     const response = await worker.fetch(summaryRequest("hello"), {
       ...env,
@@ -163,16 +198,15 @@ describe("WristBrief gateway", () => {
     expect(JSON.parse(text)).toEqual({ error: "provider_error", status });
     expect(text).not.toContain("secret upstream body");
     expect(text).not.toContain("provider-secret");
-    expect(upstreamFetch).toHaveBeenCalledTimes(1);
+    expect(calls).toHaveLength(1);
   });
 
   it("maps exhausted timeout to a safe 504 without leaking fetch errors", async () => {
-    const upstreamFetch = vi.fn((_input: RequestInfo | URL, init?: RequestInit) =>
+    const calls = usePinnedTransport((_url, init) =>
       new Promise<Response>((_resolve, reject) => {
         init?.signal?.addEventListener("abort", () => reject(new Error("sensitive network detail")), { once: true });
       })
     );
-    vi.stubGlobal("fetch", upstreamFetch);
 
     const response = await worker.fetch(summaryRequest("hello"), {
       ...env,
@@ -183,11 +217,11 @@ describe("WristBrief gateway", () => {
     const text = await response.text();
     expect(JSON.parse(text)).toEqual({ error: "provider_timeout" });
     expect(text).not.toContain("sensitive network detail");
-    expect(upstreamFetch).toHaveBeenCalledTimes(1);
+    expect(calls).toHaveLength(1);
   });
 
   it("maps exhausted 429/5xx failures to a safe gateway error", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("secret upstream body", { status: 429 })));
+    usePinnedTransport(() => new Response("secret upstream body", { status: 429 }));
     const response = await worker.fetch(summaryRequest("hello"), {
       ...env,
       AI_PROVIDER_MAX_RETRIES: "0"
@@ -199,23 +233,21 @@ describe("WristBrief gateway", () => {
   });
 
   it("rejects malformed upstream JSON without retry or leaked body", async () => {
-    const upstreamFetch = vi.fn(async () => new Response("{secret", { status: 200 }));
-    vi.stubGlobal("fetch", upstreamFetch);
+    const calls = usePinnedTransport(() => new Response("{secret", { status: 200 }));
     const response = await worker.fetch(summaryRequest("hello"), env);
     expect(response.status).toBe(502);
     const text = await response.text();
     expect(JSON.parse(text)).toEqual({ error: "invalid_provider_response" });
     expect(text).not.toContain("secret");
-    expect(upstreamFetch).toHaveBeenCalledTimes(1);
+    expect(calls).toHaveLength(1);
   });
 
   it("rejects malformed model output after one repair attempt", async () => {
-    const upstreamFetch = vi.fn(async () => openAiBody("bad"));
-    vi.stubGlobal("fetch", upstreamFetch);
+    const calls = usePinnedTransport(() => openAiBody("bad"));
     const response = await worker.fetch(summaryRequest("hello"), env);
     expect(response.status).toBe(502);
     await expect(response.json()).resolves.toEqual({ error: "invalid_provider_response" });
-    expect(upstreamFetch).toHaveBeenCalledTimes(2);
+    expect(calls).toHaveLength(2);
   });
 
   it("serves cache hits without reserving or deducting user quota", async () => {
@@ -233,8 +265,7 @@ describe("WristBrief gateway", () => {
     const cachedBrief = { summary: structured.brief, model: "test-model", structured };
     await cache.put(cacheKey, cachedBrief, 60);
 
-    const upstreamFetch = vi.fn();
-    vi.stubGlobal("fetch", upstreamFetch);
+    const upstreamCalls = usePinnedTransport(() => openAiBody(structured));
 
     const response = await worker.fetch(summaryRequest("Cached content"), {
       ...env,
@@ -244,7 +275,7 @@ describe("WristBrief gateway", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual(cachedBrief);
-    expect(upstreamFetch).not.toHaveBeenCalled();
+    expect(upstreamCalls).toHaveLength(0);
     // Quota remains untouched
     expect((await store.getManagedAiQuota("legacy-user")).used).toBe(2);
   });
@@ -253,8 +284,7 @@ describe("WristBrief gateway", () => {
     const store = new InMemoryMembershipStore([
       { userId: "legacy-user", plan: "PRO", managedAiLimit: 10, managedAiUsed: 3 }
     ]);
-    const upstreamFetch = vi.fn(async () => new Response("error", { status: 500 }));
-    vi.stubGlobal("fetch", upstreamFetch);
+    usePinnedTransport(() => new Response("error", { status: 500 }));
 
     const response = await worker.fetch(summaryRequest("hello"), {
       ...env,
@@ -282,7 +312,7 @@ describe("WristBrief gateway", () => {
       await gate;
       return openAiBody(structured);
     });
-    vi.stubGlobal("fetch", upstreamFetch);
+    usePinnedTransport(upstreamFetch);
 
     const config = {
       ...env,

@@ -113,6 +113,38 @@ open class WristBriefDatabaseHelper(
             );
             """.trimIndent(),
         )
+        createTranscriptJobsTable(db)
+    }
+
+    /**
+     * In-flight transcript requests are durable so a long job survives leaving the
+     * transcript page and an app restart. Only identifiers and the request that the
+     * server needs are stored; the Bearer session token is never persisted here.
+     */
+    private fun createTranscriptJobsTable(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS transcript_jobs (
+                audio_url TEXT PRIMARY KEY,
+                job_id TEXT NOT NULL DEFAULT '',
+                content_code TEXT NOT NULL DEFAULT '',
+                state TEXT NOT NULL DEFAULT 'in_flight',
+                source TEXT,
+                artifact_id TEXT,
+                requested_title TEXT,
+                requested_feed_url TEXT,
+                requested_guid TEXT,
+                requested_duration_ms INTEGER,
+                error_code TEXT,
+                retryable INTEGER NOT NULL DEFAULT 1,
+                poll_after_ms INTEGER,
+                created_at_epoch_ms INTEGER NOT NULL,
+                updated_at_epoch_ms INTEGER NOT NULL
+            );
+            """.trimIndent(),
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_transcript_jobs_state ON transcript_jobs(state);")
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_transcript_jobs_updated ON transcript_jobs(updated_at_epoch_ms DESC);")
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -162,10 +194,13 @@ open class WristBriefDatabaseHelper(
                 // Ignore if column already exists
             }
         }
+        if (oldVersion < 5) {
+            createTranscriptJobsTable(db)
+        }
     }
 
     companion object {
         const val DATABASE_NAME = "wristbrief.db"
-        const val DATABASE_VERSION = 4
+        const val DATABASE_VERSION = 5
     }
 }

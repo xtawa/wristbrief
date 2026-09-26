@@ -14,7 +14,7 @@ describe("admin CSRF helpers", () => {
     expect(await verifyCsrfTokenAsync(storedHash, csrfToken + "x".repeat(300))).toBe(false);
   });
 
-  it("requires same-origin Origin headers", () => {
+  it("accepts an absent or opaque Origin and refuses a different one", () => {
     const request = (origin: string | null) =>
       new Request("https://gateway.example.com/v1/admin/settings", {
         method: "PATCH",
@@ -22,8 +22,13 @@ describe("admin CSRF helpers", () => {
       });
     expect(verifySameOrigin(request("https://gateway.example.com"))).toBe(true);
     expect(verifySameOrigin(request("https://evil.example"))).toBe(false);
-    expect(verifySameOrigin(request(null))).toBe(false);
     expect(verifySameOrigin(request("not a url"))).toBe(false);
+    // An absent header is not a cross-site signal: browsers omit Origin on some
+    // same-origin requests, so the CSRF token (checked separately) is the gate.
+    expect(verifySameOrigin(request(null))).toBe(true);
+    // The opaque origin serialization, which a no-referrer/sandboxed document
+    // sends, is "no usable origin" rather than "some other site".
+    expect(verifySameOrigin(request("null"))).toBe(true);
   });
 
   it("rejects browser-reported cross-site fetches but tolerates missing Sec-Fetch-Site", () => {

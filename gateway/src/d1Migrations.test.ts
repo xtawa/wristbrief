@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 describe("D1 SQL Migrations Chain", () => {
-  it("applies migrations 0001 through 0008 cleanly on a fresh SQLite database", () => {
+  it("applies the full numbered migration chain cleanly on a fresh SQLite database", () => {
     const migrationsDir = path.resolve(__dirname, "../migrations");
     const migrationFiles = fs
       .readdirSync(migrationsDir)
@@ -14,7 +14,9 @@ describe("D1 SQL Migrations Chain", () => {
 
     expect(migrationFiles.length).toBeGreaterThanOrEqual(12);
     expect(migrationFiles[0]).toBe("0001_membership.sql");
-    expect(migrationFiles[migrationFiles.length - 1]).toBe("0014_audio_providers.sql");
+    // Later reserved slots (0016+) belong to other workstreams, so assert that this
+    // chain includes 0015 rather than pinning the global maximum migration number.
+    expect(migrationFiles).toContain("0015_shared_transcript_jobs.sql");
 
     const db = new DatabaseSync(":memory:");
 
@@ -63,6 +65,8 @@ describe("D1 SQL Migrations Chain", () => {
     expect(tableNames).toContain("article_media_cache");
     expect(tableNames).toContain("ai_provider_configs");
     expect(tableNames).toContain("ai_provider_health");
+    expect(tableNames).toContain("transcript_job_followers");
+    expect(tableNames).toContain("artifact_job_inputs");
 
     // Migration 0009 rebuilds identities to allow provider IN ('google', 'email').
     const identityCols = db.prepare("PRAGMA table_info(identities)").all() as Array<{ name: string }>;
@@ -109,6 +113,61 @@ describe("D1 SQL Migrations Chain", () => {
 
     const contentRow = db.prepare("SELECT * FROM podcast_contents WHERE id = ?").get("cnt_1") as Record<string, unknown>;
     expect(contentRow.content_code).toBe("WBEP-7Q2M-4H9D-K8XR");
+
+    // Migration 0015: per-user follower requests for one shared in-flight generation job.
+    const now = Date.now();
+    db.prepare(`
+      INSERT INTO artifact_jobs (id, dedupe_key, user_id, content_id, artifact_type, language, requested_version, status, attempt_count, created_at, updated_at)
+      VALUES ('job_leader', 'cnt_1:en:1', 'usr_creator', 'cnt_1', 'transcript', 'en', 1, 'queued', 1, ?, ?)
+    `).run(now, now);
+    db.prepare(`
+      INSERT INTO transcript_job_followers (
+        id, job_id, user_id, content_id, language, status, attempt_count, error_code,
+        normal_units, quota_multiplier, quota_units, artifact_id, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run("jobu_follower", "job_leader", "usr_follower", "cnt_1", "en", "queued", 1, null, 60, 0.2, 12, null, now, now);
+    db.prepare(`
+      INSERT INTO transcript_job_followers (
+        id, job_id, user_id, content_id, language, status, attempt_count, error_code,
+        normal_units, quota_multiplier, quota_units, artifact_id, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run("jobu_other", "job_leader", "usr_other", "cnt_1", "en", "queued", 1, null, 60, 0.2, 12, null, now, now);
+
+    const followerRow = db.prepare("SELECT * FROM transcript_job_followers WHERE id = ?").get("jobu_follower") as Record<string, unknown>;
+    expect(followerRow.job_id).toBe("job_leader");
+    expect(followerRow.status).toBe("queued");
+    expect(followerRow.quota_multiplier).toBe(0.2);
+
+    // A user may hold at most one follower request per generation job.
+    expect(() =>
+      db
+        .prepare(`
+          INSERT INTO transcript_job_followers (id, job_id, user_id, content_id, language, status, attempt_count, created_at, updated_at)
+          VALUES ('jobu_dupe', 'job_leader', 'usr_follower', 'cnt_1', 'en', 'queued', 1, ?, ?)
+        `)
+        .run(now, now)
+    ).toThrow();
+
+    // Soft-deleting an account purges that account's follower requests.
+    db.prepare("INSERT INTO users (id) VALUES ('usr_follower')").run();
+    db.prepare("UPDATE users SET status = 'deleted' WHERE id = 'usr_follower'").run();
+    const purged = db
+      .prepare("SELECT COUNT(*) AS count FROM transcript_job_followers WHERE user_id = 'usr_follower'")
+      .get() as { count: number };
+    expect(purged.count).toBe(0);
+
+    // Removing the generation job releases the remaining follower's reservation and marks
+    // the follower failed instead of leaving a dangling queued row.
+    db.prepare(`
+      INSERT INTO credit_transactions (id, user_id, operation_type, reference_id, units, multiplier, status, created_at)
+      VALUES ('tx_follower', 'usr_other', 'transcript_shared', 'jobu_other', 12, 0.2, 'RESERVED', ?)
+    `).run(now);
+    db.prepare("DELETE FROM artifact_jobs WHERE id = 'job_leader'").run();
+    const releasedTx = db.prepare("SELECT status FROM credit_transactions WHERE id = 'tx_follower'").get() as { status: string };
+    expect(releasedTx.status).toBe("RELEASED");
+    const failedFollower = db.prepare("SELECT status, error_code FROM transcript_job_followers WHERE id = 'jobu_other'").get() as { status: string; error_code: string };
+    expect(failedFollower.status).toBe("failed");
+    expect(failedFollower.error_code).toBe("job_removed");
 
     db.close();
   });

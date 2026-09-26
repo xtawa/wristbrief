@@ -5,6 +5,31 @@ import { handleArticleResolve, handleArticleGet } from "./articleRoutes";
 import { handleMediaGet } from "./mediaProxy";
 import { mediaIdForUrl, urlForMediaId, articleKeyFor } from "./articleTypes";
 import { createMigratedTestDb } from "../testDbHelper";
+import { setSafeFetchResolverOverride, setSafeFetchTransportOverride } from "../net/safeRemoteFetcher";
+
+/**
+ * The remote fetch is SSRF-safe and DNS-pinned in Node, so tests drive it
+ * through the transport/resolver seam instead of stubbing global `fetch`.
+ * Returns the list of URLs that were actually fetched.
+ */
+function useResponseTransport(factory: (url: string) => Response | Promise<Response>) {
+  const calls: string[] = [];
+  setSafeFetchResolverOverride(async () => ["93.184.216.34"]);
+  setSafeFetchTransportOverride({
+    async request({ url }) {
+      calls.push(url.toString());
+      const response = await factory(url.toString());
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      return {
+        status: response.status,
+        headers: { get: (name: string) => response.headers.get(name) },
+        body: { async *[Symbol.asyncIterator]() { if (bytes.byteLength) yield bytes; } },
+        destroy: () => {}
+      };
+    }
+  });
+  return calls;
+}
 
 function fakeR2() {
   const objects = new Map();
@@ -36,6 +61,8 @@ const LONG_CONTENT = "<p>" + "A".repeat(600) + "</p><p>Second paragraph with <b>
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  setSafeFetchTransportOverride(null);
+  setSafeFetchResolverOverride(null);
 });
 
 describe("htmlToArticleDocument", () => {
@@ -109,8 +136,9 @@ describe("article resolve routes", () => {
   it("falls back to server-side extraction when RSS content is short", async () => {
     const env = { ACCOUNT_DB: d1(), TRANSCRIPTS_BUCKET: fakeR2() };
     const pageHtml = `<html><body><article>${"<p>" + "B".repeat(800) + "</p>"}</article></body></html>`;
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(pageHtml, { status: 200, headers: { "Content-Type": "text/html" } })));
+    const calls = useResponseTransport(async () => new Response(pageHtml, { status: 200, headers: { "Content-Type": "text/html" } }));
     const result = await handleArticleResolve(env, { url: "https://news.example.com/story", content: "<p>too short</p>", title: "Story" });
+    expect(calls).toEqual(["https://news.example.com/story"]);
     expect(result.status).toBe(200);
     expect(result.body.source).toBe("extraction");
     expect(result.body.document.blocks[0].spans[0].text).toContain("B".repeat(10));
@@ -119,15 +147,17 @@ describe("article resolve routes", () => {
   it("extracts when no RSS content is provided, refusing blocked hosts", async () => {
     const env = { ACCOUNT_DB: d1(), TRANSCRIPTS_BUCKET: fakeR2() };
     const pageHtml = `<html><body><main>${"<p>" + "C".repeat(700) + "</p>"}</main></body></html>`;
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(pageHtml, { status: 200, headers: { "Content-Type": "text/html" } })));
+    useResponseTransport(async () => new Response(pageHtml, { status: 200, headers: { "Content-Type": "text/html" } }));
     const ok = await handleArticleResolve(env, { url: "https://news.example.com/only-page", title: "Only" });
     expect(ok.status).toBe(200);
     expect(ok.body.source).toBe("extraction");
 
-    vi.stubGlobal("fetch", vi.fn());
+    // A blocked host is refused before any connection is attempted.
+    const blockedCalls = useResponseTransport(async () => { throw new Error("should not fetch"); });
     const blocked = await handleArticleResolve(env, { url: "https://192.168.0.5/private", title: "Nope" });
     expect(blocked.status).toBe(422);
     expect(blocked.body.error).toBe("content_unavailable");
+    expect(blockedCalls).toHaveLength(0);
   });
 });
 
@@ -136,20 +166,22 @@ describe("media proxy", () => {
     const bucket = fakeR2();
     const env = { ACCOUNT_DB: d1(), TRANSCRIPTS_BUCKET: bucket };
     const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(png, { status: 200, headers: { "Content-Type": "image/png" } })));
+    const calls = useResponseTransport(async () => new Response(png, { status: 200, headers: { "Content-Type": "image/png" } }));
 
     const mediaId = mediaIdForUrl("https://cdn.example.com/pic.png");
     const response = await handleMediaGet(new Request("https://gateway.test/v1/media/" + mediaId), env, mediaId);
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("image/png");
     expect(bucket.objects.size).toBe(1);
+    expect(calls).toEqual(["https://cdn.example.com/pic.png"]);
 
     // Second call is served from R2 without a fetch.
-    vi.stubGlobal("fetch", vi.fn(async () => {
+    const cachedCalls = useResponseTransport(async () => {
       throw new Error("should not fetch");
-    }));
+    });
     const cached = await handleMediaGet(new Request("https://gateway.test/v1/media/" + mediaId), env, mediaId);
     expect(cached.status).toBe(200);
+    expect(cachedCalls).toHaveLength(0);
   });
 
   it("refuses invalid media ids, non-image content, and blocked hosts", async () => {
@@ -157,12 +189,14 @@ describe("media proxy", () => {
     const bad = await handleMediaGet(new Request("https://gateway.test/v1/media/%%%"), env, "%%%");
     expect(bad.status).toBe(400);
 
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("<html>not an image</html>", { status: 200, headers: { "Content-Type": "text/html" } })));
+    useResponseTransport(async () => new Response("<html>not an image</html>", { status: 200, headers: { "Content-Type": "text/html" } }));
     const wrongType = await handleMediaGet(new Request("https://gateway.test/v1/media/" + mediaIdForUrl("https://cdn.example.com/doc.html")), env, mediaIdForUrl("https://cdn.example.com/doc.html"));
     expect(wrongType.status).toBe(415);
 
+    const blockedCalls = useResponseTransport(async () => { throw new Error("should not fetch"); });
     const blocked = await handleMediaGet(new Request("https://gateway.test/v1/media/" + mediaIdForUrl("https://127.0.0.1/x.png")), env, mediaIdForUrl("https://127.0.0.1/x.png"));
     expect(blocked.status).toBe(404);
+    expect(blockedCalls).toHaveLength(0);
   });
 });
 

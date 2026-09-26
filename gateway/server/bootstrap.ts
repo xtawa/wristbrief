@@ -32,8 +32,6 @@ export async function ensureServerAdmin(db: D1Database, temporaryPassword?: stri
     db.prepare("INSERT INTO user_roles (user_id, role) VALUES (?, 'admin')").bind(userId),
     db.prepare("INSERT INTO admin_security (user_id, must_change_password) VALUES (?, 1)").bind(userId),
     db.prepare("UPDATE bootstrap_state SET first_admin_user_id = ?, web_registration_enabled = 0, bootstrap_completed_at = CURRENT_TIMESTAMP WHERE singleton_id = 1")
-      .bind(userId),
-    // Mobile account creation stays available; /admin never offers account creation.
-    db.prepare("UPDATE system_settings SET value_json = '\"OPEN\"' WHERE key = 'registration_mode'")
+      .bind(userId)
   ]);
 }

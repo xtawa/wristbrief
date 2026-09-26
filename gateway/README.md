@@ -24,7 +24,7 @@ For production set `NODE_ENV=production`, `WRISTBRIEF_PUBLIC_ORIGIN=https://your
 - `/admin/provider-keys` stores provider API keys encrypted with AES-256-GCM. The matching secret slot is chosen in a model configuration; keys cannot be read back.
 - `/admin/users` edits ordinary mobile users' name, active status, membership (FREE or PRO) and current-month AI quota. The administrator cannot be edited or promoted through this endpoint. Disabling a user revokes current sessions.
 - `/admin/smtp` configures SMTP host, TLS mode, account, password and sender address. Until configured, email verification/reset delivery cannot work.
-- `/admin/settings` controls **mobile API** registration. The web console has no registration page and only the preseeded admin may log in. Admin role is intentionally fixed to one account.
+- `/admin/settings` controls **mobile API** email registration. It starts closed; configure and test SMTP before enabling it. The web console has no registration page and only the preseeded admin may log in. Admin role is intentionally fixed to one account.
 
 The initial monthly AI limits are 10 for FREE and 100 for PRO, adjustable with `FREE_AI_MONTHLY_LIMIT` and `PRO_AI_MONTHLY_LIMIT`. Admin overrides apply to the current month; the following month uses the configured plan default. Configure an AI model and secret before enabling AI use.
 

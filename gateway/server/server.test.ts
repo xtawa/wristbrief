@@ -24,6 +24,7 @@ it("requires the sole administrator to rotate the bootstrap password and encrypt
   });
   active.push({ server: started, dir });
   const origin = `http://127.0.0.1:${(started.server.address() as { port: number }).port}`;
+  expect(await (await fetch(`${origin}/v1/admin/bootstrap-status`)).json()).toMatchObject({ registrationOpen: false, mobileRegistrationOpen: false });
   const loginPage = await (await fetch(`${origin}/admin/login`)).text();
   expect(loginPage).not.toContain("Create the first admin account");
   const login = await fetch(`${origin}/v1/admin/session`, {

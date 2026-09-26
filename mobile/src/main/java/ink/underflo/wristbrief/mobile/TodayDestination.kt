@@ -42,6 +42,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -103,12 +106,17 @@ internal fun TodayDestination(
     var failedFeedTitles by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
     var selectedCategory by rememberSaveable { mutableStateOf<String?>(null) }
 
-    val defaultCategories = listOf("All", "Technology", "Science", "Design", "Business", "Podcasts")
     val userCategories = remember(feeds) {
-        feeds.mapNotNull { it.category }.filter { it.isNotBlank() }.distinct()
+        feeds.mapNotNull { it.category?.trim() }.filter { it.isNotBlank() }.distinct()
     }
-    val allCategories = remember(userCategories) {
-        (defaultCategories + userCategories).distinct()
+    val allCategories = remember(userCategories, items) {
+        listOf("All") + userCategories.filterNot { it.equals("All", ignoreCase = true) || it.equals("Podcasts", ignoreCase = true) } +
+            listOfNotNull("Podcasts".takeIf { items.any { item -> item.audioUrl != null } })
+    }
+    LaunchedEffect(allCategories, selectedCategory) {
+        if (selectedCategory != null && allCategories.none { it.equals(selectedCategory, ignoreCase = true) }) {
+            selectedCategory = null
+        }
     }
 
     val displayedItems = remember(items, selectedCategory, feeds) {
@@ -126,15 +134,14 @@ internal fun TodayDestination(
     }
 
     val unread = displayedItems.filterNot { inboxRepository.isRead(it.id) }
+    val allUnread = items.filterNot { inboxRepository.isRead(it.id) }
     val saved = displayedItems.filter { inboxRepository.isSaved(it.id) }
     val continueReading = unread.firstOrNull { it.audioUrl == null }
     val activeProgress = remember(items, progressStore) {
         progressStore?.getLatestActive()
     }
     val continueListening = remember(displayedItems, activeProgress) {
-        activeProgress?.let { prog ->
-            displayedItems.firstOrNull { it.id == prog.episodeId }
-        } ?: displayedItems.firstOrNull { it.audioUrl != null }
+        activeProgress?.let { prog -> displayedItems.firstOrNull { it.id == prog.episodeId } }
     }
 
     val dailyBriefStore = remember(context) { SharedPreferencesDailyBriefStore(context) }
@@ -142,7 +149,11 @@ internal fun TodayDestination(
     var isGeneratingBrief by remember { mutableStateOf(false) }
     var briefErrorMessage by remember { mutableStateOf<String?>(null) }
     var showFullBriefDialog by remember { mutableStateOf(false) }
-    val todayKey = remember { DailyBriefInputBuilder.todayKey() }
+    val todayKey = DailyBriefInputBuilder.todayKey()
+    val currentBriefInput = DailyBriefInputBuilder.build(allUnread.ifEmpty { items })
+    val briefNeedsUpdate = dailyBriefRecord?.let { record ->
+        record.dateKey == todayKey && currentBriefInput != null && record.inputHash != currentBriefInput.inputHash
+    } ?: false
     val session = remember(context) { AccountSessionPreferences(context) }.read()
     val summaryClient = remember { PhoneLongSummaryClient() }
 
@@ -155,7 +166,7 @@ internal fun TodayDestination(
             onOpenAskAi()
             return
         }
-        val input = DailyBriefInputBuilder.build(unread.ifEmpty { items }) ?: return
+        val input = currentBriefInput ?: return
         if (dailyBriefRecord != null && dailyBriefRecord?.dateKey == todayKey && dailyBriefRecord?.inputHash == input.inputHash && input.inputHash.isNotBlank()) {
             briefErrorMessage = context.getString(R.string.daily_brief_up_to_date)
             return
@@ -199,12 +210,12 @@ internal fun TodayDestination(
         }
     }
 
-    val todayDateFormatted = remember {
+    val todayDateFormatted = remember(todayKey) {
         val format = SimpleDateFormat("EEEE, MMMM d", Locale.getDefault())
         format.format(Date()).uppercase(Locale.getDefault())
     }
 
-    val greetingRes = remember {
+    val greetingRes = run {
         val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
         when (hour) {
             in 5..11 -> R.string.today_greeting_morning
@@ -232,8 +243,8 @@ internal fun TodayDestination(
         modifier = Modifier
             .fillMaxSize()
             .padding(padding),
-        contentPadding = PaddingValues(bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         // 1. Editorial Date & Greeting Header
         item {
@@ -268,9 +279,9 @@ internal fun TodayDestination(
                     // Search Action Button
                     Surface(
                         modifier = Modifier
-                            .size(44.dp)
+                            .size(48.dp)
                             .clip(CircleShape)
-                            .clickable(onClick = onOpenLibrary),
+                            .clickable(role = Role.Button, onClickLabel = context.getString(R.string.today_search_library), onClick = onOpenLibrary),
                         shape = CircleShape,
                         color = GlassTokens.surfaceContainerHigh(darkTheme),
                     ) {
@@ -282,6 +293,24 @@ internal fun TodayDestination(
                             )
                         }
                     }
+                }
+            }
+        }
+
+        if (refreshStatus == context.getString(R.string.today_offline_fallback)) {
+            item {
+                Box(Modifier.padding(horizontal = 20.dp)) {
+                    ErrorBanner(message = refreshStatus ?: "", onRetry = {
+                        scope.launch {
+                            isRefreshing = true
+                            try {
+                                val result = inboxRepository.refresh()
+                                items = inboxRepository.items()
+                                failedFeedTitles = result.failedFeedTitles
+                                refreshStatus = if (result.isOfflineFallback) context.getString(R.string.today_offline_fallback) else null
+                            } finally { isRefreshing = false }
+                        }
+                    })
                 }
             }
         }
@@ -312,9 +341,10 @@ internal fun TodayDestination(
 
                     Surface(
                         modifier = Modifier
-                            .height(36.dp)
+                            .height(48.dp)
                             .clip(RoundedCornerShape(18.dp))
-                            .clickable {
+                            .semantics { selected = isSelected }
+                            .clickable(role = Role.Tab) {
                                 selectedCategory = if (category == "All") null else category
                             },
                         shape = RoundedCornerShape(18.dp),
@@ -368,6 +398,30 @@ internal fun TodayDestination(
             }
         }
 
+        if (selectedCategory != null && displayedItems.isEmpty() && items.isNotEmpty()) {
+            item {
+                GlassSurface(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                    cornerRadius = GlassTokens.CardRadius,
+                    darkTheme = darkTheme,
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.today_category_empty),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = GlassTokens.textPrimary(darkTheme),
+                        )
+                        TextButton(onClick = { selectedCategory = null }) {
+                            Text(stringResource(R.string.today_show_all))
+                        }
+                    }
+                }
+            }
+        }
+
         // 3. Central Signature Element: Today's Brief Hero Card (Screen 06)
         item {
             Box(Modifier.padding(horizontal = 20.dp)) {
@@ -415,7 +469,7 @@ internal fun TodayDestination(
                                     }
                                 }
 
-                                val sourceCount = dailyBriefRecord?.sourceCount ?: unread.size
+                                val sourceCount = dailyBriefRecord?.takeIf { it.dateKey == todayKey }?.sourceCount ?: allUnread.size
                                 Text(
                                     text = stringResource(R.string.today_sources_count, sourceCount),
                                     style = MaterialTheme.typography.labelSmall,
@@ -443,6 +497,14 @@ internal fun TodayDestination(
                                 color = GlassTokens.textPrimary(darkTheme),
                                 lineHeight = 22.sp,
                             )
+
+                            if (briefNeedsUpdate) {
+                                Text(
+                                    text = stringResource(R.string.daily_brief_new_items),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = GlassTokens.semanticWarning(darkTheme),
+                                )
+                            }
 
                             // Key Takeaways Inset Box with Distinct Color Dots
                             if (record.bullets.isNotEmpty()) {
@@ -530,7 +592,7 @@ internal fun TodayDestination(
                                     modifier = Modifier
                                         .size(48.dp)
                                         .clip(CircleShape)
-                                        .clickable(enabled = !isGeneratingBrief, onClick = ::generateDailyBrief),
+                                        .clickable(enabled = !isGeneratingBrief, role = Role.Button, onClickLabel = context.getString(R.string.daily_brief_regenerate), onClick = ::generateDailyBrief),
                                     shape = CircleShape,
                                     color = GlassTokens.surfaceContainer(darkTheme),
                                 ) {
@@ -551,9 +613,9 @@ internal fun TodayDestination(
                                     }
                                 }
                             }
-                        } else if (unread.isNotEmpty() || items.isNotEmpty()) {
+                        } else if (items.isNotEmpty()) {
                             // Needs Brief Generation
-                            val unreadCount = if (unread.isNotEmpty()) unread.size else items.size
+                            val unreadCount = if (allUnread.isNotEmpty()) allUnread.size else items.size
                             Text(
                                 text = stringResource(R.string.daily_brief_unread_prompt, unreadCount),
                                 style = MaterialTheme.typography.bodyMedium,
@@ -650,7 +712,7 @@ internal fun TodayDestination(
                             color = GlassTokens.textPrimary(darkTheme),
                         )
                         Text(
-                            text = "Audio",
+                            text = stringResource(R.string.today_audio_label),
                             style = MaterialTheme.typography.labelSmall,
                             color = GlassTokens.accentTeal(darkTheme),
                             fontWeight = FontWeight.Medium,
@@ -773,7 +835,7 @@ internal fun TodayDestination(
                                         )
                                     }
                                     Text(
-                                        text = if (hasProgress) "In progress" else "Audio",
+                                        text = stringResource(R.string.today_audio_in_progress),
                                         style = MaterialTheme.typography.labelSmall,
                                         color = GlassTokens.textSecondary(darkTheme),
                                     )
@@ -799,7 +861,7 @@ internal fun TodayDestination(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text = stringResource(R.string.today_continue_reading),
+                            text = stringResource(R.string.today_next_to_read),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = GlassTokens.textPrimary(darkTheme),
@@ -913,7 +975,7 @@ internal fun TodayDestination(
 
                                 Surface(
                                     modifier = Modifier
-                                        .height(32.dp)
+                                        .height(48.dp)
                                         .clip(RoundedCornerShape(16.dp))
                                         .clickable { onOpenArticle(reading) },
                                     shape = RoundedCornerShape(16.dp),
@@ -945,7 +1007,7 @@ internal fun TodayDestination(
         }
 
         // 6. Latest Stream from Feeds (Articles & Audio)
-        if (items.isNotEmpty()) {
+        if (displayedItems.isNotEmpty()) {
             item {
                 Row(
                     modifier = Modifier
@@ -1093,7 +1155,7 @@ internal fun TodayDestination(
                                 ) {
                                     if (isPodcast) {
                                         Text(
-                                            text = "Audio Episode",
+                                            text = stringResource(R.string.today_episode_label),
                                             style = MaterialTheme.typography.labelSmall,
                                             color = GlassTokens.textSecondary(darkTheme),
                                         )
@@ -1103,24 +1165,19 @@ internal fun TodayDestination(
                                             color = GlassTokens.surfaceContainerHigh(darkTheme),
                                         ) {
                                             Text(
-                                                text = "Article",
+                                                text = stringResource(R.string.today_article_label),
                                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = GlassTokens.textSecondary(darkTheme),
                                             )
                                         }
-                                        Text(
-                                            text = "5 min read",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = GlassTokens.textSecondary(darkTheme),
-                                        )
                                     }
                                 }
 
                                 if (isPodcast) {
                                     Surface(
                                         modifier = Modifier
-                                            .height(34.dp)
+                                            .height(48.dp)
                                             .clip(RoundedCornerShape(17.dp))
                                             .clickable { onPlayPodcast(item) },
                                         shape = RoundedCornerShape(17.dp),
@@ -1147,7 +1204,7 @@ internal fun TodayDestination(
                                 } else {
                                     Surface(
                                         modifier = Modifier
-                                            .height(34.dp)
+                                            .height(48.dp)
                                             .clip(RoundedCornerShape(17.dp))
                                             .clickable { onOpenArticle(item) },
                                         shape = RoundedCornerShape(17.dp),
@@ -1179,38 +1236,6 @@ internal fun TodayDestination(
             }
         }
 
-        // 7. Editorial Footnote / Synced Status
-        item {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(GlassTokens.semanticSuccess(darkTheme)),
-                    )
-                    Text(
-                        text = stringResource(R.string.today_synced_footnote, feeds.size.coerceAtLeast(1)),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = GlassTokens.textSecondary(darkTheme),
-                    )
-                }
-                Text(
-                    text = stringResource(R.string.today_engine_version),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = GlassTokens.textSecondary(darkTheme).copy(alpha = 0.6f),
-                )
-            }
-        }
     }
 
     // 8. Full Daily Brief View (Screen 07 Dialog)
@@ -1323,7 +1348,7 @@ private fun FullDailyBriefDialog(
                                             tint = GlassTokens.accentTeal(darkTheme),
                                         )
                                         Text(
-                                            text = "SYNTHESIS · ${record.sourceCount} SOURCES",
+                                            text = stringResource(R.string.today_sources_count, record.sourceCount),
                                             style = MaterialTheme.typography.labelSmall,
                                             color = GlassTokens.accentTeal(darkTheme),
                                             fontWeight = FontWeight.Bold,
@@ -1336,14 +1361,14 @@ private fun FullDailyBriefDialog(
                                     tf.format(Date(record.generatedAtEpochMs))
                                 }
                                 Text(
-                                    text = "Generated $timeStr",
+                                    text = stringResource(R.string.today_generated_at, timeStr),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = GlassTokens.textSecondary(darkTheme),
                                 )
                             }
 
                             Text(
-                                text = record.title,
+                                text = stringResource(R.string.today_brief_title),
                                 style = MaterialTheme.typography.headlineSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = GlassTokens.textPrimary(darkTheme),

@@ -89,7 +89,7 @@
     <string name="today_greeting_morning">早上好</string>
     <string name="today_greeting_afternoon">下午好</string>
     <string name="today_greeting_evening">晚上好</string>
-    <string name="today_sources_count">%1$d 个来源</string>
+    <string name="today_sources_count">%1$d 篇文章</string>
     <string name="today_spoken_brief">语音播报简报</string>
     <string name="today_spoken_brief_sub">自然神经语音播报 · 4 分 12 秒</string>
     <string name="today_key_points">核心要点</string>
@@ -111,7 +111,7 @@
     <string name="today_brief_action">打开问 AI</string>
     <string name="today_continue_reading">继续阅读</string>
     <string name="today_continue_listening">继续收听</string>
-    <string name="today_latest">最新未读</string>
+    <string name="today_latest">订阅源近况</string>
     <string name="today_saved">稍后阅读与收藏</string>
     <string name="today_view_all">在资料库中查看全部</string>
     <string name="action_read">阅读</string>
@@ -171,6 +171,16 @@
     <string name="daily_brief_close">关闭</string>
     <string name="daily_brief_meta_info">%1$d 篇文章 · 生成于 %2$s</string>
     <string name="daily_brief_up_to_date">简报已包含最新未读文章，无需重新生成。</string>
+    <string name="daily_brief_new_items">有新文章，更新简报后可一并查看。</string>
+    <string name="today_search_library">搜索资料库</string>
+    <string name="today_audio_in_progress">播放中</string>
+    <string name="today_next_to_read">接下来阅读</string>
+    <string name="today_audio_label">音频</string>
+    <string name="today_article_label">文章</string>
+    <string name="today_episode_label">音频节目</string>
+    <string name="today_category_empty">这个分类暂时没有内容</string>
+    <string name="today_show_all">查看全部内容</string>
+    <string name="today_generated_at">生成于 %1$s</string>
     <string name="ai_prompt_summarize">总结核心观点</string>
     <string name="ai_prompt_takeaways">列出行动建议</string>
     <string name="ai_prompt_critique">哪些内容值得质疑</string>

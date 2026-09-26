@@ -1,27 +1,2 @@
-name = "wristbrief-gateway"
-main = "src/index.ts"
-compatibility_date = "2026-02-01"
-keep_vars = true
-[vars]
-AI_MODEL = "deepseek-flash"
-AI_BASE_URL = "https://api.deepseek.com"
-# Comma-separated HTTPS feed hostnames eligible for PUBLIC_REUSE transcripts.
-# Empty means all newly resolved content remains PRIVATE_ACCOUNT.
-PUBLIC_REUSE_FEED_HOSTS = ""
-# Optional sender for Resend emails (defaults to "WristBrief <onboarding@resend.dev>").
-# Set to your verified domain address once verified in Resend.
-# RESEND_FROM_EMAIL = "WristBrief <auth@yourdomain.com>"
-
-[[d1_databases]]
-binding = "ACCOUNT_DB"
-database_name = "wristbrief-account-db"
-# Leave database_id unset so Wrangler can find or provision this database by name.
-migrations_dir = "migrations"
-
-[[r2_buckets]]
-binding = "TRANSCRIPTS_BUCKET"
-bucket_name = "wristbrief-transcripts"
-
-[[queues.producers]]
-binding = "TRANSCRIPT_QUEUE"
-queue = "wristbrief-transcript-jobs"
+# Retired configuration. The gateway is a long-running Node.js server.
+# See gateway/README.md and docs/SERVER_BACKEND_ARCHITECTURE.md.

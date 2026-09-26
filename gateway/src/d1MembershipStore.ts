@@ -8,13 +8,16 @@ import type { Entitlement, MembershipStore } from "./membership";
 
 export type DurableMembershipEnv = {
   ACCOUNT_DB?: D1Database;
+  FREE_AI_MONTHLY_LIMIT?: string;
+  PRO_AI_MONTHLY_LIMIT?: string;
 };
 
 export class D1MembershipStore implements MembershipStore {
   constructor(
     private readonly db: D1Database,
     private readonly periodKey: () => string = currentUtcMonth,
-    private readonly now: () => number = Date.now
+    private readonly now: () => number = Date.now,
+    private readonly monthlyLimits: { FREE: number; PRO: number } = { FREE: 0, PRO: 0 }
   ) {}
 
   async getEntitlement(userId: string): Promise<Entitlement> {
@@ -46,7 +49,10 @@ export class D1MembershipStore implements MembershipStore {
     const row = await this.db.prepare(
       "SELECT used, quota_limit FROM managed_ai_usage WHERE user_id = ? AND period_key = ? LIMIT 1"
     ).bind(userId, this.periodKey()).first<{ used?: number; quota_limit?: number | null }>();
-    if (!row) return { limit: 0, used: 0 };
+    if (!row) {
+      const entitlement = await this.getEntitlement(userId);
+      return { limit: this.monthlyLimits[entitlement.plan], used: 0 };
+    }
     const used = Number(row.used);
     const limit = row.quota_limit === null ? null : Number(row.quota_limit);
     if (!Number.isInteger(used) || used < 0 || (limit !== null && (!Number.isInteger(limit) || limit < 0))) {
@@ -56,6 +62,12 @@ export class D1MembershipStore implements MembershipStore {
   }
 
   async incrementManagedAiUsage(userId: string): Promise<void> {
+    const entitlement = await this.getEntitlement(userId);
+    if (this.monthlyLimits[entitlement.plan] > 0) {
+      await this.db.prepare(
+        "INSERT OR IGNORE INTO managed_ai_usage (user_id, period_key, used, quota_limit) VALUES (?, ?, 0, ?)"
+      ).bind(userId, this.periodKey(), this.monthlyLimits[entitlement.plan]).run();
+    }
     const result = await this.db.prepare(
       "UPDATE managed_ai_usage SET used = used + 1, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND period_key = ? AND (quota_limit IS NULL OR used < quota_limit)"
     ).bind(userId, this.periodKey()).run();
@@ -127,7 +139,15 @@ export class D1BillingStateStore implements BillingStateStore {
 }
 
 export function createConfiguredD1MembershipStore(env: DurableMembershipEnv): MembershipStore | undefined {
-  return env.ACCOUNT_DB ? new D1MembershipStore(env.ACCOUNT_DB) : undefined;
+  if (!env.ACCOUNT_DB) return undefined;
+  const parseLimit = (raw: string | undefined) => {
+    const number = Number(raw ?? 0);
+    if (!Number.isInteger(number) || number < 0 || number > 10000) throw new Error("invalid_ai_monthly_limit");
+    return number;
+  };
+  return new D1MembershipStore(env.ACCOUNT_DB, currentUtcMonth, Date.now, {
+    FREE: parseLimit(env.FREE_AI_MONTHLY_LIMIT), PRO: parseLimit(env.PRO_AI_MONTHLY_LIMIT)
+  });
 }
 
 export function createConfiguredD1BillingStateStore(env: DurableMembershipEnv): BillingStateStore | undefined {

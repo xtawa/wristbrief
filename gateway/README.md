@@ -1,67 +1,37 @@
-# WristBrief Gateway
+# WristBrief Server gateway
 
-Cloudflare Workers gateway service for WristBrief, handling AI summary generation, account sessions, email/Google authentication, Google Play in-app billing verification, and cloud synchronization.
+A long-running Node.js HTTP service with SQLite, a local object directory, and an administrator-only web console. It serves mobile and watch authentication, sync, AI summaries, content, and billing APIs. It no longer deploys as a Cloudflare Worker.
 
-## Quick Start
+## Run locally
 
-### 1. Install Dependencies
+Node 24 or newer is recommended for `node:sqlite`. From `gateway/`:
+
 ```bash
-npm install
+npm ci
+export WRISTBRIEF_DATA_DIR="$(pwd)/data"
+export WRISTBRIEF_MASTER_KEY="$(openssl rand -base64 32)"
+export WRISTBRIEF_ADMIN_INITIAL_PASSWORD='replace-with-a-random-16-plus-character-secret'
+npm start
 ```
 
-### 2. Local Development
-Create `.dev.vars` in this directory:
-```ini
-AI_API_KEY="your-deepseek-api-key"
-RESEND_API_KEY="re_xxxxxxxx"
-# Optional:
-# RESEND_FROM_EMAIL="WristBrief <auth@yourdomain.com>"
-```
+Browse `/admin/login`. Sign in as `zeromostia@gmail.com` with the temporary password. The first sign-in requires a new password before accessing any management route. Remove the temporary password from the deployment environment after this step. Server migrations apply on startup. Start with a private data directory; never commit the `.sqlite` database, object storage, secrets, or a populated environment file.
 
-Run locally:
-```bash
-npm run dev
-```
+The bundled [Docker image](Dockerfile) installs FFmpeg and FFprobe from Debian packages. For a local Node start, install both binaries on `PATH`. For production set `NODE_ENV=production`, `WRISTBRIEF_PUBLIC_ORIGIN=https://your-public-domain` and run the server behind a TLS reverse proxy. The listener defaults to `127.0.0.1:8787`; keep it private and proxy HTTPS traffic to it. Persist and back up both `WRISTBRIEF_DATA_DIR/wristbrief.sqlite` (including WAL consistency) and `WRISTBRIEF_DATA_DIR/objects`. Back up `WRISTBRIEF_MASTER_KEY` separately; losing it prevents decrypting SMTP and AI provider credentials. SQLite supports one server process against this database. Use a process supervisor for restart and monitoring.
 
-### 3. Run Tests & Typecheck
-```bash
-npm run typecheck
-npm test
-```
+## Admin console
 
-## Deployment
+- `/admin` dashboard and audit log; `/admin/providers` add, edit, delete and health-check model configurations.
+- `/admin/provider-keys` stores provider API keys encrypted with AES-256-GCM. The matching secret slot is chosen in a model configuration; keys cannot be read back.
+- `/admin/users` edits ordinary mobile users' name, active status, membership (FREE or PRO) and current-month AI quota. The administrator cannot be edited or promoted through this endpoint. Disabling a user revokes current sessions.
+- `/admin/smtp` configures SMTP host, TLS mode, account, password and sender address. Until configured, email verification/reset delivery cannot work.
+- `/admin/settings` controls **mobile API** email registration. It starts closed; configure and test SMTP before enabling it. The web console has no registration page and only the preseeded admin may log in. Admin role is intentionally fixed to one account.
 
-### Cloudflare Worker Secrets
-Configure secrets in Cloudflare before or after deploying:
-```bash
-# Required for AI summaries:
-npx wrangler secret put AI_API_KEY
+The initial monthly AI limits are 10 for FREE and 100 for PRO, adjustable with `FREE_AI_MONTHLY_LIMIT` and `PRO_AI_MONTHLY_LIMIT`. Admin overrides apply to the current month; the following month uses the configured plan default. Configure an AI model and secret before enabling AI use.
 
-# Required for transactional emails (verification, password reset):
-npx wrangler secret put RESEND_API_KEY
+## External services
 
-# Required for Google sign-in; this must match the Android Web client ID:
-npx wrangler secret put GOOGLE_OAUTH_CLIENT_ID
-```
+Google Cloud is optional for this server. To keep Android Google sign-in, set `GOOGLE_OAUTH_CLIENT_ID` and configure the Android OAuth client. For Google Play subscriptions, set the Play service account and package/product settings; realtime notifications additionally need authenticated Pub/Sub push. Neither the admin web login nor SMTP nor AI provider management uses Google OAuth. See [server architecture](../docs/SERVER_BACKEND_ARCHITECTURE.md).
 
-### Deploy to Cloudflare
-Deploy the worker and apply remote D1 migrations in one command:
-```bash
-npm run deploy
-```
+STT and TTS use separately configured audio providers. The server persists transcript jobs, converts and splits podcast audio using bundled FFmpeg, then submits clips to an enabled STT provider. A TTS endpoint returns MP3 from enabled MiMo, Deepgram or OpenAI. Configure keys and enable presets in `/admin/audio`; absent keys return a clear unavailable response. See [audio pipeline](../docs/AUDIO_PIPELINE.md) for limits and the unimplemented Android TTS UI.
 
-Or deploy worker only:
-```bash
-npx wrangler deploy --keep-vars
-```
-
-Apply D1 database migrations only:
-```bash
-npm run db:migrations:apply
-```
-
-### Live Logs
-Monitor worker requests and errors in real-time:
-```bash
-npx wrangler tail
-```
+Verify with `npm run typecheck` and `npm test`.

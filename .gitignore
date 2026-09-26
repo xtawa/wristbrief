@@ -56,3 +56,9 @@ replay_pid*
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Server runtime data (database, WAL and object payloads)
+gateway/data/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm

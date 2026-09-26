@@ -1,3 +1,5 @@
+> **Retired deployment guide.** The Cloudflare Worker architecture is no longer supported. Follow [the server gateway guide](../gateway/README.md) and [server architecture](SERVER_BACKEND_ARCHITECTURE.md). Commands below are historical and must not be used for new deployments.
+
 # Deployment
 
 For the complete step-by-step production procedure, use [`PRODUCTION_DEPLOYMENT_GUIDE.md`](./PRODUCTION_DEPLOYMENT_GUIDE.md). This file is retained as a concise reference; the production guide is the single operational entry point.

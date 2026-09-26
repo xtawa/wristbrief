@@ -339,6 +339,7 @@ export default {
     }
 
     if (request.method === "POST" && url.pathname === "/v1/transcripts/request") {
+      if (env.SINGLE_ADMIN_MODE && !env.TRANSCRIPT_QUEUE) return respond({ error: "transcript_worker_unavailable" }, 503);
       if (!user) return respond({ error: "unauthorized" }, 401);
       const parsedBody = await readJsonBodyLimited<any>(request, MAX_REQUEST_BYTES);
       if (parsedBody.error) return respond({ error: parsedBody.error }, parsedBody.error === "request_too_large" ? 413 : 400);

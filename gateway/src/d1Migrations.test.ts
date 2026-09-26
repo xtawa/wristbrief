@@ -14,7 +14,7 @@ describe("D1 SQL Migrations Chain", () => {
 
     expect(migrationFiles.length).toBeGreaterThanOrEqual(12);
     expect(migrationFiles[0]).toBe("0001_membership.sql");
-    expect(migrationFiles[migrationFiles.length - 1]).toBe("0012_ai_provider_admin.sql");
+    expect(migrationFiles[migrationFiles.length - 1]).toBe("0014_audio_providers.sql");
 
     const db = new DatabaseSync(":memory:");
 

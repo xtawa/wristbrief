@@ -1,3 +1,5 @@
+> **Retired deployment guide.** The Cloudflare Worker architecture is no longer supported. Follow [the server gateway guide](../gateway/README.md) and [server architecture](SERVER_BACKEND_ARCHITECTURE.md). Commands below are historical and must not be used for new deployments.
+
 # WristBrief 生产部署教程
 
 本文是 Gateway、Google OAuth、Google Play 订阅、RTDN、Android 构建和发布验收的统一操作入口。它描述的是仓库当前代码真实支持的边界，不把本地测试或源码存在误写成生产集成已完成。

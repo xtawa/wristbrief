@@ -32,6 +32,6 @@ The initial monthly AI limits are 10 for FREE and 100 for PRO, adjustable with `
 
 Google Cloud is optional for this server. To keep Android Google sign-in, set `GOOGLE_OAUTH_CLIENT_ID` and configure the Android OAuth client. For Google Play subscriptions, set the Play service account and package/product settings; realtime notifications additionally need authenticated Pub/Sub push. Neither the admin web login nor SMTP nor AI provider management uses Google OAuth. See [server architecture](../docs/SERVER_BACKEND_ARCHITECTURE.md).
 
-STT and TTS use separately configured audio providers. The server persists transcript jobs, converts and splits podcast audio using bundled FFmpeg, then submits clips to an enabled STT provider. A TTS endpoint returns MP3 from enabled MiMo or Deepgram. Configure keys and enable presets in `/admin/audio`; absent keys return a clear unavailable response. See [audio pipeline](../docs/AUDIO_PIPELINE.md) for limits and the unimplemented Android TTS UI.
+STT and TTS use separately configured audio providers. The server persists transcript jobs, converts and splits podcast audio using bundled FFmpeg, then submits clips to an enabled STT provider. A TTS endpoint returns MP3 from enabled MiMo, Deepgram or OpenAI. Configure keys and enable presets in `/admin/audio`; absent keys return a clear unavailable response. See [audio pipeline](../docs/AUDIO_PIPELINE.md) for limits and the unimplemented Android TTS UI.
 
 Verify with `npm run typecheck` and `npm test`.

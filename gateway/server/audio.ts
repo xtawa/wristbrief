@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 
-export type AudioProvider = { id: string; capability: "stt" | "tts"; adapter: "mimo" | "deepgram"; model: string; voice: string | null; secret_ref: string; enabled: number; priority: number };
+export type AudioProvider = { id: string; capability: "stt" | "tts"; adapter: "mimo" | "deepgram" | "openai"; model: string; voice: string | null; secret_ref: string; enabled: number; priority: number };
 export type AudioRuntime = { ACCOUNT_DB: D1Database; TRANSCRIPTS_BUCKET: R2Bucket; [key: string]: unknown };
 
 export async function providers(db: D1Database): Promise<AudioProvider[]> {
@@ -71,7 +71,7 @@ export async function recognize(config: AudioProvider, key: string, audio: Uint8
         input_audio: { data: `data:audio/mpeg;base64,${Buffer.from(audio).toString("base64")}` } }] }],
         asr_options: { language: ["zh", "en"].includes(language) ? language : "auto" } })
     });
-  } else {
+  } else if (config.adapter === "deepgram") {
     const params = new URLSearchParams({ model: config.model, smart_format: "true" });
     if (["zh", "en"].includes(language)) params.set("language", language);
     response = await fetch(`https://api.deepgram.com/v1/listen?${params}`, {
@@ -79,10 +79,19 @@ export async function recognize(config: AudioProvider, key: string, audio: Uint8
       headers: { Authorization: `Token ${key}`, "Content-Type": "audio/mpeg" },
       body: Buffer.from(audio)
     });
+  } else {
+    const form = new FormData();
+    form.set("file", new File([new Uint8Array(audio)], "segment.mp3", { type: "audio/mpeg" }));
+    form.set("model", config.model);
+    if (["zh", "en"].includes(language)) form.set("language", language);
+    response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+      method: "POST", signal: timeoutSignal(120000), headers: { Authorization: `Bearer ${key}` }, body: form
+    });
   }
   if (!response.ok) throw new Error(`stt_upstream_${response.status}`);
   const result = await response.json() as any;
-  const text = config.adapter === "mimo" ? result?.choices?.[0]?.message?.content : result?.results?.channels?.[0]?.alternatives?.[0]?.transcript;
+  const text = config.adapter === "mimo" ? result?.choices?.[0]?.message?.content :
+    config.adapter === "deepgram" ? result?.results?.channels?.[0]?.alternatives?.[0]?.transcript : result?.text;
   if (typeof text !== "string" || !text.trim()) throw new Error("stt_empty_result");
   return text.trim();
 }
@@ -101,9 +110,13 @@ export async function synthesize(config: AudioProvider, key: string, text: strin
     if (typeof data !== "string" || data.length > 12_000_000) throw new Error("tts_invalid_audio");
     return Buffer.from(data, "base64");
   }
-  response = await fetch(`https://api.deepgram.com/v1/speak?${new URLSearchParams({ model: config.model })}`, {
+  response = config.adapter === "deepgram" ? await fetch(`https://api.deepgram.com/v1/speak?${new URLSearchParams({ model: config.model })}`, {
     method: "POST", signal: timeoutSignal(90000),
     headers: { Authorization: `Token ${key}`, "Content-Type": "application/json" }, body: JSON.stringify({ text })
+  }) : await fetch("https://api.openai.com/v1/audio/speech", {
+    method: "POST", signal: timeoutSignal(90000),
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ model: config.model, voice: config.voice || "alloy", input: text, response_format: "mp3" })
   });
   if (!response.ok) throw new Error(`tts_upstream_${response.status}`);
   if (Number(response.headers.get("Content-Length")) > 8_000_000) throw new Error("tts_audio_too_large");

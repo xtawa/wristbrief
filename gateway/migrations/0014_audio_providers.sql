@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS audio_provider_configs (
   id TEXT PRIMARY KEY,
   capability TEXT NOT NULL CHECK (capability IN ('stt', 'tts')),
-  adapter TEXT NOT NULL CHECK (adapter IN ('mimo', 'deepgram')),
+  adapter TEXT NOT NULL CHECK (adapter IN ('mimo', 'deepgram', 'openai')),
   model TEXT NOT NULL,
   voice TEXT,
   secret_ref TEXT NOT NULL,
@@ -13,7 +13,9 @@ INSERT OR IGNORE INTO audio_provider_configs (id, capability, adapter, model, vo
   ('deepgram-stt', 'stt', 'deepgram', 'nova-3', NULL, 'AI_PROVIDER_SECRET_2', 0, 10),
   ('mimo-stt', 'stt', 'mimo', 'mimo-v2.5-asr', NULL, 'AI_PROVIDER_SECRET_1', 0, 20),
   ('mimo-tts', 'tts', 'mimo', 'mimo-v2.5-tts', 'mimo_default', 'AI_PROVIDER_SECRET_1', 0, 10),
-  ('deepgram-tts', 'tts', 'deepgram', 'aura-2-thalia-en', NULL, 'AI_PROVIDER_SECRET_2', 0, 20);
+  ('deepgram-tts', 'tts', 'deepgram', 'aura-2-thalia-en', NULL, 'AI_PROVIDER_SECRET_2', 0, 20),
+  ('openai-stt', 'stt', 'openai', 'gpt-4o-transcribe', NULL, 'AI_PROVIDER_SECRET_3', 0, 30),
+  ('openai-tts', 'tts', 'openai', 'gpt-4o-mini-tts', 'alloy', 'AI_PROVIDER_SECRET_3', 0, 30);
 CREATE TABLE IF NOT EXISTS artifact_job_inputs (
   job_id TEXT PRIMARY KEY REFERENCES artifact_jobs(id) ON DELETE CASCADE,
   audio_url TEXT NOT NULL,

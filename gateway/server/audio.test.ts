@@ -36,6 +36,24 @@ it("calls Deepgram STT and MiMo TTS using task-specific adapters", async () => {
     .toEqual(Buffer.from([0xff, 0xfb, 1]));
 });
 
+it("uses OpenAI multipart STT and MP3 TTS endpoints", async () => {
+  const remote = vi.fn(async (url: string, init: RequestInit) => {
+    expect(init.headers).toMatchObject({ Authorization: "Bearer private-key" });
+    if (url.endsWith("/transcriptions")) {
+      expect(init.body).toBeInstanceOf(FormData);
+      expect((init.body as FormData).get("model")).toBe("gpt-4o-transcribe");
+      return Response.json({ text: "recognized text" });
+    }
+    expect(JSON.parse(init.body as string)).toMatchObject({ model: "gpt-4o-mini-tts", voice: "alloy", input: "Hello", response_format: "mp3" });
+    return new Response(Buffer.from([0xff, 0xfb, 1]), { headers: { "Content-Type": "audio/mpeg" } });
+  });
+  vi.stubGlobal("fetch", remote);
+  const openai: AudioProvider = { ...mimoStt, adapter: "openai", model: "gpt-4o-transcribe" };
+  expect(await recognize(openai, "private-key", new Uint8Array([1, 2]), "en")).toBe("recognized text");
+  expect(await synthesize({ ...openai, capability: "tts", model: "gpt-4o-mini-tts", voice: "alloy" }, "private-key", "Hello"))
+    .toEqual(new Uint8Array([0xff, 0xfb, 1]));
+});
+
 it.skipIf(spawnSync("ffmpeg", ["-version"]).status !== 0)("converts remote audio into bounded MP3 segments", async () => {
   const generated = spawnSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=1", "-f", "wav", "pipe:1"], { maxBuffer: 2_000_000 });
   expect(generated.status).toBe(0);

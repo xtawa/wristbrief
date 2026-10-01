@@ -98,6 +98,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.runtime.saveable.SaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -501,6 +503,9 @@ private class MobileFeedListenerBindings : MobileFeedListener {
             }
         }
 
+        // Keep Library's query, filters and scroll when the shell leaves
+        // composition for the reader/settings, as well as when switching tabs.
+        val destinationStateHolder = rememberSaveableStateHolder()
         val viewerState = transcriptViewState
         if (viewerState != null && transcriptEpisode != null) {
             TranscriptViewerDestination(
@@ -563,6 +568,7 @@ private class MobileFeedListenerBindings : MobileFeedListener {
         } else {
             MobileShell(
                 destination = MobileDestination.valueOf(name),
+                destinationStateHolder = destinationStateHolder,
                 select = { name = it.name },
                 inboxRepository = inboxRepository,
                 feedManager = feedManager,
@@ -639,6 +645,7 @@ private class MobileFeedListenerBindings : MobileFeedListener {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable private fun MobileShell(
     destination: MobileDestination,
+    destinationStateHolder: SaveableStateHolder,
     select: (MobileDestination) -> Unit,
     inboxRepository: MobileInboxRepository,
     feedManager: MobileFeedManager,
@@ -750,58 +757,74 @@ private class MobileFeedListenerBindings : MobileFeedListener {
                             },
                             label = "mobile-destination",
                         ) { currentDestination ->
-                            when (currentDestination) {
-                                MobileDestination.Today -> TodayDestination(
-                                    padding = PaddingValues(0.dp),
-                                    inboxRepository = inboxRepository,
-                                    feedManager = feedManager,
-                                    onAddFeed = onAddFeed,
-                                    onImportOpml = onImportOpml,
-                                    onOpenAskAi = { select(MobileDestination.AiProvider) },
-                                    onOpenLibrary = { select(MobileDestination.Library) },
-                                    onOpenArticle = onOpenArticle,
-                                    onPlayPodcast = onPlayPodcast,
-                progressStore = progressStore,
-                darkTheme = darkTheme,
-            )
-                                MobileDestination.Explore -> ExploreDestination(
-                                    padding = PaddingValues(0.dp),
-                                    feedManager = feedManager,
-                                    darkTheme = darkTheme,
-                                )
-                                MobileDestination.Library -> LibraryDestination(
-                                    padding = PaddingValues(0.dp),
-                                    inboxRepository = inboxRepository,
-                                    feedManager = feedManager,
-                                    onManageSources = onOpenSettings,
-                                    onOpenArticle = onOpenArticle,
-                                    onPlayPodcast = onPlayPodcast,
-                                    darkTheme = darkTheme,
-                                )
-                                MobileDestination.NowPlaying -> NowPlayingDestination(
-                                    padding = PaddingValues(0.dp),
-                                    playerState = playerState,
-                                    playerController = playerController,
-                                    onOpenTranscript = onOpenTranscript,
-                                    onOpenLibrary = { select(MobileDestination.Library) },
-                                    onAskAi = onAskAi,
-                                    darkTheme = darkTheme,
-                                )
-                                MobileDestination.AiProvider -> AskAiDestination(
-                                    padding = PaddingValues(0.dp),
-                                    inboxRepository = inboxRepository,
-                                    initialTitle = aiPrefilledTitle,
-                                    initialContent = aiPrefilledContent,
-                                    onOpenArticle = onOpenArticle,
-                                    onOpenAccountSettings = onOpenAccountSettings,
-                                    darkTheme = darkTheme,
-                                )
+                            PreserveLibraryState(currentDestination, destinationStateHolder) {
+                                when (currentDestination) {
+                                    MobileDestination.Today -> TodayDestination(
+                                        padding = PaddingValues(0.dp),
+                                        inboxRepository = inboxRepository,
+                                        feedManager = feedManager,
+                                        onAddFeed = onAddFeed,
+                                        onImportOpml = onImportOpml,
+                                        onOpenAskAi = { select(MobileDestination.AiProvider) },
+                                        onOpenLibrary = { select(MobileDestination.Library) },
+                                        onOpenArticle = onOpenArticle,
+                                        onPlayPodcast = onPlayPodcast,
+                                        progressStore = progressStore,
+                                        darkTheme = darkTheme,
+                                    )
+                                    MobileDestination.Explore -> ExploreDestination(
+                                        padding = PaddingValues(0.dp),
+                                        feedManager = feedManager,
+                                        darkTheme = darkTheme,
+                                    )
+                                    MobileDestination.Library -> LibraryDestination(
+                                        padding = PaddingValues(0.dp),
+                                        inboxRepository = inboxRepository,
+                                        feedManager = feedManager,
+                                        onManageSources = onOpenSettings,
+                                        onOpenArticle = onOpenArticle,
+                                        onPlayPodcast = onPlayPodcast,
+                                        darkTheme = darkTheme,
+                                    )
+                                    MobileDestination.NowPlaying -> NowPlayingDestination(
+                                        padding = PaddingValues(0.dp),
+                                        playerState = playerState,
+                                        playerController = playerController,
+                                        onOpenTranscript = onOpenTranscript,
+                                        onOpenLibrary = { select(MobileDestination.Library) },
+                                        onAskAi = onAskAi,
+                                        darkTheme = darkTheme,
+                                    )
+                                    MobileDestination.AiProvider -> AskAiDestination(
+                                        padding = PaddingValues(0.dp),
+                                        inboxRepository = inboxRepository,
+                                        initialTitle = aiPrefilledTitle,
+                                        initialContent = aiPrefilledContent,
+                                        onOpenArticle = onOpenArticle,
+                                        onOpenAccountSettings = onOpenAccountSettings,
+                                        darkTheme = darkTheme,
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+/** Other tabs have their own restoration semantics (notably fresh Ask AI prefills). */
+@Composable
+private fun PreserveLibraryState(
+    destination: MobileDestination,
+    stateHolder: SaveableStateHolder,
+    content: @Composable () -> Unit,
+) {
+    if (destination == MobileDestination.Library) {
+        stateHolder.SaveableStateProvider(destination.name, content)
+    } else {
+        content()
     }
 }
 

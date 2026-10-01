@@ -146,6 +146,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install audio worker test dependency
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: npm install
       - run: npm run typecheck
-      - run: npm test
+      # Exercise the real local FFmpeg path instead of silently skipping audio
+      # tests. Bound parallelism and allow process startup on shared CI hosts.
+      - run: npm test -- --maxWorkers=2 --testTimeout=15000

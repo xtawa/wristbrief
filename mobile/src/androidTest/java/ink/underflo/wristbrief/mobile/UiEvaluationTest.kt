@@ -1,6 +1,8 @@
 package ink.underflo.wristbrief.mobile
 
 import android.content.Context
+import android.content.ContextWrapper
+import android.content.res.Resources
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.os.LocaleList
@@ -10,12 +12,15 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -24,6 +29,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.printToString
 import androidx.compose.ui.unit.Density
@@ -61,6 +67,7 @@ class UiEvaluationTest {
         context.getSharedPreferences("onboarding", Context.MODE_PRIVATE).edit().putBoolean("complete", true).commit()
         context.getSharedPreferences("wristbrief_mobile_item_state_sync", Context.MODE_PRIVATE).edit().clear().commit()
         AppPreferences(context).setThemeMode(if (dark) AppThemeMode.DARK else AppThemeMode.LIGHT)
+        AppPreferences(context).setRefreshInterval(RefreshInterval.MANUAL)
         val feeds = listOf(
             MobileFeedSubscription("ux-tech", "Design & engineering / 设计与工程", "https://example.com/ux-feed", category = "Technology"),
             MobileFeedSubscription("ux-podcast", "Quiet conversations / 安静对话", "https://example.com/ux-podcast", category = "Podcasts"),
@@ -93,9 +100,14 @@ class UiEvaluationTest {
 
     private fun installLocalizedApp(scenario: ActivityScenario<MainActivity>) {
         scenario.onActivity { activity ->
+            // Retain the Activity owner chain for document pickers and BackHandler
+            // while using the requested language's real Android resources.
+            val localizedActivity = object : ContextWrapper(activity) {
+                override fun getResources(): Resources = localized.resources
+            }
             activity.setContent {
                 CompositionLocalProvider(
-                    LocalContext provides localized,
+                    LocalContext provides localizedActivity,
                     LocalConfiguration provides localized.resources.configuration,
                     LocalDensity provides Density(context.resources.displayMetrics.density, fontScale),
                 ) { WristBriefMobileApp() }
@@ -113,9 +125,9 @@ class UiEvaluationTest {
     private fun capture(name: String) {
         composeRule.waitForIdle()
         InstrumentationRegistry.getInstrumentation().waitForIdleSync()
-        val directory = File(context.getExternalFilesDir(null), "ux-evaluation").apply { mkdirs() }
+        val directory = File(context.filesDir, "ux-evaluation").apply { mkdirs() }
         val prefix = "${locale.toLanguageTag()}-${if (dark) "dark" else "light"}-${fontScale}-$name"
-        val bitmap = checkNotNull(InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot())
+        val bitmap = composeRule.onRoot().captureToImage().asAndroidBitmap()
         assertTrue("Screenshot must contain actual device pixels", bitmap.width > 0 && bitmap.height > 0)
         File(directory, "$prefix.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
         File(directory, "$prefix.semantics.txt").writeText(composeRule.onRoot(useUnmergedTree = true).printToString())
@@ -129,6 +141,11 @@ class UiEvaluationTest {
         bitmap.recycle()
     }
 
+    private fun revealLibraryControl(tag: String) {
+        composeRule.onNodeWithTag(LibraryTestTags.SCREEN).performScrollToIndex(0)
+        composeRule.onNodeWithTag(LibraryTestTags.SCREEN).performScrollToNode(hasTestTag(tag))
+    }
+
     @Test fun captureNativeProductTour() {
         startedAt = SystemClock.elapsedRealtime()
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
@@ -138,14 +155,18 @@ class UiEvaluationTest {
             composeRule.onNodeWithTag(LibraryTestTags.SEARCH_FIELD).assertIsDisplayed()
             capture("02-library")
             composeRule.onNodeWithTag(LibraryTestTags.filterChip(LibraryFilter.Saved)).performScrollTo().performClick()
+            revealLibraryControl(LibraryTestTags.EMPTY_ACTION)
             composeRule.onNodeWithTag(LibraryTestTags.EMPTY_ACTION).performScrollTo().assertIsDisplayed()
             capture("03-saved-empty")
             composeRule.onNodeWithTag(LibraryTestTags.EMPTY_ACTION).performClick()
+            revealLibraryControl(LibraryTestTags.SEARCH_FIELD)
             composeRule.onNodeWithTag(LibraryTestTags.SEARCH_FIELD).performScrollTo().performTextInput("no-such-fixture")
             composeRule.onNodeWithTag(LibraryTestTags.SEARCH_FIELD).performImeAction()
+            revealLibraryControl(LibraryTestTags.EMPTY_ACTION)
             composeRule.onNodeWithTag(LibraryTestTags.EMPTY_ACTION).performScrollTo().assertIsDisplayed()
             capture("04-search-empty")
             composeRule.onNodeWithTag(LibraryTestTags.EMPTY_ACTION).performClick()
+            revealLibraryControl(LibraryTestTags.row("ux-item-1"))
             composeRule.onNodeWithTag(LibraryTestTags.row("ux-item-1")).performScrollTo().performClick()
             capture("05-article")
             scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }

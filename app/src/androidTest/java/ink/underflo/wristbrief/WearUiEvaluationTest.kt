@@ -2,8 +2,10 @@ package ink.underflo.wristbrief
 
 import android.content.Context
 import android.graphics.Bitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
@@ -11,6 +13,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performRotaryScrollInput
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.printToString
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
@@ -31,9 +34,9 @@ class WearUiEvaluationTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val config = context.resources.configuration
         assertTrue("Evaluation must use a round Wear display", config.isScreenRound)
-        val directory = File(context.getExternalFilesDir(null), "ux-evaluation").apply { mkdirs() }
+        val directory = File(context.filesDir, "ux-evaluation").apply { mkdirs() }
         val prefix = "${config.screenWidthDp}dp-${config.fontScale}-$name"
-        val bitmap = checkNotNull(InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot())
+        val bitmap = composeRule.onRoot().captureToImage().asAndroidBitmap()
         File(directory, "$prefix.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
         File(directory, "$prefix.semantics.txt").writeText(composeRule.onRoot(useUnmergedTree = true).printToString())
         File(directory, "$prefix.json").writeText(JSONObject().apply {
@@ -52,6 +55,7 @@ class WearUiEvaluationTest {
             capture("01-inbox")
             composeRule.onNode(hasScrollAction()).performRotaryScrollInput { rotateToScrollVertically(500f) }
             capture("02-rotary")
+            composeRule.onNode(hasScrollAction()).performScrollToIndex(0)
             composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("Saved ·", substring = true))
             composeRule.onNode(hasText("Saved ·", substring = true)).performClick()
             capture("03-saved")

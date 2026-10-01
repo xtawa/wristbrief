@@ -73,6 +73,12 @@ internal class AppPreferences(private val storage: PreferencesStorage) {
         storage.putBoolean(KEY_WEAR_SYNC, enabled)
     }
 
+    /**
+     * Legacy key. No UI reads or writes it any more: the only notification the app
+     * posts is the mandatory media-playback notification, which a preference cannot
+     * disable, and there is no background sync to notify about. Kept so existing
+     * stored values stay readable.
+     */
     fun isNotificationsEnabled(): Boolean {
         return storage.getBoolean(KEY_NOTIFICATIONS, true)
     }
@@ -81,7 +87,16 @@ internal class AppPreferences(private val storage: PreferencesStorage) {
         storage.putBoolean(KEY_NOTIFICATIONS, enabled)
     }
 
+    /** Epoch millis of the last completed inbox refresh (any trigger), or null if none yet. */
+    fun getLastInboxRefreshEpochMs(): Long? =
+        storage.getString(KEY_LAST_INBOX_REFRESH, null)?.toLongOrNull()?.takeIf { it > 0 }
+
+    fun setLastInboxRefreshEpochMs(epochMs: Long) {
+        storage.putString(KEY_LAST_INBOX_REFRESH, epochMs.toString())
+    }
+
     companion object {
+        private const val KEY_LAST_INBOX_REFRESH = "last_inbox_refresh_epoch_ms"
         private const val KEY_THEME_MODE = "theme_mode"
         private const val KEY_REFRESH_INTERVAL = "refresh_interval"
         private const val KEY_WIFI_ONLY = "wifi_only"

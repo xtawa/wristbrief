@@ -2,6 +2,7 @@ package ink.underflo.wristbrief.complication
 
 import ink.underflo.wristbrief.data.CachedFeedItem
 import ink.underflo.wristbrief.data.FeedSubscription
+import ink.underflo.wristbrief.data.visibleInboxItems
 
 data class UnreadComplicationSnapshot(
     val unreadCount: Int,
@@ -9,25 +10,28 @@ data class UnreadComplicationSnapshot(
 ) {
     val shortText: String
         get() = if (unreadCount > 99) "99+" else unreadCount.toString()
-
-    val longText: String
-        get() = when {
-            unreadCount <= 0 -> "All caught up"
-            latestTitle.isNullOrBlank() -> "$unreadCount unread"
-            else -> "$unreadCount unread · $latestTitle"
-        }
 }
 
+/** Localized long text; the caller supplies resource-backed formatters. */
+internal fun UnreadComplicationSnapshot.longText(
+    caughtUp: () -> String,
+    unread: (Int) -> String,
+    unreadWithTitle: (Int, String) -> String,
+): String = when {
+    unreadCount <= 0 -> caughtUp()
+    latestTitle.isNullOrBlank() -> unread(unreadCount)
+    else -> unreadWithTitle(unreadCount, latestTitle)
+}
+
+/** Unread items exactly as the Inbox counts them (enabled feed + watch keywords), newest first. */
 internal fun buildUnreadComplicationSnapshot(
     subscriptions: List<FeedSubscription>,
     cachedItems: List<CachedFeedItem>,
     readItemIds: Set<String>
 ): UnreadComplicationSnapshot {
-    val enabledFeedIds = subscriptions.asSequence()
-        .filter { it.enabled }
-        .mapTo(hashSetOf()) { it.id }
-    val unread = cachedItems.asSequence()
-        .filter { it.feedId in enabledFeedIds && it.id !in readItemIds }
+    val unread = visibleInboxItems(subscriptions, cachedItems)
+        .asSequence()
+        .filter { it.id !in readItemIds }
         .sortedByDescending { it.cachedAtEpochMs }
         .toList()
     return UnreadComplicationSnapshot(

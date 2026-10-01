@@ -35,7 +35,9 @@ import ink.underflo.wristbrief.ai.AiBriefUiState
 import ink.underflo.wristbrief.ai.AiSummaryClient
 import ink.underflo.wristbrief.ai.AiSummaryException
 import ink.underflo.wristbrief.ai.aiFailureState
-import ink.underflo.wristbrief.ai.isAiGatewayConfigured
+import ink.underflo.wristbrief.ai.AiGatewayAvailability
+import ink.underflo.wristbrief.ai.WearText
+import ink.underflo.wristbrief.ai.aiGatewayAvailability
 import ink.underflo.wristbrief.ai.toWearPresentation
 import ink.underflo.wristbrief.media.PodcastPlaybackConnection
 import ink.underflo.wristbrief.media.PodcastPlaybackRequest
@@ -49,6 +51,7 @@ import ink.underflo.wristbrief.ui.toArticleDetailUi
 import ink.underflo.wristbrief.ui.WristBriefWearTheme
 import ink.underflo.wristbrief.ui.wearEmptyDetail
 import ink.underflo.wristbrief.ui.wearStatusLine
+import ink.underflo.wristbrief.ui.toNowPlayingUi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -238,6 +241,12 @@ private fun WristBriefApp(
 }
 
 @Composable
+private fun WearText.resolve(): String = when (this) {
+    is WearText.Res -> stringResource(id)
+    is WearText.Raw -> value
+}
+
+@Composable
 private fun CompactText(text: String, maxLines: Int = 2) {
     Text(text, maxLines = maxLines, overflow = TextOverflow.Ellipsis)
 }
@@ -262,11 +271,12 @@ internal fun InboxScreen(
                 .fillMaxSize()
                 .background(WearGlassTokens.Canvas),
         ) {
-            // Stage 1 — Today's Brief (the opening viewport stays focused on the AI summary)
+            // Stage 1 — Latest headlines. These are the newest cached item titles, not an AI-generated
+            // daily brief: Wear has no daily-brief generation, date or source-count data to show.
             item {
                 WearPageHeading(
                     eyebrow = stringResource(R.string.app_name),
-                    title = stringResource(R.string.wear_stage_todays_brief),
+                    title = stringResource(R.string.wear_stage_latest_headlines),
                 )
             }
 
@@ -283,7 +293,10 @@ internal fun InboxScreen(
                 BriefGlassCard(
                     points = briefPoints,
                     onListen = firstAudio?.let { audioItem -> { onPlayPodcast(audioItem) } },
-                    listenContentDescription = stringResource(R.string.wear_brief_listen),
+                    // Plays the newest cached podcast episode; there is no spoken (TTS) brief on Wear.
+                    listenContentDescription = firstAudio?.let {
+                        stringResource(R.string.wear_play_latest_episode, it.title)
+                    }.orEmpty(),
                 )
             }
 
@@ -378,6 +391,7 @@ internal fun NowPlayingScreen(
 ) {
     val transformationSpec = rememberTransformationSpec()
     val playbackState by playbackConnection.state.collectAsState()
+    val nowPlaying = playbackState.toNowPlayingUi()
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
         TransformingLazyColumn(
@@ -414,7 +428,11 @@ internal fun NowPlayingScreen(
                     ) {
                         WearIconWave(modifier = Modifier.size(28.dp))
                         Text(
-                            text = playbackState.mediaId.orEmpty().ifBlank { stringResource(R.string.wear_default_source) },
+                            text = if (nowPlaying.hasMedia) {
+                                nowPlaying.title ?: stringResource(R.string.wear_podcast_episode)
+                            } else {
+                                stringResource(R.string.wear_nothing_playing)
+                            },
                             color = WearGlassTokens.TextPrimary,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -422,54 +440,59 @@ internal fun NowPlayingScreen(
                             overflow = TextOverflow.Ellipsis,
                         )
                         Text(
-                            text = playbackState.progressLabel.ifBlank { "00:00 / 00:00" },
+                            text = nowPlaying.progressLabel ?: stringResource(R.string.wear_nothing_playing_hint),
                             color = WearGlassTokens.TextSecondary,
                             fontSize = 13.sp,
                         )
-                        Text(
-                            text = stringResource(R.string.wear_playing_speed, playbackState.playbackSpeed.toString()),
-                            color = WearGlassTokens.TextSecondary,
-                            fontSize = 12.sp,
-                        )
+                        if (nowPlaying.hasMedia) {
+                            Text(
+                                text = stringResource(R.string.wear_playing_speed, nowPlaying.playbackSpeed.toString()),
+                                color = WearGlassTokens.TextSecondary,
+                                fontSize = 12.sp,
+                            )
+                        }
                     }
                 }
             }
 
-            item {
-                Button(
-                    onClick = playbackConnection::togglePlayPause,
-                    label = { CompactText(if (playbackState.isPlaying) stringResource(R.string.wear_pause) else stringResource(R.string.wear_play), maxLines = 1) },
-                    transformation = SurfaceTransformation(transformationSpec),
-                    modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth(),
-                )
-            }
+            // Transport controls only exist while an item is loaded; without one they would do nothing.
+            if (nowPlaying.hasMedia) {
+                item {
+                    Button(
+                        onClick = playbackConnection::togglePlayPause,
+                        label = { CompactText(if (nowPlaying.isPlaying) stringResource(R.string.wear_pause) else stringResource(R.string.wear_play), maxLines = 1) },
+                        transformation = SurfaceTransformation(transformationSpec),
+                        modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth(),
+                    )
+                }
 
-            item {
-                Button(
-                    onClick = { playbackConnection.seekBy(-15_000L) },
-                    label = { CompactText(stringResource(R.string.wear_back_15s), maxLines = 1) },
-                    transformation = SurfaceTransformation(transformationSpec),
-                    modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth(),
-                )
-            }
+                item {
+                    Button(
+                        onClick = { playbackConnection.seekBy(-15_000L) },
+                        label = { CompactText(stringResource(R.string.wear_back_15s), maxLines = 1) },
+                        transformation = SurfaceTransformation(transformationSpec),
+                        modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth(),
+                    )
+                }
 
-            item {
-                Button(
-                    onClick = { playbackConnection.seekBy(30_000L) },
-                    label = { CompactText(stringResource(R.string.wear_forward_30s), maxLines = 1) },
-                    transformation = SurfaceTransformation(transformationSpec),
-                    modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth(),
-                )
-            }
+                item {
+                    Button(
+                        onClick = { playbackConnection.seekBy(30_000L) },
+                        label = { CompactText(stringResource(R.string.wear_forward_30s), maxLines = 1) },
+                        transformation = SurfaceTransformation(transformationSpec),
+                        modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth(),
+                    )
+                }
 
-            item {
-                Button(
-                    onClick = playbackConnection::cyclePlaybackSpeed,
-                    label = { CompactText(stringResource(R.string.wear_speed_label, playbackState.playbackSpeed.toString()), maxLines = 1) },
-                    secondaryLabel = { CompactText(stringResource(R.string.wear_speed_sub)) },
-                    transformation = SurfaceTransformation(transformationSpec),
-                    modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth(),
-                )
+                item {
+                    Button(
+                        onClick = playbackConnection::cyclePlaybackSpeed,
+                        label = { CompactText(stringResource(R.string.wear_speed_label, nowPlaying.playbackSpeed.toString()), maxLines = 1) },
+                        secondaryLabel = { CompactText(stringResource(R.string.wear_speed_sub)) },
+                        transformation = SurfaceTransformation(transformationSpec),
+                        modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth(),
+                    )
+                }
             }
 
             item {
@@ -612,16 +635,24 @@ internal fun ArticleDetailScreen(
     val transformationSpec = rememberTransformationSpec()
     val playbackState by playbackConnection.state.collectAsState()
     val isCurrentPodcast = article != null && playbackState.mediaId == article.id
-    val gatewayConfigured = remember(gatewayUrl, gatewayToken) {
-        isAiGatewayConfigured(gatewayUrl, gatewayToken)
+    // Re-evaluated whenever the phone-bridged session changes, so a sign-in that arrives while this
+    // screen is open enables the action without leaving the article.
+    val sessionRevision by ink.underflo.wristbrief.sync.WearAccountSessionRuntime.revision.collectAsState()
+    val aiAvailability = remember(gatewayUrl, gatewayToken, sessionRevision) {
+        aiGatewayAvailability(gatewayUrl, gatewayToken)
     }
     var aiState by remember(article?.id) { mutableStateOf<AiBriefUiState>(AiBriefUiState.Idle) }
-    val aiPresentation = aiState.toWearPresentation(gatewayConfigured)
+    val aiPresentation = aiState.toWearPresentation(aiAvailability)
+    val aiLabel = aiPresentation.label.resolve()
+    val aiDetail = aiPresentation.detail.resolve()
     val coroutineScope = rememberCoroutineScope()
 
     fun requestAiBrief() {
         val currentArticle = article ?: return
-        if (!gatewayConfigured || aiState is AiBriefUiState.Loading) return
+        // Check the live session at tap time, not only the value captured at composition.
+        if (aiGatewayAvailability(gatewayUrl, gatewayToken) != AiGatewayAvailability.Available ||
+            aiState is AiBriefUiState.Loading
+        ) return
         aiState = AiBriefUiState.Loading
         coroutineScope.launch {
             aiState = try {
@@ -637,7 +668,8 @@ internal fun ArticleDetailScreen(
             } catch (error: AiSummaryException) {
                 aiFailureState(error.failure)
             } catch (_: IllegalArgumentException) {
-                AiBriefUiState.Error("AI configuration unavailable")
+                // The session expired or was cleared between the tap and the request.
+                AiBriefUiState.Error(ink.underflo.wristbrief.ai.AiSummaryFailure.Unauthorized)
             }
         }
     }
@@ -696,19 +728,19 @@ internal fun ArticleDetailScreen(
                     item {
                         TitleCard(
                             onClick = {},
-                            title = { CompactText(aiPresentation.label, maxLines = 3) },
+                            title = { CompactText(aiLabel, maxLines = 3) },
                             subtitle = { CompactText(stringResource(R.string.wear_ai_brief), maxLines = 1) },
                             transformation = SurfaceTransformation(transformationSpec),
                             modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
-                        ) { Text(aiPresentation.detail) }
+                        ) { Text(aiDetail) }
                     }
                 } else {
                     item {
                         Button(
                             onClick = ::requestAiBrief,
                             enabled = aiPresentation.actionEnabled,
-                            label = { CompactText(aiPresentation.label, maxLines = 2) },
-                            secondaryLabel = { CompactText(aiPresentation.detail, maxLines = 2) },
+                            label = { CompactText(aiLabel, maxLines = 2) },
+                            secondaryLabel = { CompactText(aiDetail, maxLines = 2) },
                             transformation = SurfaceTransformation(transformationSpec),
                             modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                         )
@@ -816,6 +848,9 @@ internal fun FeedManagementScreen(
     onBack: () -> Unit
 ) {
     val transformationSpec = rememberTransformationSpec()
+    var pendingRemovalId by rememberSaveable { mutableStateOf<String?>(null) }
+    // A pending confirmation is ignored if that feed disappeared (for example a new phone snapshot arrived).
+    val confirmingRemovalId = pendingRemovalId?.takeIf { id -> feeds.any { it.id == id } }
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
         TransformingLazyColumn(
@@ -827,6 +862,17 @@ internal fun FeedManagementScreen(
                 .background(WearGlassTokens.Canvas)
         ) {
             item { ListHeader { CompactText(stringResource(R.string.wear_feeds_title), maxLines = 1) } }
+            if (feeds.isNotEmpty()) {
+                item {
+                    // The phone owns the subscription list; Wear edits are not sent back to it.
+                    Text(
+                        text = stringResource(R.string.wear_feeds_watch_only_notice),
+                        color = WearGlassTokens.TextSecondary,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                }
+            }
             item {
                 Button(
                     onClick = onBack,
@@ -859,13 +905,33 @@ internal fun FeedManagementScreen(
                         transformation = SurfaceTransformation(transformationSpec),
                         modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                     )
-                    Button(
-                        onClick = { onRemoveFeed(feed) },
-                        label = { CompactText(stringResource(R.string.wear_remove_feed, feed.title)) },
-                        secondaryLabel = { CompactText(feed.url, maxLines = 1) },
-                        transformation = SurfaceTransformation(transformationSpec),
-                        modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
-                    )
+                    if (confirmingRemovalId == feed.id) {
+                        // Destructive and watch-local: require an explicit second tap.
+                        Button(
+                            onClick = {
+                                pendingRemovalId = null
+                                onRemoveFeed(feed)
+                            },
+                            label = { CompactText(stringResource(R.string.wear_confirm_remove_feed, feed.title)) },
+                            secondaryLabel = { CompactText(stringResource(R.string.wear_confirm_remove_feed_sub)) },
+                            transformation = SurfaceTransformation(transformationSpec),
+                            modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
+                        )
+                        Button(
+                            onClick = { pendingRemovalId = null },
+                            label = { CompactText(stringResource(R.string.wear_cancel), maxLines = 1) },
+                            transformation = SurfaceTransformation(transformationSpec),
+                            modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
+                        )
+                    } else {
+                        Button(
+                            onClick = { pendingRemovalId = feed.id },
+                            label = { CompactText(stringResource(R.string.wear_remove_feed, feed.title)) },
+                            secondaryLabel = { CompactText(feed.url, maxLines = 1) },
+                            transformation = SurfaceTransformation(transformationSpec),
+                            modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
+                        )
+                    }
                 }
             }
 

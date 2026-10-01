@@ -35,6 +35,8 @@ class MainActivityNavigationTest {
     @Before
     fun resetState() {
         val context = ApplicationProvider.getApplicationContext<Context>()
+        // Never let a foreground timer race seeded navigation fixtures.
+        AppPreferences(context).setRefreshInterval(RefreshInterval.MANUAL)
         context.getSharedPreferences("onboarding", Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences("wristbrief_mobile_feeds", Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences("wristbrief_mobile_inbox", Context.MODE_PRIVATE).edit().clear().commit()

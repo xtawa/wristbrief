@@ -68,7 +68,7 @@ internal fun CategorizedFeedManagementDestination(
         when (onboardingAction) {
             OnboardingAction.AddFeed -> showEditor = true
             OnboardingAction.ImportOpml -> launchOpmlImport = true
-            OnboardingAction.Explore, null -> Unit
+            OnboardingAction.Explore, OnboardingAction.StartReading, null -> Unit
         }
         if (onboardingAction != null) onOnboardingActionConsumed()
     }

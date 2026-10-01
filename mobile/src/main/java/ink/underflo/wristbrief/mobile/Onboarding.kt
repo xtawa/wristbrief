@@ -77,7 +77,12 @@ internal class OnboardingPreferences(context: Context) {
         .apply()
 }
 
-internal enum class OnboardingAction { AddFeed, ImportOpml, Explore }
+/**
+ * Outcome of onboarding. [StartReading] (Skip / "Start reading") lands on Today;
+ * [Explore] opens the Explore tab; [AddFeed] / [ImportOpml] open the real Sources
+ * editor or OPML picker. The shell maps these via [resolveOnboardingHandoff].
+ */
+internal enum class OnboardingAction { AddFeed, ImportOpml, Explore, StartReading }
 
 private enum class OnboardingPage(@StringRes val title: Int, @StringRes val body: Int) {
     Welcome(R.string.oobe_welcome_title, R.string.oobe_welcome_body),
@@ -156,7 +161,7 @@ internal fun WristBriefOnboarding(
                 }
 
                 if (page != OnboardingPage.Ready) {
-                    TextButton(onClick = { onComplete(OnboardingAction.Explore) }) {
+                    TextButton(onClick = { onComplete(OnboardingAction.StartReading) }) {
                         Text(
                             text = stringResource(R.string.oobe_skip),
                             color = GlassTokens.textSecondary(darkTheme),
@@ -350,7 +355,7 @@ internal fun WristBriefOnboarding(
                             val hasAnyFeeds = feedCount > 0 || addedSampleIds.isNotEmpty()
                             if (hasAnyFeeds) {
                                 Button(
-                                    onClick = { onComplete(OnboardingAction.Explore) },
+                                    onClick = { onComplete(OnboardingAction.StartReading) },
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(16.dp),
                                 ) {

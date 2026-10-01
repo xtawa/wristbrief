@@ -1,11 +1,8 @@
 package ink.underflo.wristbrief.mobile
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -30,6 +27,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -55,12 +53,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ink.underflo.wristbrief.mobile.articles.ArticleRepository
@@ -98,6 +93,9 @@ internal fun ArticleDetailDestination(
     val context = LocalContext.current
     var isRead by remember(item.id) { mutableStateOf(inboxRepository.isRead(item.id)) }
     var isSaved by remember(item.id) { mutableStateOf(inboxRepository.isSaved(item.id)) }
+    val readerPreferences = remember(context) { context.getSharedPreferences("reader_appearance", Context.MODE_PRIVATE) }
+    var readerScale by remember { mutableStateOf(readerPreferences.getFloat("text_scale", 1f)) }
+    var showReaderSettings by remember { mutableStateOf(false) }
 
     var articleDocument by remember(item.id) {
         mutableStateOf<ink.underflo.wristbrief.mobile.articles.ArticleDocument?>(null)
@@ -142,8 +140,10 @@ internal fun ArticleDetailDestination(
 
     val isPodcast = item.audioUrl != null
 
+    val originalUrl = item.link ?: item.audioUrl
+
     fun openBrowser() {
-        val url = item.link ?: item.audioUrl
+        val url = originalUrl
         if (!url.isNullOrBlank()) {
             runCatching {
                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
@@ -164,10 +164,28 @@ internal fun ArticleDetailDestination(
         context.startActivity(shareIntent)
     }
 
-    fun copyDigestToClipboard(digestText: String) {
-        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-        clipboard?.setPrimaryClip(ClipData.newPlainText("Digest", digestText))
-        Toast.makeText(context, context.getString(R.string.article_digest_copied), Toast.LENGTH_SHORT).show()
+    if (showReaderSettings) {
+        AlertDialog(
+            onDismissRequest = { showReaderSettings = false },
+            title = { Text(stringResource(R.string.reader_text_size)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(0.9f, 1f, 1.15f, 1.3f).forEach { scale ->
+                        TextButton(
+                            onClick = {
+                                readerScale = scale
+                                readerPreferences.edit().putFloat("text_scale", scale).apply()
+                                showReaderSettings = false
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(stringResource(R.string.reader_text_size_option, (scale * 100).toInt()))
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showReaderSettings = false }) { Text(stringResource(R.string.reader_done)) } },
+        )
     }
 
     Scaffold(
@@ -179,6 +197,11 @@ internal fun ArticleDetailDestination(
                 darkTheme = darkTheme,
                 navigationIcon = { BackIconButton(onClick = onBack) },
                 actions = {
+                    if (item.audioUrl == null) {
+                        TextButton(onClick = { showReaderSettings = true }) {
+                            Text(stringResource(R.string.reader_appearance_action), color = GlassTokens.textPrimary(darkTheme))
+                        }
+                    }
                     val saveLabel = stringResource(if (isSaved) R.string.action_saved else R.string.action_save)
                     IconButton(
                         onClick = {
@@ -196,80 +219,6 @@ internal fun ArticleDetailDestination(
                     }
                 },
             )
-        },
-        bottomBar = {
-            Surface(
-                color = GlassTokens.surfaceGlassStrong(darkTheme),
-                shadowElevation = 8.dp,
-                tonalElevation = 2.dp,
-            ) {
-                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .widthIn(max = 840.dp)
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Button(
-                            onClick = { onAskAi(item.title, bodyPlainText.ifBlank { item.title }) },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = GlassTokens.primaryContainer(darkTheme),
-                                contentColor = GlassTokens.accentTeal(darkTheme),
-                            ),
-                            shape = RoundedCornerShape(14.dp),
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                AppIcon(AppIconKind.Spark, Modifier.size(16.dp), GlassTokens.accentTeal(darkTheme))
-                                Text(
-                                    stringResource(R.string.action_ask_ai),
-                                    fontWeight = FontWeight.SemiBold,
-                                )
-                            }
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            OutlinedButton(
-                                onClick = {
-                                    val next = !isRead
-                                    inboxRepository.setRead(item.id, next)
-                                    isRead = next
-                                },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(12.dp),
-                            ) {
-                                Text(
-                                    stringResource(if (isRead) R.string.action_mark_unread else R.string.action_mark_read),
-                                    color = GlassTokens.textPrimary(darkTheme),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                            OutlinedButton(
-                                onClick = ::shareArticle,
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(12.dp),
-                            ) {
-                                Text(
-                                    stringResource(R.string.action_share),
-                                    color = GlassTokens.textPrimary(darkTheme),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
         },
     ) { padding ->
         Box(
@@ -304,16 +253,6 @@ internal fun ArticleDetailDestination(
                         )
                     }
 
-                    // SCREEN 12: AI EPISODE BRIEF (Neutral Glass Card)
-                    item {
-                        PodcastEpisodeAiBriefCard(
-                            item = item,
-                            bodyPlainText = bodyPlainText,
-                            onAskAi = onAskAi,
-                            darkTheme = darkTheme,
-                        )
-                    }
-
                     // Show notes / Description header
                     item {
                         Text(
@@ -339,12 +278,14 @@ internal fun ArticleDetailDestination(
                                     color = GlassTokens.textSecondary(darkTheme),
                                 )
                             }
-                            Text(
-                                text = readingTime,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = GlassTokens.accentTeal(darkTheme),
-                                fontWeight = FontWeight.SemiBold,
-                            )
+                            if (document != null && !document.isExcerpt && bodyPlainText.isNotBlank()) {
+                                Text(
+                                    text = readingTime,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = GlassTokens.accentTeal(darkTheme),
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                            }
                         }
                     }
 
@@ -364,23 +305,12 @@ internal fun ArticleDetailDestination(
                         ArticleAttributionBar(
                             feedTitle = item.feedTitle,
                             author = document?.author,
-                            readingTime = readingTime,
-                            wordCount = (bodyPlainText.length / 5).coerceAtLeast(120),
                             onOpenBrowser = ::openBrowser,
+                            hasOriginalUrl = !originalUrl.isNullOrBlank(),
                             darkTheme = darkTheme,
                         )
                     }
 
-                    // SCREEN 11: AI EXECUTIVE SUMMARY (Neutral Glass Floating Layer)
-                    item {
-                        ArticleExecutiveDigestCard(
-                            item = item,
-                            bodyPlainText = bodyPlainText,
-                            onAskAi = onAskAi,
-                            onCopyDigest = ::copyDigestToClipboard,
-                            darkTheme = darkTheme,
-                        )
-                    }
                 }
 
                 // Article / Episode Content Body
@@ -389,6 +319,7 @@ internal fun ArticleDetailDestination(
                     item {
                         ink.underflo.wristbrief.mobile.articles.ArticleDocumentRenderer(
                             document = loadedDocument,
+                            textScale = readerScale,
                             imageContent = { image ->
                                 if (articleImageLoader != null) {
                                     ink.underflo.wristbrief.mobile.articles.ArticleImage(image, articleRepository, articleImageLoader)
@@ -414,9 +345,57 @@ internal fun ArticleDetailDestination(
                         Text(
                             text = paragraph,
                             style = MaterialTheme.typography.bodyLarge,
-                            lineHeight = MaterialTheme.typography.bodyLarge.lineHeight * 1.35f,
+                            fontSize = MaterialTheme.typography.bodyLarge.fontSize * readerScale,
+                            lineHeight = MaterialTheme.typography.bodyLarge.lineHeight * readerScale * 1.35f,
                             color = GlassTokens.textPrimary(darkTheme),
                         )
+                    }
+                } else {
+                    item {
+                        Text(
+                            text = stringResource(R.string.article_no_content),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = GlassTokens.textSecondary(darkTheme),
+                        )
+                    }
+                }
+
+                if (((loadedDocument == null && !articleLoading && sanitized.paragraphs.isNotEmpty()) || loadedDocument?.isExcerpt == true) && !isPodcast) {
+                    item {
+                        Text(
+                            text = stringResource(R.string.article_excerpt_notice),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = GlassTokens.textSecondary(darkTheme),
+                        )
+                    }
+                }
+
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (!articleLoading && bodyPlainText.isNotBlank()) {
+                            Button(onClick = { onAskAi(item.title, bodyPlainText) }, modifier = Modifier.fillMaxWidth()) {
+                                Text(stringResource(R.string.action_ask_ai))
+                            }
+                            if (isPodcast || loadedDocument?.isExcerpt == true || loadedDocument == null) {
+                                Text(
+                                    text = stringResource(R.string.article_ai_scope_note),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = GlassTokens.textSecondary(darkTheme),
+                                )
+                            }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = {
+                                val next = !isRead
+                                inboxRepository.setRead(item.id, next)
+                                isRead = next
+                            }, modifier = Modifier.weight(1f)) {
+                                Text(stringResource(if (isRead) R.string.action_mark_unread else R.string.action_mark_read), maxLines = 1)
+                            }
+                            OutlinedButton(onClick = ::shareArticle, modifier = Modifier.weight(1f)) {
+                                Text(stringResource(R.string.action_share))
+                            }
+                        }
                     }
                 }
 
@@ -436,7 +415,7 @@ internal fun ArticleDetailDestination(
                 }
 
                 // Fallback action to view original website / episode
-                item {                    GlassSurface(
+                if (!originalUrl.isNullOrBlank()) item { GlassSurface(
                         modifier = Modifier.fillMaxWidth(),
                         cornerRadius = GlassTokens.CardRadius,
                         darkTheme = darkTheme,
@@ -468,139 +447,11 @@ internal fun ArticleDetailDestination(
                     }
                 }
 
-                item {
-                    Spacer(Modifier.height(120.dp))
-                }
             }
         }
     }
 }
 
-/**
- * SCREEN 11: AI Executive Summary card following Stitch WristBrief Android Design System.
- * Neutral Glass floating layer with 45s read badge, token count, structured takeaways, and quick Ask AI pill.
- */
-@Composable
-private fun ArticleExecutiveDigestCard(
-    item: MobileFeedItem,
-    bodyPlainText: String,
-    onAskAi: (String, String) -> Unit,
-    onCopyDigest: (String) -> Unit,
-    darkTheme: Boolean,
-) {
-    val takeaways = remember(bodyPlainText, item.title) {
-        deriveArticleTakeaways(bodyPlainText, item.title)
-    }
-    val tokenCount = remember(bodyPlainText) {
-        (bodyPlainText.length / 3).coerceIn(800, 16000)
-    }
-
-    GlassSurface(
-        modifier = Modifier.fillMaxWidth(),
-        strong = true,
-        cornerRadius = GlassTokens.HeroRadius,
-        darkTheme = darkTheme,
-    ) {
-        Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            // Header: AI Sparkle, Executive Digest Title, 45s Read badge, Token Ingested badge
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    AppIcon(AppIconKind.Spark, Modifier.size(20.dp), GlassTokens.accentTeal(darkTheme))
-                    Text(
-                        text = stringResource(R.string.article_executive_digest),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = GlassTokens.textPrimary(darkTheme),
-                    )
-                    Surface(
-                        shape = RoundedCornerShape(999.dp),
-                        color = GlassTokens.primaryContainer(darkTheme),
-                    ) {
-                        Text(
-                            text = stringResource(R.string.article_digest_read_time),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = GlassTokens.accentTeal(darkTheme),
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                        )
-                    }
-                }
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = GlassTokens.surfaceContainer(darkTheme),
-                ) {
-                    Text(
-                        text = stringResource(R.string.article_digest_tokens, tokenCount),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = GlassTokens.textSecondary(darkTheme),
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                    )
-                }
-            }
-
-            // Takeaway points with accent dot indicator
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                takeaways.forEach { (topic, detail) ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.Top,
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .padding(top = 7.dp)
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(GlassTokens.accentTeal(darkTheme)),
-                        )
-                        Text(
-                            text = buildAnnotatedString {
-                                withStyle(
-                                    SpanStyle(
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = GlassTokens.textPrimary(darkTheme),
-                                    )
-                                ) {
-                                    append("$topic: ")
-                                }
-                                append(detail)
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = GlassTokens.textSecondary(darkTheme),
-                            lineHeight = 20.sp,
-                        )
-                    }
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(
-                    onClick = {
-                        val fullDigest = takeaways.joinToString("\n") { "• ${it.first}: ${it.second}" }
-                        onCopyDigest("${item.title}\n\n$fullDigest")
-                    },
-                    modifier = Modifier.size(36.dp),
-                ) {
-                    AppIcon(AppIconKind.Export, Modifier.size(18.dp), GlassTokens.textSecondary(darkTheme))
-                }
-            }
-        }
-    }
-}
 
 /**
  * Author / Source Attribution Bar (Screen 11).
@@ -609,9 +460,8 @@ private fun ArticleExecutiveDigestCard(
 private fun ArticleAttributionBar(
     feedTitle: String,
     author: String?,
-    readingTime: String,
-    wordCount: Int,
     onOpenBrowser: () -> Unit,
+    hasOriginalUrl: Boolean,
     darkTheme: Boolean,
 ) {
     GlassSurface(
@@ -664,18 +514,13 @@ private fun ArticleAttributionBar(
                     }
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (hasOriginalUrl) Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     IconButton(onClick = onOpenBrowser, modifier = Modifier.size(36.dp)) {
                         AppIcon(AppIconKind.Export, Modifier.size(16.dp), GlassTokens.textSecondary(darkTheme))
                     }
                 }
             }
 
-            Text(
-                text = stringResource(R.string.article_reading_meta, readingTime, wordCount),
-                style = MaterialTheme.typography.labelSmall,
-                color = GlassTokens.textSecondary(darkTheme),
-            )
         }
     }
 }
@@ -844,185 +689,4 @@ private fun PodcastEpisodeDetailHeader(
             }
         }
     }
-}
-
-/**
- * SCREEN 12: AI Episode Brief Card.
- */
-@Composable
-private fun PodcastEpisodeAiBriefCard(
-    item: MobileFeedItem,
-    bodyPlainText: String,
-    onAskAi: (String, String) -> Unit,
-    darkTheme: Boolean,
-) {
-    val takeaways = remember(bodyPlainText, item.title) {
-        derivePodcastTakeaways(bodyPlainText, item.title)
-    }
-
-    GlassSurface(
-        modifier = Modifier.fillMaxWidth(),
-        strong = true,
-        cornerRadius = GlassTokens.HeroRadius,
-        darkTheme = darkTheme,
-    ) {
-        Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    AppIcon(AppIconKind.Spark, Modifier.size(18.dp), GlassTokens.accentTeal(darkTheme))
-                    Text(
-                        text = stringResource(R.string.podcast_ai_brief),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = GlassTokens.textPrimary(darkTheme),
-                    )
-                }
-                val briefText = remember(takeaways) {
-                    takeaways.joinToString(" ") { (topic, detail) -> "$topic: $detail" }
-                }
-                // Derived from the lines actually shown, so the badge cannot claim a fixed
-                // reading time for every episode. It recomputes when the content changes.
-                val briefReadingTime = remember(briefText) {
-                    ArticleContentSanitizer.formatReadingTime(
-                        ArticleContentSanitizer.readingTimeMinutesFor(briefText),
-                    )
-                }
-                Surface(
-                    shape = RoundedCornerShape(999.dp),
-                    color = GlassTokens.primaryContainer(darkTheme),
-                ) {
-                    Text(
-                        text = briefReadingTime,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = GlassTokens.accentTeal(darkTheme),
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                    )
-                }
-            }
-
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                takeaways.forEachIndexed { index, (topic, detail) ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.Top,
-                    ) {
-                        Surface(
-                            modifier = Modifier.size(22.dp),
-                            shape = CircleShape,
-                            color = GlassTokens.surfaceContainerHighest(darkTheme),
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(
-                                    text = "${index + 1}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = GlassTokens.accentTeal(darkTheme),
-                                )
-                            }
-                        }
-                        Text(
-                            text = buildAnnotatedString {
-                                withStyle(
-                                    SpanStyle(
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = GlassTokens.textPrimary(darkTheme),
-                                    )
-                                ) {
-                                    append("$topic: ")
-                                }
-                                append(detail)
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = GlassTokens.textSecondary(darkTheme),
-                            lineHeight = 20.sp,
-                        )
-                    }
-                }
-            }
-
-            // Ask AI Pill Button
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .clickable { onAskAi(item.title, bodyPlainText.ifBlank { item.title }) },
-                shape = RoundedCornerShape(14.dp),
-                color = GlassTokens.surfaceContainerHigh(darkTheme),
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        AppIcon(AppIconKind.Spark, Modifier.size(16.dp), GlassTokens.accentTeal(darkTheme))
-                        Text(
-                            text = stringResource(R.string.podcast_ask_ai_deep),
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Medium,
-                            color = GlassTokens.textPrimary(darkTheme),
-                        )
-                    }
-                    AppIcon(AppIconKind.ChevronRight, Modifier.size(14.dp), GlassTokens.textSecondary(darkTheme))
-                }
-            }
-        }
-    }
-}
-
-private fun deriveArticleTakeaways(plainText: String, title: String): List<Pair<String, String>> {
-    val sentences = plainText.split(Regex("(?<=[.!?。！？])\\s+"))
-        .map { it.trim() }
-        .filter { it.length > 20 && !it.startsWith("http", ignoreCase = true) }
-    if (sentences.isEmpty()) {
-        return listOf(
-            "Executive Overview" to title,
-            "Key Insight" to "Structured full-text analysis extracted directly from publisher feed.",
-            "Strategic Focus" to "Use Ask AI to explore implications, citations, and follow-ups on this story.",
-        )
-    }
-    val p1 = sentences.firstOrNull() ?: title
-    val p2 = sentences.getOrNull(sentences.size / 2) ?: sentences.getOrNull(1) ?: "In-depth development and architectural considerations."
-    val p3 = sentences.lastOrNull() ?: "Final conclusions and implications for future systems."
-    return listOf(
-        "Core Narrative" to p1,
-        "Deep Analysis" to p2,
-        "Strategic Impact" to p3,
-    )
-}
-
-private fun derivePodcastTakeaways(plainText: String, title: String): List<Pair<String, String>> {
-    val sentences = plainText.split(Regex("(?<=[.!?。！？])\\s+"))
-        .map { it.trim() }
-        .filter { it.length > 15 && !it.startsWith("http", ignoreCase = true) }
-    if (sentences.isEmpty()) {
-        return listOf(
-            "Episode Core" to title,
-            "Discussion Focus" to "Key speaker themes and technology breakthroughs discussed in this recording.",
-            "Actionable Advice" to "Tap below to ask AI questions about specific audio timestamps or concepts.",
-        )
-    }
-    val p1 = sentences.firstOrNull() ?: title
-    val p2 = sentences.getOrNull(sentences.size / 2) ?: sentences.getOrNull(1) ?: "Key technical considerations and architectural trade-offs."
-    val p3 = sentences.lastOrNull() ?: "Predictions and future developments highlighted by the guests."
-    return listOf(
-        "Technical Moats" to p1,
-        "Architecture & Systems" to p2,
-        "Key Conclusion" to p3,
-    )
 }

@@ -20,35 +20,49 @@ class MainActivityNavigationTest {
     @get:Rule
     val composeRule = createAndroidComposeRule<MainActivity>()
 
+    private fun string(id: Int): String = composeRule.activity.getString(id)
+
+    private fun scrollToAndClick(text: String) {
+        val matcher = hasText(text)
+        composeRule.onNode(hasScrollAction()).performScrollToNode(matcher)
+        composeRule.onNode(matcher).assertIsDisplayed().performClick()
+        composeRule.waitForIdle()
+    }
+
+    private fun assertOnScreen(text: String) {
+        val matcher = hasText(text)
+        composeRule.onNode(hasScrollAction()).performScrollToNode(matcher)
+        composeRule.onNode(matcher).assertIsDisplayed()
+    }
+
+    private fun returnToInbox() {
+        scrollToAndClick(string(R.string.wear_back_to_inbox))
+        assertOnScreen(string(R.string.app_name))
+    }
+
+    /**
+     * Inbox "More" hub: Library opens the Saved screen and Settings opens Feed management. Each
+     * destination returns via "Back to Inbox". Selectors come from resources so they follow
+     * the device locale and the current labels.
+     */
     @Test
-    fun savedAndFeedsRemainReachableAcrossWearReleaseProfiles() {
-        val inboxTitleMatcher = hasText("WristBrief")
-        composeRule.onNode(inboxTitleMatcher).assertIsDisplayed()
+    fun libraryAndSettingsRemainReachableAcrossWearReleaseProfiles() {
+        assertOnScreen(string(R.string.app_name))
 
-        val savedMatcher = hasText("Saved ·", substring = true)
-        composeRule.onNode(hasScrollAction()).performScrollToNode(savedMatcher)
-        composeRule.onNode(savedMatcher).performClick()
+        scrollToAndClick(string(R.string.wear_library_title))
+        assertOnScreen(string(R.string.wear_saved_title))
+        returnToInbox()
 
-        val backMatcher = hasText("Back to Inbox")
-        composeRule.onNode(hasScrollAction()).performScrollToNode(backMatcher)
-        composeRule.onNode(backMatcher).assertIsDisplayed().performClick()
-
-        val feedsMatcher = hasText("Feeds")
-        composeRule.onNode(hasScrollAction()).performScrollToNode(feedsMatcher)
-        composeRule.onNode(feedsMatcher).performClick()
-
-        composeRule.onNode(hasScrollAction()).performScrollToNode(backMatcher)
-        composeRule.onNode(backMatcher).assertIsDisplayed().performClick()
-
-        composeRule.onNode(hasScrollAction()).performScrollToNode(inboxTitleMatcher)
-        composeRule.onNode(inboxTitleMatcher).assertIsDisplayed()
+        scrollToAndClick(string(R.string.wear_settings_title))
+        assertOnScreen(string(R.string.wear_feeds_title))
+        returnToInbox()
     }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
     fun inboxRespondsToRotaryInputAcrossWearReleaseProfiles() {
         val scrollable = composeRule.onNode(hasScrollAction())
-        scrollable.performScrollToNode(hasText("WristBrief"))
+        scrollable.performScrollToNode(hasText(string(R.string.app_name)))
         composeRule.waitForIdle()
 
         val before = scrollable.fetchSemanticsNode().config[
@@ -71,44 +85,26 @@ class MainActivityNavigationTest {
     }
 
     @Test
-    fun feedsDestinationSurvivesActivityRecreationAcrossWearReleaseProfiles() {
-        val feedsMatcher = hasText("Feeds")
-        composeRule.onNode(hasScrollAction()).performScrollToNode(feedsMatcher)
-        composeRule.onNode(feedsMatcher).performClick()
-
-        val backMatcher = hasText("Back to Inbox")
-        composeRule.onNode(hasScrollAction()).performScrollToNode(backMatcher)
-        composeRule.onNode(backMatcher).assertIsDisplayed()
+    fun settingsDestinationSurvivesActivityRecreationAcrossWearReleaseProfiles() {
+        scrollToAndClick(string(R.string.wear_settings_title))
+        assertOnScreen(string(R.string.wear_feeds_title))
 
         composeRule.activityRule.scenario.recreate()
         composeRule.waitForIdle()
 
-        composeRule.onNode(hasScrollAction()).performScrollToNode(backMatcher)
-        composeRule.onNode(backMatcher).assertIsDisplayed().performClick()
-
-        val inboxTitleMatcher = hasText("WristBrief")
-        composeRule.onNode(hasScrollAction()).performScrollToNode(inboxTitleMatcher)
-        composeRule.onNode(inboxTitleMatcher).assertIsDisplayed()
+        assertOnScreen(string(R.string.wear_feeds_title))
+        returnToInbox()
     }
 
     @Test
-    fun savedDestinationSurvivesActivityRecreationAcrossWearReleaseProfiles() {
-        val savedMatcher = hasText("Saved ·", substring = true)
-        composeRule.onNode(hasScrollAction()).performScrollToNode(savedMatcher)
-        composeRule.onNode(savedMatcher).performClick()
-
-        val backMatcher = hasText("Back to Inbox")
-        composeRule.onNode(hasScrollAction()).performScrollToNode(backMatcher)
-        composeRule.onNode(backMatcher).assertIsDisplayed()
+    fun libraryDestinationSurvivesActivityRecreationAcrossWearReleaseProfiles() {
+        scrollToAndClick(string(R.string.wear_library_title))
+        assertOnScreen(string(R.string.wear_saved_title))
 
         composeRule.activityRule.scenario.recreate()
         composeRule.waitForIdle()
 
-        composeRule.onNode(hasScrollAction()).performScrollToNode(backMatcher)
-        composeRule.onNode(backMatcher).assertIsDisplayed().performClick()
-
-        val inboxTitleMatcher = hasText("WristBrief")
-        composeRule.onNode(hasScrollAction()).performScrollToNode(inboxTitleMatcher)
-        composeRule.onNode(inboxTitleMatcher).assertIsDisplayed()
+        assertOnScreen(string(R.string.wear_saved_title))
+        returnToInbox()
     }
 }

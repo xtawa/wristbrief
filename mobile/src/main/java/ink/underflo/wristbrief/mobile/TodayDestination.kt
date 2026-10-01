@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -92,6 +93,8 @@ internal fun TodayDestination(
     onImportOpml: () -> Unit,
     onOpenAskAi: () -> Unit,
     onOpenLibrary: () -> Unit,
+    /** Incremented by the shell after an auto refresh so this screen re-reads the inbox. */
+    inboxRevision: Int = 0,
     onOpenArticle: (MobileFeedItem) -> Unit = {},
     onPlayPodcast: (MobileFeedItem) -> Unit = {},
     progressStore: PodcastProgressStore? = null,
@@ -221,6 +224,13 @@ internal fun TodayDestination(
             in 5..11 -> R.string.today_greeting_morning
             in 12..17 -> R.string.today_greeting_afternoon
             else -> R.string.today_greeting_evening
+        }
+    }
+
+    LaunchedEffect(inboxRevision) {
+        if (inboxRevision > 0) {
+            items = inboxRepository.items()
+            feeds = feedManager.feeds()
         }
     }
 
@@ -674,8 +684,27 @@ internal fun TodayDestination(
                                     }
                                 }
                             }
+                        } else if (feeds.isEmpty()) {
+                            // No subscriptions yet: distinct from "no new articles". Both entry
+                            // points open the real editor / OPML picker directly.
+                            Text(
+                                text = stringResource(R.string.today_empty_body),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = GlassTokens.textSecondary(darkTheme),
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                            ) {
+                                OutlinedButton(onClick = onImportOpml) {
+                                    Text(stringResource(R.string.today_import_opml))
+                                }
+                                Button(onClick = onAddFeed) {
+                                    Text(stringResource(R.string.today_add_feed))
+                                }
+                            }
                         } else {
-                            // All caught up
+                            // Subscribed, but nothing cached right now.
                             Text(
                                 text = stringResource(R.string.daily_brief_all_caught_up),
                                 style = MaterialTheme.typography.bodyMedium,

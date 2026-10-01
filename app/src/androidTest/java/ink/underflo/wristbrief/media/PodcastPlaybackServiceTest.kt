@@ -20,6 +20,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.math.abs
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -250,6 +251,86 @@ class PodcastPlaybackServiceTest {
         } finally {
             controller?.let(::releaseController)
             context.stopService(serviceIntent)
+            mediaFile.delete()
+        }
+    }
+
+    @Test
+    fun accountPurgeStopsActivePlaybackAndBlocksCheckpointResurrection() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val serviceIntent = Intent(context, PodcastPlaybackService::class.java)
+        val mediaFile = createSilentWav(context, durationSeconds = 60)
+        val oldAccountEpisode = "ci-old-account-episode"
+        val newAccountEpisode = "ci-new-account-episode"
+        val progressStore = SharedPreferencesPodcastProgressStore(context)
+        progressStore.delete(oldAccountEpisode)
+        progressStore.delete(newAccountEpisode)
+        context.startService(serviceIntent)
+
+        var controller: MediaController? = null
+        try {
+            val playing = connectController(context)
+            controller = playing
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                playing.setMediaItem(
+                    MediaItem.Builder().setMediaId(oldAccountEpisode).setUri(Uri.fromFile(mediaFile)).build()
+                )
+                playing.prepare()
+                playing.play()
+            }
+            assertTrue(
+                "Old-account episode did not start playing",
+                awaitControllerState(playing, timeoutMs = 10_000L) {
+                    it.currentMediaItem?.mediaId == oldAccountEpisode && it.isPlaying
+                }
+            )
+            // A seek forces a checkpoint, proving the episode was persisted before sign-out.
+            InstrumentationRegistry.getInstrumentation().runOnMainSync { playing.seekTo(9_000L) }
+            assertNotNull(
+                "Precondition: active episode progress was never persisted",
+                awaitStoredProgress(progressStore, oldAccountEpisode, expectedPositionMs = 9_000L, timeoutMs = 5_000L)
+            )
+
+            // Phone signs out / switches account.
+            ink.underflo.wristbrief.sync.purgeWearAccountScopedData(context)
+
+            assertTrue(
+                "Account purge did not stop and clear the active old-account session",
+                awaitControllerState(playing, timeoutMs = 5_000L) { it.currentMediaItem == null && !it.isPlaying }
+            )
+            // Pause/stop listeners and the periodic checkpoint must not write the old item back.
+            Thread.sleep(500L)
+            assertNull("Old-account progress was resurrected after purge", progressStore.get(oldAccountEpisode))
+
+            // A new account's playback after the purge is persisted normally (the fence is not sticky).
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                playing.setMediaItem(
+                    MediaItem.Builder().setMediaId(newAccountEpisode).setUri(Uri.fromFile(mediaFile)).build()
+                )
+                playing.prepare()
+            }
+            assertTrue(
+                "New-account episode did not load after purge",
+                awaitControllerState(playing, timeoutMs = 10_000L) {
+                    it.currentMediaItem?.mediaId == newAccountEpisode && it.playbackState == Player.STATE_READY
+                }
+            )
+            InstrumentationRegistry.getInstrumentation().runOnMainSync { playing.seekTo(4_000L) }
+            assertNotNull(
+                "New-account progress was not persisted after purge",
+                awaitStoredProgress(progressStore, newAccountEpisode, expectedPositionMs = 4_000L, timeoutMs = 5_000L)
+            )
+
+            releaseController(playing)
+            controller = null
+            // onDestroy checkpoints the current (new-account) item only; the old item stays absent.
+            context.stopService(serviceIntent)
+            Thread.sleep(500L)
+            assertNull("onDestroy resurrected old-account progress", progressStore.get(oldAccountEpisode))
+        } finally {
+            controller?.let(::releaseController)
+            context.stopService(serviceIntent)
+            progressStore.delete(newAccountEpisode)
             mediaFile.delete()
         }
     }

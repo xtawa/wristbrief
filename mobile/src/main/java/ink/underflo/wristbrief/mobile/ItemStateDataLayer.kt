@@ -27,7 +27,10 @@ internal class PhoneItemStateClockStore(context: Context) {
     }
 }
 
-class PhoneItemStateSyncManager(context: Context) {
+class PhoneItemStateSyncManager(
+    context: Context,
+    private val gate: WearSyncGate = WearSyncGate.fromPreferences(context),
+) {
     private val appContext = context.applicationContext
     private val clockStore = PhoneItemStateClockStore(appContext)
     private val dataClient = Wearable.getDataClient(appContext)
@@ -56,6 +59,10 @@ class PhoneItemStateSyncManager(context: Context) {
     /** One decoded snapshot for collection UIs, rather than a full decode per row/flag. */
     fun states(): Map<String, ItemStateClock> = clockStore.load().associateBy { it.itemId }
 
+    /** Re-enable sync without manufacturing a new user mutation or timestamp. */
+    @Synchronized
+    fun republishOwnedState() = publishOwned(clockStore.load())
+
     private fun mutateLocal(itemId: String, read: Boolean?, saved: Boolean?, nowEpochMs: Long) {
         val states = clockStore.load().associateBy { it.itemId }.toMutableMap()
         states[itemId] = localMutation(states[itemId], itemId, read, saved, nowEpochMs, SyncOrigin.PHONE)
@@ -64,6 +71,7 @@ class PhoneItemStateSyncManager(context: Context) {
     }
 
     private fun publishOwned(states: Collection<ItemStateClock>) {
+        if (!gate.isEnabled()) return
         val payload = ItemStateWireContract.encode(ownedStates(states, SyncOrigin.PHONE))
         val request = PutDataMapRequest.create(ItemStateWireContract.PHONE_PATH).apply {
             dataMap.putString(ItemStateWireContract.PAYLOAD_KEY, payload)

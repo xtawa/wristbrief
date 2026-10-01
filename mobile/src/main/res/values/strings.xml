@@ -144,6 +144,13 @@
     <string name="article_original_link_body">Open this article in your browser to view the original formatting, media, or comments.</string>
     <string name="article_open_browser">Open in browser</string>
     <string name="article_loading">Loading the full article…</string>
+    <string name="article_excerpt_notice">Only the feed excerpt is available here. Open the original site for the full article.</string>
+    <string name="article_no_content">This feed item has no readable text. If the publisher provides an original page, open it below.</string>
+    <string name="article_ai_scope_note">AI will use only the text available above, not the full webpage or audio.</string>
+    <string name="reader_appearance_action">Aa</string>
+    <string name="reader_text_size">Text size</string>
+    <string name="reader_text_size_option">%1$d%% size</string>
+    <string name="reader_done">Done</string>
     <string name="article_reading_meta">%1$s · %2$d words</string>
     <string name="article_time_yesterday">Yesterday %1$s</string>
     <string name="article_show_notes">Show Notes</string>

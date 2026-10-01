@@ -73,7 +73,7 @@ fun BriefGlassCard(
     points: List<String>,
     onListen: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
-    listenContentDescription: String = "Listen to today's brief",
+    listenContentDescription: String,
 ) {
     val shape = WearGlassTokens.MajorShape
 

@@ -68,6 +68,18 @@ internal fun normalizedResumePosition(savedPositionMs: Long, durationMs: Long): 
     else savedPositionMs.coerceAtMost(durationMs)
 }
 
+/**
+ * Resume position for [saved] measured against that episode's own persisted duration.
+ *
+ * Before `setMediaItem`, a MediaController still reports the duration of whatever item it
+ * previously held (or `C.TIME_UNSET`), so that value must never decide whether a different
+ * episode's saved position counts as "finished".
+ */
+internal fun resumePositionFor(saved: PodcastEpisodeProgress?): Long {
+    if (saved == null || saved.completed) return 0L
+    return normalizedResumePosition(saved.positionMs, saved.durationMs)
+}
+
 internal fun shouldCheckpoint(lastSavedPositionMs: Long, currentPositionMs: Long): Boolean =
     abs(currentPositionMs - lastSavedPositionMs) >= PROGRESS_CHECKPOINT_MS
 

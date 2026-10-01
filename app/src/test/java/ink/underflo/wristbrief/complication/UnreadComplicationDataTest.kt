@@ -28,7 +28,7 @@ class UnreadComplicationDataTest {
         assertEquals(1, snapshot.unreadCount)
         assertEquals("Newest", snapshot.latestTitle)
         assertEquals("1", snapshot.shortText)
-        assertEquals("1 unread · Newest", snapshot.longText)
+        assertEquals("1 unread · Newest", snapshot.englishLongText())
     }
 
     @Test
@@ -41,7 +41,7 @@ class UnreadComplicationDataTest {
 
         assertEquals(0, snapshot.unreadCount)
         assertNull(snapshot.latestTitle)
-        assertEquals("All caught up", snapshot.longText)
+        assertEquals("All caught up", snapshot.englishLongText())
     }
 
     @Test
@@ -63,6 +63,35 @@ class UnreadComplicationDataTest {
         assertEquals(28, compact.codePointCount(0, compact.length))
         assertTrue(Character.isSurrogatePair(compact[26], compact[27]))
     }
+
+    @Test
+    fun snapshot_applies_watch_keywords_like_the_inbox() {
+        val keywordFeeds = listOf(
+            FeedSubscription("enabled", "Enabled", "https://example.com/feed", enabled = true, watchKeywords = listOf("wear"))
+        )
+        val snapshot = buildUnreadComplicationSnapshot(
+            subscriptions = keywordFeeds,
+            cachedItems = listOf(
+                item("match", "enabled", "Wear OS tiles update", 10),
+                item("other", "enabled", "Unrelated headline", 20)
+            ),
+            readItemIds = emptySet()
+        )
+
+        assertEquals(1, snapshot.unreadCount)
+        assertEquals("Wear OS tiles update", snapshot.latestTitle)
+    }
+
+    @Test
+    fun long_text_without_title_uses_count_formatter() {
+        assertEquals("4 unread", UnreadComplicationSnapshot(4, null).englishLongText())
+    }
+
+    private fun UnreadComplicationSnapshot.englishLongText() = longText(
+        caughtUp = { "All caught up" },
+        unread = { "$it unread" },
+        unreadWithTitle = { count, title -> "$count unread · $title" },
+    )
 
     @Test
     fun zero_budget_returns_empty_text() {

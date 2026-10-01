@@ -144,7 +144,7 @@
     <string name="article_original_link_body">Open this article in your browser to view the original formatting, media, or comments.</string>
     <string name="article_open_browser">Open in browser</string>
     <string name="article_loading">Loading the full article…</string>
-    <string name="article_excerpt_notice">Only the feed excerpt is available here. Open the original site for the full article.</string>
+    <string name="article_excerpt_notice">This text comes from the feed. The original site may have more content.</string>
     <string name="article_no_content">This feed item has no readable text. If the publisher provides an original page, open it below.</string>
     <string name="article_ai_scope_note">AI will use only the text available above, not the full webpage or audio.</string>
     <string name="reader_appearance_action">Aa</string>
@@ -309,8 +309,8 @@
     <string name="settings_refresh_3h">3 hours</string>
     <string name="settings_refresh_6h">6 hours</string>
     <string name="settings_refresh_manual">Manual</string>
-    <string name="settings_wifi_only_title">Download on Wi-Fi only</string>
-    <string name="settings_wifi_only_summary">Save mobile data for podcasts and feed sync</string>
+    <string name="settings_wifi_only_title">Play podcasts on Wi-Fi only</string>
+    <string name="settings_wifi_only_summary">Require Wi-Fi when starting or resuming a podcast. This does not restrict feed refresh.</string>
     <string name="settings_wear_sync_title">Wear OS synchronization</string>
     <string name="settings_wear_sync_summary">Sync unread items, read states, and playback progress to your watch</string>
     <string name="settings_notifications_title">Notifications</string>

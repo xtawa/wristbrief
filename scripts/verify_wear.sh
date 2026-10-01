@@ -5,7 +5,10 @@ font_scale="${1:-1.00}"
 if [ "$font_scale" != "1.00" ]; then
   adb shell settings put system font_scale "$font_scale"
   actual_font_scale="$(adb shell settings get system font_scale | tr -d '\r')"
-  test "$actual_font_scale" = "$font_scale"
+  echo "Wear font scale: requested=$font_scale system=$actual_font_scale"
+  # Wear maps a requested scale to its supported steps (e.g. 1.30 -> 1.24).
+  # The app-level instrumentation assertion independently checks Resources.
+  awk -v actual="$actual_font_scale" 'BEGIN { exit !(actual > 1.0) }'
 fi
 gradle :app:connectedDebugAndroidTest \
   "-Pandroid.testInstrumentationRunnerArguments.expectedFontScale=$font_scale" --stacktrace

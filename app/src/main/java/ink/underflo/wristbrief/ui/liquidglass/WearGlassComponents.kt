@@ -144,6 +144,7 @@ fun LibraryPreviewRow(
     meta: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    metaMaxLines: Int = 1,
 ) {
     val shape = WearGlassTokens.RowShape
 
@@ -172,7 +173,7 @@ fun LibraryPreviewRow(
                 text = meta,
                 color = WearGlassTokens.TextSecondary,
                 fontSize = 12.sp,
-                maxLines = 1,
+                maxLines = metaMaxLines,
                 overflow = TextOverflow.Ellipsis,
             )
         }

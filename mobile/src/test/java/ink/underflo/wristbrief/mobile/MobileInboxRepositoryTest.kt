@@ -41,6 +41,21 @@ class MobileInboxRepositoryTest {
         assertEquals("saved", repo.savedItems().single().id)
     }
 
+    @Test
+    fun refreshingActiveFeedKeepsPausedFeedsCachedItems() = runBlocking {
+        val paused = MobileFeedSubscription("paused", "Paused", "https://example.com/paused", enabled = false)
+        val active = MobileFeedSubscription("active", "Active", "https://example.com/active")
+        val store = InMemoryInboxStore().apply {
+            savedItems = listOf(MobileFeedItem("cached", paused.id, paused.title, "Cached", null, null, null, null, 1))
+        }
+        val repo = MobileInboxRepository(
+            MobileFeedManager(InMemoryFeedStore(listOf(paused, active)), FakeFeedProbe(), FakeFeedSyncPublisher()),
+            store, InMemoryItemStateAdapter(), FakeItemFetcher(mapOf(active.url to emptyList())),
+        )
+        assertEquals(1, repo.refresh().totalCount)
+        assertEquals("cached", repo.items().single().id)
+    }
+
     private class InMemoryInboxStore : MobileInboxStore {
         var savedItems: List<MobileFeedItem> = emptyList()
         override fun load(): List<MobileFeedItem> = savedItems

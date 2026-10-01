@@ -314,9 +314,11 @@ class MobileInboxRepository(
         val previous = store.load()
         val failedIds = feeds.indices.filter { feedResults[it].isFailure }.map { feeds[it].id }.toSet()
         val subscribedIds = feedManager.feeds().map { it.id }.toSet()
+        val fetchedFeedIds = feeds.map { it.id }.toSet()
         val savedIds = itemStates((previous + fetchedItems).map { it.id }).filterValues { it.isSaved }.keys
         val retained = previous.filter {
-            it.feedId in failedIds || (it.feedId in subscribedIds && it.id in savedIds)
+            it.feedId in failedIds || (it.feedId in subscribedIds &&
+                (it.feedId !in fetchedFeedIds || it.id in savedIds))
         }
         val combined = (fetchedItems + retained)
             .distinctBy { it.id }

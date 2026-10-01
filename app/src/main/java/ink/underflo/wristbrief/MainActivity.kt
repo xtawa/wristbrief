@@ -251,6 +251,20 @@ private fun CompactText(text: String, maxLines: Int = 2) {
     Text(text, maxLines = maxLines, overflow = TextOverflow.Ellipsis)
 }
 
+/** Information is not a disabled button: retain readable contrast and all instructions. */
+@Composable
+private fun WearInformation(title: String, detail: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.fillMaxWidth()
+            .background(WearGlassTokens.SurfaceSubtle, WearGlassTokens.RowShape)
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(title, color = WearGlassTokens.TextPrimary)
+        Text(detail, color = WearGlassTokens.TextSecondary)
+    }
+}
+
 @Composable
 internal fun InboxScreen(
     state: InboxUiState,
@@ -320,6 +334,7 @@ internal fun InboxScreen(
                     LibraryPreviewRow(
                         title = stringResource(R.string.wear_no_articles),
                         meta = emptyDetail,
+                        metaMaxLines = 4,
                         onClick = onRefresh,
                     )
                 }
@@ -587,12 +602,9 @@ internal fun SavedScreen(
             }
             if (items.isEmpty()) {
                 item {
-                    Button(
-                        onClick = {},
-                        enabled = false,
-                        label = { CompactText(stringResource(R.string.wear_nothing_saved), maxLines = 1) },
-                        secondaryLabel = { CompactText(stringResource(R.string.wear_save_hint)) },
-                        transformation = SurfaceTransformation(transformationSpec),
+                    WearInformation(
+                        title = stringResource(R.string.wear_nothing_saved),
+                        detail = stringResource(R.string.wear_save_hint),
                         modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth(),
                     )
                 }
@@ -759,14 +771,9 @@ internal fun ArticleDetailScreen(
                         }
                     } else {
                         item {
-                            Button(
-                                onClick = {},
-                                enabled = false,
-                                label = { CompactText(playbackState.progressLabel, maxLines = 1) },
-                                secondaryLabel = {
-                                    CompactText(stringResource(R.string.wear_playing_speed, playbackState.playbackSpeed.toString()), maxLines = 1)
-                                },
-                                transformation = SurfaceTransformation(transformationSpec),
+                            WearInformation(
+                                title = playbackState.progressLabel,
+                                detail = stringResource(R.string.wear_playing_speed, playbackState.playbackSpeed.toString()),
                                 modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                             )
                         }
@@ -884,12 +891,9 @@ internal fun FeedManagementScreen(
 
             if (feeds.isEmpty()) {
                 item {
-                    Button(
-                        onClick = {},
-                        enabled = false,
-                        label = { CompactText(stringResource(R.string.wear_no_subscriptions), maxLines = 1) },
-                        secondaryLabel = { CompactText(stringResource(R.string.wear_add_on_phone_subtitle)) },
-                        transformation = SurfaceTransformation(transformationSpec),
+                    WearInformation(
+                        title = stringResource(R.string.wear_no_subscriptions),
+                        detail = stringResource(R.string.wear_add_on_phone_subtitle),
                         modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                     )
                 }
@@ -936,12 +940,9 @@ internal fun FeedManagementScreen(
             }
 
             item {
-                Button(
-                    onClick = {},
-                    enabled = false,
-                    label = { CompactText(stringResource(R.string.wear_add_on_phone_title), maxLines = 1) },
-                    secondaryLabel = { CompactText(stringResource(R.string.wear_phone_sync_notice)) },
-                    transformation = SurfaceTransformation(transformationSpec),
+                WearInformation(
+                    title = stringResource(R.string.wear_add_on_phone_title),
+                    detail = stringResource(R.string.wear_phone_sync_notice),
                     modifier = Modifier.transformedHeight(this, transformationSpec).fillMaxWidth()
                 )
             }

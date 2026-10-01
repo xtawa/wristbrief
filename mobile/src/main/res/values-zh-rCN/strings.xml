@@ -144,7 +144,7 @@
     <string name="article_original_link_body">在浏览器中打开此文章，以查看原网页版式、多媒体内容或评论。</string>
     <string name="article_open_browser">在浏览器中打开</string>
     <string name="article_loading">正在加载全文…</string>
-    <string name="article_excerpt_notice">此处仅有订阅源摘要。若要阅读完整文章，请打开原文网页。</string>
+    <string name="article_excerpt_notice">此处显示订阅源提供的文字，原文网页可能包含更多内容。</string>
     <string name="article_no_content">此条目没有可阅读的正文。如果发布者提供了原文网页，可在下方打开。</string>
     <string name="article_ai_scope_note">AI 只会参考上方可用的文字，不会读取完整网页或音频。</string>
     <string name="reader_appearance_action">Aa</string>
@@ -309,8 +309,8 @@
     <string name="settings_refresh_3h">3 小时</string>
     <string name="settings_refresh_6h">6 小时</string>
     <string name="settings_refresh_manual">手动</string>
-    <string name="settings_wifi_only_title">仅在 Wi-Fi 下下载</string>
-    <string name="settings_wifi_only_summary">在移动数据网络下暂停播客及大文件下载以节省流量</string>
+    <string name="settings_wifi_only_title">仅在 Wi-Fi 下播放播客</string>
+    <string name="settings_wifi_only_summary">开始或恢复播放播客时要求连接 Wi-Fi，不限制订阅源刷新。</string>
     <string name="settings_wear_sync_title">Wear OS 手表同步</string>
     <string name="settings_wear_sync_summary">将未读文章、阅读状态与播放进度同步至手表</string>
     <string name="settings_notifications_title">通知提醒</string>

@@ -1,6 +1,7 @@
 package ink.underflo.wristbrief.complication
 
 import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
 import androidx.wear.watchface.complications.data.ComplicationData
 import androidx.wear.watchface.complications.data.ComplicationType
@@ -22,24 +23,37 @@ class UnreadComplicationDataSourceService : SuspendingComplicationDataSourceServ
             cachedItems = store.cachedItems(),
             readItemIds = store.readItemIds()
         )
-        return snapshot.toComplicationData(request.complicationType, launchAppPendingIntent())
+        return snapshot.toComplicationData(this, request.complicationType, launchAppPendingIntent())
     }
 
     override fun getPreviewData(type: ComplicationType): ComplicationData? =
-        UnreadComplicationSnapshot(3, getString(R.string.complication_preview_headline))
-            .toComplicationData(type, tapAction = null)
+        buildUnreadComplicationPreview(this, type)
 
-    private fun UnreadComplicationSnapshot.toComplicationData(
+    private fun launchAppPendingIntent(): PendingIntent = PendingIntent.getActivity(
+        this,
+        0,
+        Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+}
+
+/** Shared by the service and installed-resource contract tests. */
+internal fun buildUnreadComplicationPreview(context: Context, type: ComplicationType): ComplicationData? =
+    UnreadComplicationSnapshot(3, context.getString(R.string.complication_preview_headline))
+        .toComplicationData(context, type, tapAction = null)
+
+private fun UnreadComplicationSnapshot.toComplicationData(
+        context: Context,
         type: ComplicationType,
         tapAction: PendingIntent?
     ): ComplicationData? {
         val description = PlainComplicationText.Builder(
-            getString(R.string.complication_unread_description, unreadCount)
+            context.getString(R.string.complication_unread_description, unreadCount)
         ).build()
         val long = longText(
-            caughtUp = { getString(R.string.complication_all_caught_up) },
-            unread = { count -> getString(R.string.complication_unread_count, count) },
-            unreadWithTitle = { count, title -> getString(R.string.complication_unread_with_title, count, title) },
+            caughtUp = { context.getString(R.string.complication_all_caught_up) },
+            unread = { count -> context.getString(R.string.complication_unread_count, count) },
+            unreadWithTitle = { count, title -> context.getString(R.string.complication_unread_with_title, count, title) },
         )
         return when (type) {
             ComplicationType.SHORT_TEXT -> ShortTextComplicationData.Builder(
@@ -53,11 +67,3 @@ class UnreadComplicationDataSourceService : SuspendingComplicationDataSourceServ
             else -> null
         }
     }
-
-    private fun launchAppPendingIntent(): PendingIntent = PendingIntent.getActivity(
-        this,
-        0,
-        Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP),
-        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-    )
-}

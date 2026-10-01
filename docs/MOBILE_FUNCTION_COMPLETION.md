@@ -49,7 +49,7 @@ This document is the implementation source of truth for what was changed and wha
 - **Feed refresh frequency**: honored as a foreground policy (`InboxAutoRefreshPolicy`): on app start and `ON_RESUME`, if the last completed refresh is older than the interval (and at least one feed is enabled), the inbox is refreshed once; `Manual` never auto-refreshes; a recorded time in the future (clock rollback) counts as stale so the policy recovers. The policy object is `internal` because `RefreshInterval` is internal. `MobileInboxRepository` records the completion time through an additive `onRefreshCompleted` callback into `AppPreferences.lastInboxRefreshEpochMs`. The Settings card now states exactly this ("There is no background refresh.") and shows "Last refresh: …" from the observed value or "Not refreshed yet". Today re-reads the inbox via an `inboxRevision` signal after an auto refresh.
 - **Notifications** switch removed from the UI. Reason: no feature exists behind it (only the mandatory playback notification, which a preference cannot disable). The preference keys stay readable (`AppPreferences.isNotificationsEnabled`, documented as legacy) so `AppPreferencesTest` is unaffected.
 - About shows `BuildConfig.VERSION_NAME`.
-- **Re-enable snapshot**: switching Wear sync back on calls `onWearSyncReenabled` (wired in `MainActivity`), which resends the subscription list (`republishToWatch`) and the latest in-progress episode (`PodcastProgressStore.getLatestActive()` → `PhonePlaybackSyncManager.publishLocalProgress`). **Limitation:** read/saved states are not resent immediately because `PhoneItemStateSyncManager` has no public republish entry point (file not in this pass's ownership); they are resent in full with the next local read/save change, since every mutation publishes the complete owned set.
+- **Re-enable snapshot**: switching Wear sync back on calls `onWearSyncReenabled` (wired in `MainActivity`), which resends the subscription list (`republishToWatch`) and the latest in-progress episode (`PodcastProgressStore.getLatestActive()` → `PhonePlaybackSyncManager.publishLocalProgress`). Parent integration added `PhoneItemStateSyncManager.republishOwnedState()` (gated, no new timestamp) and wired it into the same callback, so owned read/saved states are resent immediately as well.
 
 ### 2.7 Screenshot-driven polish (from `ux-review-sheets/*-contact-sheet.png`)
 - Settings gear in the shell header was nearly black on the dark header: the glass surface color is not in the Material scheme, so `LocalContentColor` fell back to black. The icon is now tinted `GlassTokens.textPrimary(darkTheme)` and the button is an explicit 48 dp target.
@@ -80,7 +80,7 @@ Legend — Implementation: Done / Partial / Not implemented. Verification: **U**
 | 13 | Ask AI: scope applied, real counts and citations | Done | U (`AskAiContextBuilderTest`), E | Gateway `/v1/summary` + session required; quota/provider errors mapped as before |
 | 14 | Ask AI: article/clip handoff from reader/player | Done (explicit `Article` scope) | U, E | Reader handoff content itself comes from PR11-owned `ArticleDetailDestination` |
 | 15 | Ask AI: sign-in / unavailable / quota states | Pre-existing, unchanged | S | — |
-| 16 | Settings: Wear sync toggle gates phone→watch publishing; re-enable resends subscriptions + latest playback | Done (read/saved snapshot resent on next local change — see 2.5) | U (`WearSyncGateTest` – gate semantics + republish), S for the three Data Layer call sites | Real Data Layer delivery needs a paired watch; cannot be unit-tested |
+| 16 | Settings: Wear sync toggle gates phone→watch publishing; re-enable resends subscriptions + latest playback | Done (feeds + read/saved + latest playback resent — see 2.5) | U (`WearSyncGateTest` – gate semantics + republish), S for the three Data Layer call sites | Real Data Layer delivery needs a paired watch; cannot be unit-tested |
 | 17 | Settings: refresh interval honest copy + last refresh | Done | U, E | — |
 | 18 | Settings: Notifications toggle | **Removed** (no feature) | S, E | A real notifications feature would need channels + a producer; not present |
 | 19 | Settings: Wi-Fi only | Pre-existing; read by podcast player | S | Only applies to podcast playback, not feed refresh (copy already says so? — see "Open items") |
@@ -89,7 +89,7 @@ Legend — Implementation: Done / Partial / Not implemented. Verification: **U**
 | 22 | Podcast: mini/expanded player, speed, seek, transcript entry, Ask AI clip | Pre-existing, unchanged | S | Transcript generation requires gateway speech workers |
 | 23 | Podcast playback progress → watch | Gated by Wear toggle (new) | S | Paired watch |
 | 24 | Library (search, filters, saved, state restore) | PR12 (parent) | — | — |
-| 25 | Reader (`ArticleDetailDestination`): full text, images, speech preview | **PR11 dependency** | — | Base branch still shows the fictional digest in the reader until the parent integrates PR11's reader/RSS fixes into this branch. Not touched here. |
+| 25 | Reader (`ArticleDetailDestination`): full text, images, text size | Integrated by parent (read-only reviewed, see `docs/REVIEW_PARENT_INTEGRATION_20261001.md`) | Parent: mobile unit + APK + androidTest compile | Fictional digest removed; excerpt notice wording over-claims for full-text RSS (medium, non-blocking) |
 | 26 | Cloud sync of subscriptions/item state | Pre-existing runtime, unchanged | S | Signed-in session + gateway |
 
 **No "all production ready" claim is made.** Rows 7, 13–16, 21–23, 25–26 depend on configured external services or other PRs.
@@ -115,5 +115,5 @@ Legend — Implementation: Done / Partial / Not implemented. Verification: **U**
 - Wi-Fi-only copy (`settings_wifi_only_summary`) should be re-read against actual behavior (podcast playback only); not changed to avoid touching `strings.xml` in this pass.
 - Ask AI still cannot show the gateway's token/quota numbers (no endpoint on the phone contract); it shows quota/provider errors only when they occur.
 - Explore catalog is static; a remote directory or OPML-based discovery would be a new feature.
-- Reader/RSS parser fixes are PR11's; until the parent integrates them, the reader on this branch keeps the base behavior.
+- Reader/RSS parser fixes are integrated by the parent on this branch; review findings (no blockers, 3 medium) in `docs/REVIEW_PARENT_INTEGRATION_20261001.md`.
 - Parent should add an instrumentation assertion for onboarding → Explore and update any test that referenced `OnboardingAction.Explore` for Skip.

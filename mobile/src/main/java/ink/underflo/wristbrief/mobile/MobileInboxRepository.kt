@@ -159,11 +159,17 @@ class HttpFeedItemFetcher(
     }
 }
 
+data class MobileLibraryItemState(val isRead: Boolean = false, val isSaved: Boolean = false)
+
 interface ItemStateReaderAndWriter {
     fun isRead(itemId: String): Boolean
     fun isSaved(itemId: String): Boolean
     fun setRead(itemId: String, isRead: Boolean)
     fun setSaved(itemId: String, isSaved: Boolean)
+
+    /** Default keeps existing adapters compatible; persistent adapters can batch reads. */
+    fun itemStates(itemIds: Collection<String>): Map<String, MobileLibraryItemState> =
+        itemIds.associateWith { MobileLibraryItemState(isRead(it), isSaved(it)) }
 }
 
 class SyncManagerItemStateAdapter(
@@ -174,6 +180,15 @@ class SyncManagerItemStateAdapter(
 ) : ItemStateReaderAndWriter {
     override fun isRead(itemId: String): Boolean = syncManager.state(itemId)?.read?.value == true
     override fun isSaved(itemId: String): Boolean = syncManager.state(itemId)?.saved?.value == true
+    override fun itemStates(itemIds: Collection<String>): Map<String, MobileLibraryItemState> {
+        val snapshot = syncManager.states()
+        return itemIds.associateWith { id ->
+            MobileLibraryItemState(
+                isRead = snapshot[id]?.read?.value == true,
+                isSaved = snapshot[id]?.saved?.value == true,
+            )
+        }
+    }
     override fun setRead(itemId: String, isRead: Boolean) {
         val now = clock()
         syncManager.recordRead(itemId, isRead, nowEpochMs = now)
@@ -204,6 +219,9 @@ class MobileInboxRepository(
     fun isRead(itemId: String): Boolean = stateAdapter.isRead(itemId)
 
     fun isSaved(itemId: String): Boolean = stateAdapter.isSaved(itemId)
+
+    fun itemStates(itemIds: Collection<String>): Map<String, MobileLibraryItemState> =
+        stateAdapter.itemStates(itemIds)
 
     fun setRead(itemId: String, isRead: Boolean) {
         stateAdapter.setRead(itemId, isRead)

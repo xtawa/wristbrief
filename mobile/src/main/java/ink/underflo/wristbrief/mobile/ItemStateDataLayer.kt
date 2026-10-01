@@ -53,6 +53,9 @@ class PhoneItemStateSyncManager(context: Context) {
 
     fun state(itemId: String): ItemStateClock? = clockStore.load().firstOrNull { it.itemId == itemId }
 
+    /** One decoded snapshot for collection UIs, rather than a full decode per row/flag. */
+    fun states(): Map<String, ItemStateClock> = clockStore.load().associateBy { it.itemId }
+
     private fun mutateLocal(itemId: String, read: Boolean?, saved: Boolean?, nowEpochMs: Long) {
         val states = clockStore.load().associateBy { it.itemId }.toMutableMap()
         states[itemId] = localMutation(states[itemId], itemId, read, saved, nowEpochMs, SyncOrigin.PHONE)

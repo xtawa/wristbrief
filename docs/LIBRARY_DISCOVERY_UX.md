@@ -11,6 +11,7 @@ This change improves the native Android phone Library without replacing Compose,
 - Retain Library query, filter, category, sort and list scroll when opening an article/settings or switching tabs. Other destinations keep their previous restoration behavior.
 - Distinguish missing subscriptions, paused sources, missing cached content, an empty filter and no search results, with direct recovery actions.
 - Keep the neutral glass/teal vocabulary, simplify the heading, accommodate long source names, provide 48 dp interactive targets, expose selection and action semantics, and maintain English/Simplified Chinese resources.
+- Sort cached input by cache time before applying SQLite's retention cap, so an oldest-first migration or unsorted batch cannot discard newer items.
 
 ## Implementation boundaries
 
@@ -22,7 +23,11 @@ This change improves the native Android phone Library without replacing Compose,
 
 ## Validation
 
-Local validation on 2026-10-01 used JDK 17, Gradle 8.9 and Android SDK 35. Mobile: 312 unit tests passed and debug app/test APKs built. Wear: 147 unit tests passed and the debug APK built. Release guard and whitespace checks passed. No Android emulator/device was available for executing instrumentation or capturing runtime screenshots; `/dev/kvm` was absent.
+Local validation on 2026-10-01 used JDK 17, Gradle 8.9 and Android SDK 35. Mobile: 312 unit tests passed and debug app/test APKs built. Wear: 147 unit tests passed and the debug APK built. Release guard and whitespace checks passed. No local Android emulator/device was available; `/dev/kvm` was absent. GitHub Actions provides emulator execution, separate from manual screenshot and TalkBack review.
+
+Gateway typecheck passed. All 380 gateway tests passed locally under Node 22 with `--maxWorkers=1 --testTimeout=15000`. An earlier default-timeout run exposed an audio-test timeout and an unrelated SMTP assertion matching `535` in a timestamp; the final run used serialized workers and the stated timeout, without changing those tests or production gateway behavior.
+
+CI also exposed outdated navigation assertions and a billing fixture whose fixed expiration had passed on October 1. Navigation tests now follow the existing five-page onboarding and current labels, and the billing-state test pins its clock and checks the exact expiration boundary. No billing entitlement implementation was changed.
 
 Automated commands:
 

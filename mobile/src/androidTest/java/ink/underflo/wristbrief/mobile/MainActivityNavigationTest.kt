@@ -46,15 +46,19 @@ class MainActivityNavigationTest {
     }
 
     @Test
-    fun onboardingSkipNavigatesToExploreAndSurvivesRecreation() {
+    fun onboardingSkipNavigatesToTodayAndSurvivesRecreation() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val greeting = hasText(context.getString(R.string.today_greeting_morning)) or
+            hasText(context.getString(R.string.today_greeting_afternoon)) or
+            hasText(context.getString(R.string.today_greeting_evening))
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             composeRule.onNode(hasText("Skip", substring = false)).performClick()
-            composeRule.onNode(hasText("Discover high-signal sources", substring = true)).assertIsDisplayed()
+            composeRule.onNode(greeting).assertIsDisplayed()
 
             scenario.recreate()
             composeRule.waitForIdle()
 
-            composeRule.onNode(hasText("Discover high-signal sources", substring = true)).assertIsDisplayed()
+            composeRule.onNode(greeting).assertIsDisplayed()
         }
     }
 
@@ -99,7 +103,7 @@ class MainActivityNavigationTest {
             composeRule.onNodeWithContentDescription("Settings").performClick()
             composeRule.onNode(hasText("Sources") and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab)).assertIsSelected()
 
-            composeRule.onNode(hasText("About")).performScrollTo().performClick()
+            composeRule.onNode(hasText("About WristBrief")).performScrollTo().performClick()
             composeRule.onNodeWithTag("settings_replay_onboarding_button").performScrollTo().performClick()
 
             composeRule.onNode(hasText("Skip", substring = false)).assertIsDisplayed()
@@ -129,7 +133,7 @@ class MainActivityNavigationTest {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             composeRule.onNode(hasText("Skip", substring = false)).performClick()
             composeRule.onNodeWithContentDescription("Settings").performClick()
-            composeRule.onNode(hasText("About")).performScrollTo().performClick()
+            composeRule.onNode(hasText("About WristBrief")).performScrollTo().performClick()
 
             composeRule.onNodeWithTag("settings_replay_onboarding_button").performScrollTo().assertIsDisplayed()
             composeRule.onNodeWithTag("settings_replay_onboarding_button").performClick()

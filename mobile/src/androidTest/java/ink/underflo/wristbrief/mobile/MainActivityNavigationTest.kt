@@ -97,16 +97,20 @@ class MainActivityNavigationTest {
     }
 
     @Test
-    fun settingsCanReplayOnboarding() {
+    fun settingsAboutPageSurvivesActivityRecreation() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val aboutBody = hasText(context.getString(R.string.settings_about_body))
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             composeRule.onNode(hasText("Skip", substring = false)).performClick()
             composeRule.onNodeWithContentDescription("Settings").performClick()
             composeRule.onNode(hasText("Sources") and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab)).assertIsSelected()
 
             composeRule.onNode(hasText("About WristBrief")).performScrollTo().performClick()
-            composeRule.onNodeWithTag("settings_replay_onboarding_button").performScrollTo().performClick()
+            composeRule.onNode(aboutBody).assertIsDisplayed()
 
-            composeRule.onNode(hasText("Skip", substring = false)).assertIsDisplayed()
+            scenario.recreate()
+            composeRule.waitForIdle()
+            composeRule.onNode(aboutBody).assertIsDisplayed()
         }
     }
 
@@ -129,16 +133,21 @@ class MainActivityNavigationTest {
     }
 
     @Test
-    fun settingsReplayOnboardingHasUniqueInteractiveButton() {
+    fun settingsLicensesDialogOpensAndDismisses() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val licensesButton = hasText(context.getString(R.string.settings_licenses))
+        val licensesTitle = hasText(context.getString(R.string.settings_licenses_title))
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             composeRule.onNode(hasText("Skip", substring = false)).performClick()
             composeRule.onNodeWithContentDescription("Settings").performClick()
             composeRule.onNode(hasText("About WristBrief")).performScrollTo().performClick()
 
-            composeRule.onNodeWithTag("settings_replay_onboarding_button").performScrollTo().assertIsDisplayed()
-            composeRule.onNodeWithTag("settings_replay_onboarding_button").performClick()
+            composeRule.onNode(hasScrollToIndexAction()).performScrollToNode(licensesButton)
+            composeRule.onNode(licensesButton).performClick()
+            composeRule.onNode(licensesTitle).assertIsDisplayed()
 
-            composeRule.onNode(hasText("Skip", substring = false)).assertIsDisplayed()
+            composeRule.onNode(hasText(context.getString(R.string.dialog_ok))).performClick()
+            composeRule.onNode(licensesTitle).assertDoesNotExist()
         }
     }
 

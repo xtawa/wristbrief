@@ -27,7 +27,7 @@ Local validation on 2026-10-01 used JDK 17, Gradle 8.9 and Android SDK 35. Mobil
 
 Gateway typecheck passed. All 380 gateway tests passed locally under Node 22 with `--maxWorkers=1 --testTimeout=15000`. An earlier default-timeout run exposed an audio-test timeout and an unrelated SMTP assertion matching `535` in a timestamp; the final run used serialized workers and the stated timeout, without changing those tests or production gateway behavior.
 
-CI also exposed outdated navigation assertions and a billing fixture whose fixed expiration had passed on October 1. Navigation tests now follow the existing five-page onboarding and current labels, and the billing-state test pins its clock and checks the exact expiration boundary. No billing entitlement implementation was changed.
+CI also exposed outdated navigation assertions and a billing fixture whose fixed expiration had passed on October 1. Navigation tests now follow the existing five-page onboarding and current labels; obsolete assertions for a nonexistent replay-onboarding button are replaced with About-page recreation and license-dialog checks. The billing-state test pins its clock and checks the exact expiration boundary. No billing entitlement implementation was changed.
 
 Automated commands:
 

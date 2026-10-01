@@ -62,7 +62,9 @@ class SqliteMobileInboxStore(
         val db = dbHelper.writableDatabase
         db.beginTransaction()
         try {
-            val targetItems = items.take(maxRetentionItems)
+            // Callers such as migration may supply oldest-first or mixed batches.
+            // Sort before pruning so the retention cap never discards newer items.
+            val targetItems = items.sortedByDescending { it.cachedAtEpochMs }.take(maxRetentionItems)
             val currentIds = targetItems.map { it.id }.toSet()
 
             if (currentIds.isEmpty()) {

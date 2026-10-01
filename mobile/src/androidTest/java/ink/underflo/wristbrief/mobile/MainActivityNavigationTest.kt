@@ -10,11 +10,13 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.text.AnnotatedString
 import androidx.test.core.app.ActivityScenario
@@ -44,25 +46,25 @@ class MainActivityNavigationTest {
     }
 
     @Test
-    fun onboardingSkipNavigatesToTodayAndSurvivesRecreation() {
+    fun onboardingSkipNavigatesToExploreAndSurvivesRecreation() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             composeRule.onNode(hasText("Skip", substring = false)).performClick()
-            composeRule.onNode(hasText("Welcome to WristBrief", substring = true)).assertIsDisplayed()
+            composeRule.onNode(hasText("Discover high-signal sources", substring = true)).assertIsDisplayed()
 
             scenario.recreate()
             composeRule.waitForIdle()
 
-            composeRule.onNode(hasText("Welcome to WristBrief", substring = true)).assertIsDisplayed()
+            composeRule.onNode(hasText("Discover high-signal sources", substring = true)).assertIsDisplayed()
         }
     }
 
     @Test
     fun onboardingAddSourceActionOpensRealFeedEditor() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-            repeat(3) {
+            repeat(4) {
                 composeRule.onNode(hasText("Continue", substring = false)).performClick()
             }
-            composeRule.onNode(hasText("Add your first source", substring = false)).performClick()
+            composeRule.onNode(hasText("Add your first source", substring = false)).performScrollTo().performClick()
 
             composeRule.onNode(hasText("HTTPS feed URL", substring = false)).assertIsDisplayed()
             scenario.recreate()
@@ -74,10 +76,10 @@ class MainActivityNavigationTest {
     @Test
     fun feedEditorValidatesHttpsUrlAndBlocksInvalid() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-            repeat(3) {
+            repeat(4) {
                 composeRule.onNode(hasText("Continue", substring = false)).performClick()
             }
-            composeRule.onNode(hasText("Add your first source", substring = false)).performClick()
+            composeRule.onNode(hasText("Add your first source", substring = false)).performScrollTo().performClick()
             composeRule.onNode(hasText("HTTPS feed URL", substring = false)).assertIsDisplayed()
 
             composeRule.onNode(hasText("Save", substring = false)).assertIsNotEnabled()
@@ -94,13 +96,11 @@ class MainActivityNavigationTest {
     fun settingsCanReplayOnboarding() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             composeRule.onNode(hasText("Skip", substring = false)).performClick()
-            composeRule.onNode(hasText("Welcome to WristBrief", substring = true)).assertIsDisplayed()
+            composeRule.onNodeWithContentDescription("Settings").performClick()
+            composeRule.onNode(hasText("Sources") and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab)).assertIsSelected()
 
-            composeRule.onNode(hasText("Add your first source", substring = false)).performClick()
-            composeRule.onNode(hasText("Sources", substring = true)).assertIsDisplayed()
-
-            composeRule.onNode(hasText("About", substring = true)).performClick()
-            composeRule.onNode(hasText("Replay onboarding guide", substring = true)).performClick()
+            composeRule.onNode(hasText("About")).performScrollTo().performClick()
+            composeRule.onNodeWithTag("settings_replay_onboarding_button").performScrollTo().performClick()
 
             composeRule.onNode(hasText("Skip", substring = false)).assertIsDisplayed()
         }
@@ -110,14 +110,17 @@ class MainActivityNavigationTest {
     fun membershipDestinationInSettingsSurvivesActivityRecreation() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             composeRule.onNode(hasText("Skip", substring = false)).performClick()
-            composeRule.onNode(hasText("Add your first source", substring = false)).performClick()
-            composeRule.onNode(hasText("Account & Membership", substring = true)).performClick()
-            composeRule.onNode(hasText("Plans and prices below come from Google Play.", substring = true)).assertIsDisplayed()
+            composeRule.onNodeWithContentDescription("Settings").performClick()
+            composeRule.onNode(hasText("Account & Membership")).performScrollTo().performClick()
+            val pricingDisclaimer = hasText("Plans and prices below come from Google Play.", substring = true)
+            composeRule.onNode(hasScrollToIndexAction()).performScrollToNode(pricingDisclaimer)
+            composeRule.onNode(pricingDisclaimer).assertIsDisplayed()
 
             scenario.recreate()
             composeRule.waitForIdle()
 
-            composeRule.onNode(hasText("Plans and prices below come from Google Play.", substring = true)).assertIsDisplayed()
+            composeRule.onNode(hasScrollToIndexAction()).performScrollToNode(pricingDisclaimer)
+            composeRule.onNode(pricingDisclaimer).assertIsDisplayed()
         }
     }
 
@@ -125,11 +128,10 @@ class MainActivityNavigationTest {
     fun settingsReplayOnboardingHasUniqueInteractiveButton() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             composeRule.onNode(hasText("Skip", substring = false)).performClick()
-            composeRule.onNode(hasText("Add your first source", substring = false)).performClick()
-            composeRule.onNode(hasText("About", substring = true)).performClick()
+            composeRule.onNodeWithContentDescription("Settings").performClick()
+            composeRule.onNode(hasText("About")).performScrollTo().performClick()
 
-            composeRule.onNode(hasText("Onboarding guide", substring = true)).assertIsDisplayed()
-            composeRule.onNodeWithTag("settings_replay_onboarding_button").assertIsDisplayed()
+            composeRule.onNodeWithTag("settings_replay_onboarding_button").performScrollTo().assertIsDisplayed()
             composeRule.onNodeWithTag("settings_replay_onboarding_button").performClick()
 
             composeRule.onNode(hasText("Skip", substring = false)).assertIsDisplayed()
@@ -208,7 +210,7 @@ class MainActivityNavigationTest {
             composeRule.onNodeWithTag(LibraryTestTags.SEARCH_FIELD).performScrollTo().assertTextContains("Navigation")
             composeRule.onNodeWithTag(LibraryTestTags.filterChip(LibraryFilter.Articles)).performScrollTo().assertIsSelected()
 
-            composeRule.onNode(hasText("Today") and tabRole).performClick()
+            composeRule.onNode(hasText(context.getString(R.string.nav_today)) and tabRole).performClick()
             composeRule.waitForIdle()
             composeRule.onNode(hasText("Library") and tabRole).performClick()
             composeRule.waitForIdle()

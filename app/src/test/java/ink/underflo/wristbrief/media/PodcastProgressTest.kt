@@ -35,6 +35,26 @@ class PodcastProgressTest {
     }
 
     @Test
+    fun resumeUsesTheEpisodesOwnPersistedDurationNotThePreviousItem() {
+        // 40 min into a 60 min episode stays resumable even if the previously loaded item was
+        // only 10 min long (the old code passed that stale controller duration).
+        val longEpisode = PodcastEpisodeProgress(
+            episodeId = "long",
+            positionMs = 2_400_000L,
+            durationMs = 3_600_000L,
+        )
+        assertEquals(2_400_000L, resumePositionFor(longEpisode))
+
+        // Unknown duration keeps the saved position rather than inventing completion.
+        assertEquals(17_000L, resumePositionFor(PodcastEpisodeProgress("unknown", 17_000L)))
+
+        // Near the end of its own duration, or explicitly completed, restarts from zero.
+        assertEquals(0L, resumePositionFor(longEpisode.copy(positionMs = 3_590_000L)))
+        assertEquals(0L, resumePositionFor(longEpisode.copy(completed = true)))
+        assertEquals(0L, resumePositionFor(null))
+    }
+
+    @Test
     fun checkpointPolicyAvoidsFrequentWrites() {
         assertFalse(shouldCheckpoint(30_000L, 44_999L))
         assertTrue(shouldCheckpoint(30_000L, 45_000L))

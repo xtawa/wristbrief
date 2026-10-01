@@ -16,6 +16,7 @@ import androidx.wear.tiles.Material3TileService
 import androidx.wear.tiles.RequestBuilders.TileRequest
 import androidx.wear.tiles.TileBuilders.Tile
 import ink.underflo.wristbrief.MainActivity
+import ink.underflo.wristbrief.R
 import ink.underflo.wristbrief.data.SharedPreferencesFeedStore
 import ink.underflo.wristbrief.media.SharedPreferencesPodcastProgressStore
 
@@ -31,14 +32,18 @@ class ContinueListeningTileService : Material3TileService() {
             action = launchAction(ComponentName(this@ContinueListeningTileService, MainActivity::class.java)),
             id = "open_continue_listening"
         )
-        val title = data?.title ?: "Nothing to resume"
-        val resume = data?.resumeLabel ?: "Start a podcast in WristBrief"
+        val title = data?.title ?: this@ContinueListeningTileService.getString(R.string.tile_nothing_to_resume)
+        val resume = data?.let { this@ContinueListeningTileService.getString(R.string.tile_resume_label, it.positionLabel, it.speedLabel) }
+            ?: this@ContinueListeningTileService.getString(R.string.tile_start_podcast)
+        val heading = this@ContinueListeningTileService.getString(R.string.tile_continue_listening)
+        val openLabel = this@ContinueListeningTileService.getString(R.string.tile_open)
+        val openDescription = this@ContinueListeningTileService.getString(R.string.tile_open_app_description)
 
         return Tile.Builder()
             .setTileTimeline(
                 Timeline.fromLayoutElement(
                     primaryLayout(
-                        titleSlot = { text("Continue listening".layoutString) },
+                        titleSlot = { text(heading.layoutString) },
                         mainSlot = {
                             textDataCard(
                                 onClick = openApp,
@@ -50,8 +55,8 @@ class ContinueListeningTileService : Material3TileService() {
                         bottomSlot = {
                             textEdgeButton(
                                 onClick = openApp,
-                                modifier = LayoutModifier.contentDescription("Open WristBrief")
-                            ) { text("Open".layoutString) }
+                                modifier = LayoutModifier.contentDescription(openDescription)
+                            ) { text(openLabel.layoutString) }
                         }
                     )
                 )

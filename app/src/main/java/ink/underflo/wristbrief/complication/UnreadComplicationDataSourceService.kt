@@ -1,6 +1,7 @@
 package ink.underflo.wristbrief.complication
 
 import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
 import androidx.wear.watchface.complications.data.ComplicationData
 import androidx.wear.watchface.complications.data.ComplicationType
@@ -10,6 +11,7 @@ import androidx.wear.watchface.complications.data.ShortTextComplicationData
 import androidx.wear.watchface.complications.datasource.ComplicationRequest
 import androidx.wear.watchface.complications.datasource.SuspendingComplicationDataSourceService
 import ink.underflo.wristbrief.MainActivity
+import ink.underflo.wristbrief.R
 import ink.underflo.wristbrief.data.SharedPreferencesFeedStore
 
 /** Cached/local-only complication provider. It never performs feed or AI network work. */
@@ -21,12 +23,11 @@ class UnreadComplicationDataSourceService : SuspendingComplicationDataSourceServ
             cachedItems = store.cachedItems(),
             readItemIds = store.readItemIds()
         )
-        return snapshot.toComplicationData(request.complicationType, launchAppPendingIntent())
+        return snapshot.toComplicationData(this, request.complicationType, launchAppPendingIntent())
     }
 
     override fun getPreviewData(type: ComplicationType): ComplicationData? =
-        UnreadComplicationSnapshot(3, "A short WristBrief headline")
-            .toComplicationData(type, tapAction = null)
+        buildUnreadComplicationPreview(this, type)
 
     private fun launchAppPendingIntent(): PendingIntent = PendingIntent.getActivity(
         this,
@@ -36,20 +37,33 @@ class UnreadComplicationDataSourceService : SuspendingComplicationDataSourceServ
     )
 }
 
+/** Shared by the service and installed-resource contract tests. */
+internal fun buildUnreadComplicationPreview(context: Context, type: ComplicationType): ComplicationData? =
+    UnreadComplicationSnapshot(3, context.getString(R.string.complication_preview_headline))
+        .toComplicationData(context, type, tapAction = null)
+
 private fun UnreadComplicationSnapshot.toComplicationData(
-    type: ComplicationType,
-    tapAction: PendingIntent?
-): ComplicationData? {
-    val description = PlainComplicationText.Builder("WristBrief unread: $unreadCount").build()
-    return when (type) {
-        ComplicationType.SHORT_TEXT -> ShortTextComplicationData.Builder(
-            text = PlainComplicationText.Builder(shortText).build(),
-            contentDescription = description
-        ).setTapAction(tapAction).build()
-        ComplicationType.LONG_TEXT -> LongTextComplicationData.Builder(
-            text = PlainComplicationText.Builder(longText).build(),
-            contentDescription = description
-        ).setTapAction(tapAction).build()
-        else -> null
+        context: Context,
+        type: ComplicationType,
+        tapAction: PendingIntent?
+    ): ComplicationData? {
+        val description = PlainComplicationText.Builder(
+            context.getString(R.string.complication_unread_description, unreadCount)
+        ).build()
+        val long = longText(
+            caughtUp = { context.getString(R.string.complication_all_caught_up) },
+            unread = { count -> context.getString(R.string.complication_unread_count, count) },
+            unreadWithTitle = { count, title -> context.getString(R.string.complication_unread_with_title, count, title) },
+        )
+        return when (type) {
+            ComplicationType.SHORT_TEXT -> ShortTextComplicationData.Builder(
+                text = PlainComplicationText.Builder(shortText).build(),
+                contentDescription = description
+            ).setTapAction(tapAction).build()
+            ComplicationType.LONG_TEXT -> LongTextComplicationData.Builder(
+                text = PlainComplicationText.Builder(long).build(),
+                contentDescription = description
+            ).setTapAction(tapAction).build()
+            else -> null
+        }
     }
-}

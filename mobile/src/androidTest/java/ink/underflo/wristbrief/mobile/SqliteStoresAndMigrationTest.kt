@@ -104,6 +104,14 @@ class SqliteStoresAndMigrationTest {
         // Should retain the 50 newest items (items 11 to 60)
         assertEquals("item-60", loaded.first().id)
         assertEquals("item-11", loaded.last().id)
+
+        inboxStore.saveRetaining(items, setOf("item-1"))
+        assertEquals(51, inboxStore.load().size)
+        assertTrue(inboxStore.load().any { it.id == "item-1" })
+        // Saved rows survive reopening, not just a transient in-memory result.
+        assertEquals(51, SqliteMobileInboxStore(dbHelper, maxRetentionItems = 50).load().size)
+        inboxStore.saveRetaining(items, emptySet())
+        assertEquals(50, inboxStore.load().size)
     }
 
     @Test

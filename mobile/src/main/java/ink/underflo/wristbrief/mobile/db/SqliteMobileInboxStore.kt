@@ -17,9 +17,8 @@ class SqliteMobileInboxStore(
             SELECT id, feed_id, feed_title, title, link, description, published, audio_url, cached_at_epoch_ms
             FROM feed_items
             ORDER BY cached_at_epoch_ms DESC
-            LIMIT ?
             """.trimIndent(),
-            arrayOf(maxRetentionItems.toString()),
+            null,
         )
 
         val result = mutableListOf<MobileFeedItem>()
@@ -58,19 +57,20 @@ class SqliteMobileInboxStore(
         db.delete("feed_items", "feed_id = ?", arrayOf(feedId))
     }
 
-    override fun save(items: List<MobileFeedItem>) {
+    override fun save(items: List<MobileFeedItem>) = saveRetaining(items, emptySet())
+
+    override fun saveRetaining(items: List<MobileFeedItem>, protectedIds: Set<String>) {
         val db = dbHelper.writableDatabase
         db.beginTransaction()
         try {
-            val targetItems = items.take(maxRetentionItems)
-            val currentIds = targetItems.map { it.id }.toSet()
-
-            if (currentIds.isEmpty()) {
-                db.delete("feed_items", null, null)
-            } else {
-                val placeholders = currentIds.joinToString(",") { "?" }
-                db.delete("feed_items", "id NOT IN ($placeholders)", currentIds.toTypedArray())
-            }
+            // Callers such as migration may supply oldest-first or mixed batches.
+            // Sort before pruning so the retention cap never discards newer items.
+            val sorted = items.distinctBy { it.id }.sortedByDescending { it.cachedAtEpochMs }
+            val targetItems = sorted.filter { it.id in protectedIds } +
+                sorted.filterNot { it.id in protectedIds }.take(maxRetentionItems)
+            // Snapshot replacement in one transaction also avoids SQLite's bind
+            // parameter limit when the saved collection grows beyond 999 items.
+            db.delete("feed_items", null, null)
 
             for (item in targetItems) {
                 val values = ContentValues().apply {
@@ -86,16 +86,6 @@ class SqliteMobileInboxStore(
                 }
                 db.insertWithOnConflict("feed_items", null, values, SQLiteDatabase.CONFLICT_REPLACE)
             }
-
-            // Prune excess rows beyond max retention if any remain
-            db.execSQL(
-                """
-                DELETE FROM feed_items WHERE id NOT IN (
-                    SELECT id FROM feed_items ORDER BY cached_at_epoch_ms DESC LIMIT ?
-                )
-                """.trimIndent(),
-                arrayOf(maxRetentionItems),
-            )
 
             db.setTransactionSuccessful()
         } finally {

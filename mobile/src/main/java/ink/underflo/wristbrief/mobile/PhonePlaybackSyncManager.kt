@@ -16,14 +16,16 @@ class PhonePlaybackSyncManager internal constructor(
     private val progressStore: PodcastProgressStore,
     private val publishCallback: ((String) -> Unit)?,
 ) {
-    constructor(context: Context) : this(
+    constructor(context: Context, gate: WearSyncGate = WearSyncGate.fromPreferences(context)) : this(
         progressStore = SqlitePodcastProgressStore(WristBriefDatabaseHelper(context.applicationContext)),
         publishCallback = { payload ->
-            val request = PutDataMapRequest.create(PlaybackWireContract.PHONE_PATH).apply {
-                dataMap.putString(PlaybackWireContract.PAYLOAD_KEY, payload)
-                dataMap.putLong("updatedAt", System.currentTimeMillis())
-            }.asPutDataRequest().setUrgent()
-            Wearable.getDataClient(context.applicationContext).putDataItem(request)
+            if (gate.isEnabled()) {
+                val request = PutDataMapRequest.create(PlaybackWireContract.PHONE_PATH).apply {
+                    dataMap.putString(PlaybackWireContract.PAYLOAD_KEY, payload)
+                    dataMap.putLong("updatedAt", System.currentTimeMillis())
+                }.asPutDataRequest().setUrgent()
+                Wearable.getDataClient(context.applicationContext).putDataItem(request)
+            }
         },
     )
 

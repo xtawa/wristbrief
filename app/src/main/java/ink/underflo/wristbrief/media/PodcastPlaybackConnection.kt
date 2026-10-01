@@ -42,6 +42,9 @@ class PodcastPlaybackConnection internal constructor(
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private var controller: MediaController? = null
     private var pendingRequest: PodcastPlaybackRequest? = null
+    /** Account generation when [pendingRequest] was made, so a sign-out before connection fences it. */
+    private var pendingGeneration: Long = 0L
+    private val accountFence = PlaybackAccountFence.process
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private val _state = MutableStateFlow(PodcastPlaybackState())
@@ -69,8 +72,9 @@ class PodcastPlaybackConnection internal constructor(
                     publishState(mediaController)
                     mainHandler.removeCallbacks(progressTicker)
                     mainHandler.post(progressTicker)
-                    pendingRequest?.let(::play)
+                    val queued = pendingRequest
                     pendingRequest = null
+                    queued?.let { play(it, pendingGeneration) }
                 }
             }, appContext.mainExecutor)
         }
@@ -84,17 +88,26 @@ class PodcastPlaybackConnection internal constructor(
         controller = null
     }
 
-    fun play(request: PodcastPlaybackRequest) {
+    fun play(request: PodcastPlaybackRequest) = play(request, accountFence.currentGeneration())
+
+    private fun play(request: PodcastPlaybackRequest, requestGeneration: Long) {
+        // A request made under an account that has since been signed out/switched is dropped.
+        if (!accountFence.allowsPersistence(requestGeneration)) return
         val mediaController = controller
         if (mediaController == null) {
             pendingRequest = request
+            pendingGeneration = requestGeneration
             connect()
             return
         }
 
         val saved = progressStore.get(request.id)
-        val resumePositionMs = normalizedResumePosition(saved?.positionMs ?: 0L, mediaController.duration)
-        mediaController.setMediaItem(mediaItemFactory(request), resumePositionMs)
+        // The controller's duration still belongs to the previously loaded item at this point.
+        val resumePositionMs = resumePositionFor(saved)
+        mediaController.setMediaItem(
+            mediaItemFactory(request).tagWithAccountGeneration(requestGeneration),
+            resumePositionMs,
+        )
         mediaController.setPlaybackSpeed(saved?.playbackSpeed ?: 1f)
         mediaController.prepare()
         mediaController.play()

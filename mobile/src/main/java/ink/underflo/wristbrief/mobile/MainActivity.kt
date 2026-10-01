@@ -98,6 +98,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.runtime.saveable.SaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -167,9 +169,17 @@ private class MobileFeedListenerBindings : MobileFeedListener {
         }
         val onboarding = remember(context) { OnboardingPreferences(context) }
         var onboardingComplete by rememberSaveable { mutableStateOf(onboarding.isComplete()) }
-        var onboardingAction by rememberSaveable { mutableStateOf<String?>(null) }
+        // A one-shot action for the Sources screen (open the feed editor / OPML picker).
+        // Set by onboarding and by every "Add source" / "Import OPML" entry point in
+        // the shell, consumed by CategorizedFeedManagementDestination on arrival.
+        var pendingSourcesAction by rememberSaveable { mutableStateOf<String?>(null) }
         var showSettings by rememberSaveable { mutableStateOf(false) }
         var settingsInitialTab by rememberSaveable { mutableStateOf(SettingsTab.Sources) }
+        // Shell tab selection lives here so onboarding can hand off to Explore.
+        var name by rememberSaveable { mutableStateOf(initialMobileDestination().name) }
+        // Bumped after a refresh that ran outside a destination (auto refresh), so
+        // Today re-reads the inbox instead of showing the pre-refresh snapshot.
+        var inboxRevision by remember { mutableStateOf(0) }
 
         val dbHelper = remember(context) { WristBriefDatabaseHelper(context) }
         val sqliteFeedStore = remember(dbHelper) { SqliteMobileFeedStore(dbHelper) }
@@ -181,7 +191,8 @@ private class MobileFeedListenerBindings : MobileFeedListener {
             LegacyDataMigration.performIfNeeded(context, sqliteFeedStore, sqliteInboxStore, sqlitePodcastStore)
         }
 
-        val syncManager = remember(context) { PhoneItemStateSyncManager(context) }
+        val wearSyncGate = remember(appPreferences) { WearSyncGate { appPreferences.isWearSyncEnabled() } }
+        val syncManager = remember(context, wearSyncGate) { PhoneItemStateSyncManager(context, wearSyncGate) }
 
         // Cloud sync runtime: the coordinator (push outbox + pull + merge) that
         // existed but was never wired into the app. Cycles start on app start,
@@ -189,7 +200,7 @@ private class MobileFeedListenerBindings : MobileFeedListener {
         // start a cycle. Failures leave mutations in the outbox with backoff.
         val cloudSyncOutboxStore = remember(dbHelper) { CloudSyncOutboxStore(dbHelper) }
         val cloudSyncRuntime = remember(context, dbHelper, sqliteFeedStore, cloudSyncOutboxStore, accountSessionPreferences) {
-            val wearFeedPublisher = GoogleWearFeedSyncPublisher(context)
+            val wearFeedPublisher = GoogleWearFeedSyncPublisher(context, wearSyncGate)
             CloudSyncRuntime(
                 coordinator = CloudSyncCoordinator(
                     api = HttpCloudSyncApi(BuildConfig.GATEWAY_BASE_URL),
@@ -219,7 +230,7 @@ private class MobileFeedListenerBindings : MobileFeedListener {
             MobileFeedManager(
                 sqliteFeedStore,
                 HttpFeedProbe(),
-                GoogleWearFeedSyncPublisher(context),
+                GoogleWearFeedSyncPublisher(context, wearSyncGate),
                 cloudOutbox = cloudSyncOutboxStore,
                 listener = feedListener,
             )
@@ -234,6 +245,7 @@ private class MobileFeedListenerBindings : MobileFeedListener {
                     onCloudMutation = { cloudSyncRuntime.requestSync() },
                 ),
                 fetcher = HttpFeedItemFetcher(),
+                onRefreshCompleted = { refreshedAt -> appPreferences.setLastInboxRefreshEpochMs(refreshedAt) },
             )
         }
         feedListener.onAdded = {
@@ -262,10 +274,10 @@ private class MobileFeedListenerBindings : MobileFeedListener {
                 },
                 onComplete = { action ->
                     onboarding.complete()
-                    onboardingAction = action.name
-                    if (action == OnboardingAction.AddFeed || action == OnboardingAction.ImportOpml) {
-                        showSettings = true
-                    }
+                    val handoff = resolveOnboardingHandoff(action)
+                    name = handoff.destination.name
+                    pendingSourcesAction = handoff.sourcesAction?.name
+                    showSettings = handoff.opensSettings
                     onboardingComplete = true
                 },
             )
@@ -334,14 +346,39 @@ private class MobileFeedListenerBindings : MobileFeedListener {
                 .build()
         }
 
-        // Cloud sync triggers: app start and every return to the foreground.
+        // Cloud sync triggers: app start and every return to the foreground. The same
+        // triggers honor the "Feed refresh frequency" preference: when the last
+        // completed refresh is older than the interval, the inbox is refreshed once.
         val lifecycleOwner = LocalLifecycleOwner.current
+        var autoRefreshInFlight by remember { mutableStateOf(false) }
+        fun autoRefreshIfStale() {
+            if (autoRefreshInFlight) return
+            if (feedManager.feeds().none { it.enabled }) return
+            val due = InboxAutoRefreshPolicy.shouldRefresh(
+                interval = appPreferences.getRefreshInterval(),
+                lastRefreshEpochMs = appPreferences.getLastInboxRefreshEpochMs(),
+                nowEpochMs = System.currentTimeMillis(),
+            )
+            if (!due) return
+            autoRefreshInFlight = true
+            appScope.launch {
+                runCatching { inboxRepository.refresh() }
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    autoRefreshInFlight = false
+                    inboxRevision++
+                }
+            }
+        }
         LaunchedEffect(cloudSyncRuntime) {
             cloudSyncRuntime.requestSync()
+            autoRefreshIfStale()
         }
         DisposableEffect(lifecycleOwner, cloudSyncRuntime) {
             val observer = LifecycleEventObserver { _, event ->
-                if (event == Lifecycle.Event.ON_RESUME) cloudSyncRuntime.requestSync()
+                if (event == Lifecycle.Event.ON_RESUME) {
+                    cloudSyncRuntime.requestSync()
+                    autoRefreshIfStale()
+                }
             }
             lifecycleOwner.lifecycle.addObserver(observer)
             onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
@@ -389,7 +426,6 @@ private class MobileFeedListenerBindings : MobileFeedListener {
             )
         }
 
-        var name by rememberSaveable { mutableStateOf(initialMobileDestination().name) }
         // Normalize stale saved selections (e.g. the retired Now Playing tab).
         if (MobileDestination.valueOf(name) == MobileDestination.NowPlaying) name = MobileDestination.Today.name
         var selectedArticle by remember { mutableStateOf<MobileFeedItem?>(null) }
@@ -501,6 +537,9 @@ private class MobileFeedListenerBindings : MobileFeedListener {
             }
         }
 
+        // Keep Library's query, filters and scroll when the shell leaves
+        // composition for the reader/settings, as well as when switching tabs.
+        val destinationStateHolder = rememberSaveableStateHolder()
         val viewerState = transcriptViewState
         if (viewerState != null && transcriptEpisode != null) {
             TranscriptViewerDestination(
@@ -552,17 +591,29 @@ private class MobileFeedListenerBindings : MobileFeedListener {
         } else if (showSettings) {
             SettingsDestination(
                 onBack = { showSettings = false },
-                onboardingAction = onboardingAction?.let(OnboardingAction::valueOf),
-                onOnboardingActionConsumed = { onboardingAction = null },
+                onboardingAction = pendingSourcesAction?.let { runCatching { OnboardingAction.valueOf(it) }.getOrNull() },
+                onOnboardingActionConsumed = { pendingSourcesAction = null },
                 appPreferences = appPreferences,
                 onThemeChanged = { themeMode = it },
                 feedManager = feedManager,
+                // Re-enabling Wear sync resends what the phone can rebuild without a new
+                // event: subscriptions, owned read/saved state and the latest episode.
+                onWearSyncReenabled = {
+                    runCatching { feedManager.republishToWatch() }
+                    runCatching { PhoneItemStateSyncManager(context, wearSyncGate).republishOwnedState() }
+                    runCatching {
+                        sqlitePodcastStore.getLatestActive()?.let { progress ->
+                            PhonePlaybackSyncManager(context, wearSyncGate).publishLocalProgress(progress)
+                        }
+                    }
+                },
                 darkTheme = darkTheme,
                 initialTab = settingsInitialTab,
             )
         } else {
             MobileShell(
                 destination = MobileDestination.valueOf(name),
+                destinationStateHolder = destinationStateHolder,
                 select = { name = it.name },
                 inboxRepository = inboxRepository,
                 feedManager = feedManager,
@@ -574,8 +625,18 @@ private class MobileFeedListenerBindings : MobileFeedListener {
                     settingsInitialTab = SettingsTab.Account
                     showSettings = true
                 },
-                onAddFeed = { showSettings = true },
-                onImportOpml = { showSettings = true },
+                // Open the real editor / OPML picker, not just the Sources list.
+                onAddFeed = {
+                    settingsInitialTab = SettingsTab.Sources
+                    pendingSourcesAction = OnboardingAction.AddFeed.name
+                    showSettings = true
+                },
+                onImportOpml = {
+                    settingsInitialTab = SettingsTab.Sources
+                    pendingSourcesAction = OnboardingAction.ImportOpml.name
+                    showSettings = true
+                },
+                inboxRevision = inboxRevision,
                 onOpenArticle = { selectedArticle = it },
                 onPlayPodcast = ::playPodcast,
                 playerState = playerState,
@@ -639,6 +700,7 @@ private class MobileFeedListenerBindings : MobileFeedListener {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable private fun MobileShell(
     destination: MobileDestination,
+    destinationStateHolder: SaveableStateHolder,
     select: (MobileDestination) -> Unit,
     inboxRepository: MobileInboxRepository,
     feedManager: MobileFeedManager,
@@ -646,6 +708,7 @@ private class MobileFeedListenerBindings : MobileFeedListener {
     onOpenAccountSettings: () -> Unit,
     onAddFeed: () -> Unit,
     onImportOpml: () -> Unit,
+    inboxRevision: Int,
     onOpenArticle: (MobileFeedItem) -> Unit,
     onPlayPodcast: (MobileFeedItem) -> Unit,
     playerState: PodcastPlayerState,
@@ -689,9 +752,14 @@ private class MobileFeedListenerBindings : MobileFeedListener {
                             val settingsDesc = stringResource(R.string.nav_settings)
                             androidx.compose.material3.IconButton(
                                 onClick = onOpenSettings,
-                                modifier = Modifier.semantics { contentDescription = settingsDesc },
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .semantics { contentDescription = settingsDesc },
                             ) {
-                                SettingsIcon()
+                                // Explicit tint: the glass header's surface color is not in the
+                                // Material scheme, so LocalContentColor would fall back to black
+                                // and the gear disappeared on the dark header.
+                                SettingsIcon(tint = GlassTokens.textPrimary(darkTheme))
                             }
                         },
                     )
@@ -750,58 +818,76 @@ private class MobileFeedListenerBindings : MobileFeedListener {
                             },
                             label = "mobile-destination",
                         ) { currentDestination ->
-                            when (currentDestination) {
-                                MobileDestination.Today -> TodayDestination(
-                                    padding = PaddingValues(0.dp),
-                                    inboxRepository = inboxRepository,
-                                    feedManager = feedManager,
-                                    onAddFeed = onAddFeed,
-                                    onImportOpml = onImportOpml,
-                                    onOpenAskAi = { select(MobileDestination.AiProvider) },
-                                    onOpenLibrary = { select(MobileDestination.Library) },
-                                    onOpenArticle = onOpenArticle,
-                                    onPlayPodcast = onPlayPodcast,
-                progressStore = progressStore,
-                darkTheme = darkTheme,
-            )
-                                MobileDestination.Explore -> ExploreDestination(
-                                    padding = PaddingValues(0.dp),
-                                    feedManager = feedManager,
-                                    darkTheme = darkTheme,
-                                )
-                                MobileDestination.Library -> LibraryDestination(
-                                    padding = PaddingValues(0.dp),
-                                    inboxRepository = inboxRepository,
-                                    feedManager = feedManager,
-                                    onManageSources = onOpenSettings,
-                                    onOpenArticle = onOpenArticle,
-                                    onPlayPodcast = onPlayPodcast,
-                                    darkTheme = darkTheme,
-                                )
-                                MobileDestination.NowPlaying -> NowPlayingDestination(
-                                    padding = PaddingValues(0.dp),
-                                    playerState = playerState,
-                                    playerController = playerController,
-                                    onOpenTranscript = onOpenTranscript,
-                                    onOpenLibrary = { select(MobileDestination.Library) },
-                                    onAskAi = onAskAi,
-                                    darkTheme = darkTheme,
-                                )
-                                MobileDestination.AiProvider -> AskAiDestination(
-                                    padding = PaddingValues(0.dp),
-                                    inboxRepository = inboxRepository,
-                                    initialTitle = aiPrefilledTitle,
-                                    initialContent = aiPrefilledContent,
-                                    onOpenArticle = onOpenArticle,
-                                    onOpenAccountSettings = onOpenAccountSettings,
-                                    darkTheme = darkTheme,
-                                )
+                            PreserveLibraryState(currentDestination, destinationStateHolder) {
+                                when (currentDestination) {
+                                    MobileDestination.Today -> TodayDestination(
+                                        padding = PaddingValues(0.dp),
+                                        inboxRepository = inboxRepository,
+                                        feedManager = feedManager,
+                                        onAddFeed = onAddFeed,
+                                        onImportOpml = onImportOpml,
+                                        inboxRevision = inboxRevision,
+                                        onOpenAskAi = { select(MobileDestination.AiProvider) },
+                                        onOpenLibrary = { select(MobileDestination.Library) },
+                                        onOpenArticle = onOpenArticle,
+                                        onPlayPodcast = onPlayPodcast,
+                                        progressStore = progressStore,
+                                        darkTheme = darkTheme,
+                                    )
+                                    MobileDestination.Explore -> ExploreDestination(
+                                        padding = PaddingValues(0.dp),
+                                        feedManager = feedManager,
+                                        onAddFeedDialog = onAddFeed,
+                                        darkTheme = darkTheme,
+                                    )
+                                    MobileDestination.Library -> LibraryDestination(
+                                        padding = PaddingValues(0.dp),
+                                        inboxRepository = inboxRepository,
+                                        feedManager = feedManager,
+                                        onManageSources = onOpenSettings,
+                                        onOpenArticle = onOpenArticle,
+                                        onPlayPodcast = onPlayPodcast,
+                                        darkTheme = darkTheme,
+                                    )
+                                    MobileDestination.NowPlaying -> NowPlayingDestination(
+                                        padding = PaddingValues(0.dp),
+                                        playerState = playerState,
+                                        playerController = playerController,
+                                        onOpenTranscript = onOpenTranscript,
+                                        onOpenLibrary = { select(MobileDestination.Library) },
+                                        onAskAi = onAskAi,
+                                        darkTheme = darkTheme,
+                                    )
+                                    MobileDestination.AiProvider -> AskAiDestination(
+                                        padding = PaddingValues(0.dp),
+                                        inboxRepository = inboxRepository,
+                                        initialTitle = aiPrefilledTitle,
+                                        initialContent = aiPrefilledContent,
+                                        onOpenArticle = onOpenArticle,
+                                        onOpenAccountSettings = onOpenAccountSettings,
+                                        darkTheme = darkTheme,
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+/** Other tabs have their own restoration semantics (notably fresh Ask AI prefills). */
+@Composable
+private fun PreserveLibraryState(
+    destination: MobileDestination,
+    stateHolder: SaveableStateHolder,
+    content: @Composable () -> Unit,
+) {
+    if (destination == MobileDestination.Library) {
+        stateHolder.SaveableStateProvider(destination.name, content)
+    } else {
+        content()
     }
 }
 
@@ -902,10 +988,11 @@ private fun DestinationIcon(destination: MobileDestination, modifier: Modifier =
 }
 
 @Composable
-private fun SettingsIcon(modifier: Modifier = Modifier) {
+private fun SettingsIcon(tint: Color, modifier: Modifier = Modifier) {
     Icon(
         imageVector = Icons.Rounded.Settings,
         contentDescription = null,
+        tint = tint,
         modifier = modifier.size(24.dp),
     )
 }

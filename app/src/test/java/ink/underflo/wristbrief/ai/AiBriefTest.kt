@@ -48,8 +48,12 @@ class AiBriefTest {
         assertTrue(aiFailureState(AiSummaryFailure.Quota) is AiBriefUiState.QuotaExceeded)
         assertTrue(aiFailureState(AiSummaryFailure.ProviderUnavailable) is AiBriefUiState.ProviderUnavailable)
         assertEquals(
-            "AI network issue",
-            (aiFailureState(AiSummaryFailure.Network) as AiBriefUiState.Error).message
+            AiSummaryFailure.Network,
+            (aiFailureState(AiSummaryFailure.Network) as AiBriefUiState.Error).failure
+        )
+        assertEquals(
+            AiSummaryFailure.Unauthorized,
+            (aiFailureState(AiSummaryFailure.Unauthorized) as AiBriefUiState.Error).failure
         )
     }
 }

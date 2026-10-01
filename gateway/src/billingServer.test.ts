@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   FakeGooglePlayPurchaseVerifier,
   FakePubSubPushAuthenticator,
@@ -45,13 +45,21 @@ function rtdnRequest(payload: Record<string, unknown>, messageId = `msg-${++next
 
 describe("Play billing server foundation", () => {
   it("maps Play subscription states to server-owned entitlement", () => {
-    expect(entitlementFor({ packageName, productId, status: "active" }).plan).toBe("PRO");
-    expect(entitlementFor({ packageName, productId, status: "grace" }).plan).toBe("PRO");
-    expect(entitlementFor({ packageName, productId, status: "canceled", expiresAt: "2026-10-01T00:00:00Z" }).plan).toBe("PRO");
-    expect(entitlementFor({ packageName, productId, status: "canceled" }).plan).toBe("FREE");
-    expect(entitlementFor({ packageName, productId, status: "on_hold" }).plan).toBe("FREE");
-    expect(entitlementFor({ packageName, productId, status: "expired" }).plan).toBe("FREE");
-    expect(entitlementFor({ packageName, productId, status: "revoked" }).plan).toBe("FREE");
+    const clock = vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-09-30T00:00:00Z"));
+    try {
+      expect(entitlementFor({ packageName, productId, status: "active" }).plan).toBe("PRO");
+      expect(entitlementFor({ packageName, productId, status: "grace" }).plan).toBe("PRO");
+      expect(entitlementFor({ packageName, productId, status: "canceled", expiresAt: "2026-10-01T00:00:00Z" }).plan).toBe("PRO");
+      expect(entitlementFor({ packageName, productId, status: "canceled" }).plan).toBe("FREE");
+      expect(entitlementFor({ packageName, productId, status: "on_hold" }).plan).toBe("FREE");
+      expect(entitlementFor({ packageName, productId, status: "expired" }).plan).toBe("FREE");
+      expect(entitlementFor({ packageName, productId, status: "revoked" }).plan).toBe("FREE");
+      // A canceled purchase stays entitled only until its expiration, including equality.
+      clock.mockReturnValue(Date.parse("2026-10-01T00:00:00Z"));
+      expect(entitlementFor({ packageName, productId, status: "canceled", expiresAt: "2026-10-01T00:00:00Z" }).plan).toBe("FREE");
+    } finally {
+      clock.mockRestore();
+    }
   });
 
   it("restores only server-allowlisted package/product purchases", async () => {

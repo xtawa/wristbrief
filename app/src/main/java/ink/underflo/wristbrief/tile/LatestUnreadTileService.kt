@@ -16,17 +16,21 @@ import androidx.wear.tiles.Material3TileService
 import androidx.wear.tiles.RequestBuilders.TileRequest
 import androidx.wear.tiles.TileBuilders.Tile
 import ink.underflo.wristbrief.MainActivity
+import ink.underflo.wristbrief.R
+import ink.underflo.wristbrief.data.visibleInboxItems
 import ink.underflo.wristbrief.data.SharedPreferencesFeedStore
 
 class LatestUnreadTileService : Material3TileService() {
     override suspend fun MaterialScope.tileResponse(requestParams: TileRequest): Tile {
         val store = SharedPreferencesFeedStore(this@LatestUnreadTileService)
-        val enabledFeedIds = store.subscriptions()
+        val subscriptions = store.subscriptions()
+        val enabledFeedIds = subscriptions
             .asSequence()
             .filter { it.enabled }
             .mapTo(linkedSetOf()) { it.id }
         val data = mapLatestUnreadTileData(
-            cachedItems = store.cachedItems(),
+            // Same visibility rule as the Inbox (enabled feed + watch keywords) so counts agree.
+            cachedItems = visibleInboxItems(subscriptions, store.cachedItems()),
             enabledFeedIds = enabledFeedIds,
             readItemIds = store.readItemIds()
         )
@@ -37,11 +41,13 @@ class LatestUnreadTileService : Material3TileService() {
             id = "open_inbox"
         )
         val title = when (data.unreadCount) {
-            0 -> "WristBrief · caught up"
-            1 -> "1 unread brief"
-            else -> "${data.unreadCount} unread briefs"
+            0 -> this@LatestUnreadTileService.getString(R.string.tile_caught_up)
+            1 -> this@LatestUnreadTileService.getString(R.string.tile_unread_one)
+            else -> this@LatestUnreadTileService.getString(R.string.tile_unread_many, data.unreadCount)
         }
-        val primary = data.titles.firstOrNull() ?: "Open Inbox for your latest briefs"
+        val primary = data.titles.firstOrNull() ?: this@LatestUnreadTileService.getString(R.string.tile_open_inbox_prompt)
+        val openInboxLabel = this@LatestUnreadTileService.getString(R.string.tile_open_inbox)
+        val openInboxDescription = this@LatestUnreadTileService.getString(R.string.tile_open_inbox_description)
         val secondary = data.titles.getOrNull(1)
 
         return Tile.Builder()
@@ -64,9 +70,9 @@ class LatestUnreadTileService : Material3TileService() {
                         bottomSlot = {
                             textEdgeButton(
                                 onClick = openInbox,
-                                modifier = LayoutModifier.contentDescription("Open WristBrief Inbox")
+                                modifier = LayoutModifier.contentDescription(openInboxDescription)
                             ) {
-                                text("Open Inbox".layoutString)
+                                text(openInboxLabel.layoutString)
                             }
                         }
                     )

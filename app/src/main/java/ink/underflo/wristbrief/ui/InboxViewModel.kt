@@ -3,6 +3,7 @@ package ink.underflo.wristbrief.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import ink.underflo.wristbrief.R
 import ink.underflo.wristbrief.complication.requestUnreadComplicationUpdate
 import ink.underflo.wristbrief.data.CachedFeedItem
 import ink.underflo.wristbrief.data.FeedInboxRepository
@@ -59,7 +60,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
                         items = result.items.toUiItems(),
                         isOfflineFallback = result.isOfflineFallback,
                         errorMessage = if (result.failedFeedIds.isNotEmpty()) {
-                            "Some feeds could not refresh"
+                            text(R.string.wear_error_some_feeds_failed)
                         } else {
                             null
                         }
@@ -70,7 +71,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
                     _uiState.value = buildState(
                         items = repository.cachedItems().toUiItems(),
                         isOfflineFallback = true,
-                        errorMessage = "Could not refresh feeds"
+                        errorMessage = text(R.string.wear_error_refresh_failed)
                     )
                 }
         }
@@ -82,7 +83,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
             rebuildPreservingTransientState()
             requestGlanceUpdatesIfChanged()
         } else {
-            _uiState.value = _uiState.value.copy(errorMessage = "Brief is no longer available")
+            _uiState.value = _uiState.value.copy(errorMessage = text(R.string.wear_error_item_unavailable))
         }
     }
 
@@ -91,7 +92,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
             itemStateSync.recordSaved(id, isSaved)
             rebuildPreservingTransientState()
         } else {
-            _uiState.value = _uiState.value.copy(errorMessage = "Brief is no longer available")
+            _uiState.value = _uiState.value.copy(errorMessage = text(R.string.wear_error_item_unavailable))
         }
     }
 
@@ -102,7 +103,7 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
                 requestGlanceUpdatesIfChanged()
                 if (enabled) refresh()
             }
-            else -> _uiState.value = _uiState.value.copy(errorMessage = "Could not update feed")
+            else -> _uiState.value = _uiState.value.copy(errorMessage = text(R.string.wear_error_feed_update_failed))
         }
     }
 
@@ -112,9 +113,11 @@ class InboxViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.value = buildState()
                 requestGlanceUpdatesIfChanged()
             }
-            else -> _uiState.value = _uiState.value.copy(errorMessage = "Could not remove feed")
+            else -> _uiState.value = _uiState.value.copy(errorMessage = text(R.string.wear_error_feed_remove_failed))
         }
     }
+
+    private fun text(id: Int): String = getApplication<Application>().getString(id)
 
     private fun requestGlanceUpdatesIfChanged() {
         val fingerprint = _uiState.value.glanceSurfaceUpdateFingerprint()

@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -62,11 +63,14 @@ import ink.underflo.wristbrief.mobile.ui.glass.NeutralFilterChip
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.text.SimpleDateFormat
+import java.text.DateFormat
 import java.util.Date
-import java.util.Locale
 
-enum class AskAiScope { All, Today, Unread, Saved }
+/**
+ * Grounding scope for an Ask AI request. [Article] exists only while content was
+ * handed over from the reader/player (the prefilled article or clip).
+ */
+enum class AskAiScope { All, Today, Unread, Saved, Article }
 
 @Composable
 private fun askAiScopeLabel(scope: AskAiScope): String = when (scope) {
@@ -74,6 +78,7 @@ private fun askAiScopeLabel(scope: AskAiScope): String = when (scope) {
     AskAiScope.Today -> stringResource(R.string.ai_scope_brief)
     AskAiScope.Unread -> stringResource(R.string.ai_scope_unread)
     AskAiScope.Saved -> stringResource(R.string.ai_scope_saved)
+    AskAiScope.Article -> stringResource(R.string.ai_scope_article)
 }
 
 /**
@@ -100,15 +105,31 @@ fun AskAiDestination(
     val unreadItems = remember(allItems) { allItems.filterNot { inboxRepository.isRead(it.id) } }
     val savedItems = remember(allItems) { allItems.filter { inboxRepository.isSaved(it.id) } }
 
-    var selectedContextScope by rememberSaveable { mutableStateOf(AskAiScope.All) }
+    val hasPrefilledContent = initialContent.isNotBlank()
+    var selectedContextScope by rememberSaveable(hasPrefilledContent) {
+        mutableStateOf(if (hasPrefilledContent) AskAiScope.Article else AskAiScope.All)
+    }
     var promptQuery by rememberSaveable { mutableStateOf(initialTitle.ifBlank { "" }) }
     var activePrompt by rememberSaveable { mutableStateOf<String?>(null) }
     var promptTimestamp by rememberSaveable { mutableStateOf<Long?>(null) }
     var aiResponseState by remember { mutableStateOf<PhoneLongSummaryUiState?>(null) }
+    // Scope label and the items actually sent with the active request; the answer
+    // card cites these, not a fixed slice of the inbox.
+    var activeScope by remember { mutableStateOf<AskAiScope?>(null) }
+    var activeContext by remember { mutableStateOf<AskAiContext?>(null) }
     var requiresSignIn by remember { mutableStateOf(false) }
     var copiedToClipboard by remember { mutableStateOf(false) }
 
-    val contextScopes = listOf(AskAiScope.All, AskAiScope.Today, AskAiScope.Unread, AskAiScope.Saved)
+    val contextScopes = buildList {
+        if (hasPrefilledContent) add(AskAiScope.Article)
+        addAll(listOf(AskAiScope.All, AskAiScope.Today, AskAiScope.Unread, AskAiScope.Saved))
+    }
+    val briefItems = remember(allItems, unreadItems) { AskAiContextBuilder.briefEligibleItems(allItems, unreadItems) }
+    val selectedScopeItemCount = if (selectedContextScope == AskAiScope.Article) {
+        1
+    } else {
+        AskAiContextBuilder.itemsForScope(selectedContextScope, allItems, unreadItems, savedItems).size
+    }
 
     fun executeQuery(query: String) {
         if (query.isBlank()) return
@@ -118,21 +139,17 @@ fun AskAiDestination(
         requiresSignIn = false
         copiedToClipboard = false
 
-        // Determine context source items
-        val sourceItems = when (selectedContextScope) {
-            AskAiScope.Unread -> unreadItems
-            AskAiScope.Saved -> savedItems
-            else -> allItems
-        }
-
-        val aggregatedContent = if (initialContent.isNotBlank()) {
-            initialContent
-        } else if (sourceItems.isNotEmpty()) {
-            sourceItems.take(5).joinToString("\n\n") { "${it.title}: ${it.description.orEmpty()}" }
-        } else {
-            query
-        }
-
+        val requestContext = AskAiContextBuilder.build(
+            scope = selectedContextScope,
+            query = query,
+            allItems = allItems,
+            unreadItems = unreadItems,
+            savedItems = savedItems,
+            prefilledContent = initialContent,
+        )
+        activeScope = selectedContextScope
+        activeContext = requestContext
+        val aggregatedContent = requestContext.content
         val aggregatedTitle = query
 
         scope.launch {
@@ -203,7 +220,11 @@ fun AskAiDestination(
                             tint = GlassTokens.accentTeal(darkTheme),
                         )
                         Text(
-                            text = stringResource(R.string.ai_grounded_sources, allItems.size),
+                            text = if (selectedContextScope == AskAiScope.Article) {
+                                stringResource(R.string.ai_grounded_prefilled)
+                            } else {
+                                stringResource(R.string.ai_grounded_sources, selectedScopeItemCount)
+                            },
                             style = MaterialTheme.typography.labelSmall,
                             color = GlassTokens.textPrimary(darkTheme),
                             fontWeight = FontWeight.Medium,
@@ -231,7 +252,8 @@ fun AskAiDestination(
                         AskAiScope.All -> "${stringResource(R.string.ai_scope_all)} (${allItems.size})"
                         AskAiScope.Unread -> "${stringResource(R.string.ai_scope_unread)} (${unreadItems.size})"
                         AskAiScope.Saved -> "${stringResource(R.string.ai_scope_saved)} (${savedItems.size})"
-                        AskAiScope.Today -> stringResource(R.string.ai_scope_brief)
+                        AskAiScope.Today -> "${stringResource(R.string.ai_scope_brief)} (${briefItems.size})"
+                        AskAiScope.Article -> stringResource(R.string.ai_scope_article)
                     }
                     NeutralFilterChip(
                         label = label,
@@ -240,6 +262,16 @@ fun AskAiDestination(
                         darkTheme = darkTheme,
                     )
                 }
+            }
+        }
+
+        if (selectedContextScope != AskAiScope.Article && selectedScopeItemCount == 0) {
+            item {
+                Text(
+                    text = stringResource(R.string.ai_scope_empty),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = GlassTokens.textSecondary(darkTheme),
+                )
             }
         }
 
@@ -280,7 +312,7 @@ fun AskAiDestination(
                             }
                             promptTimestamp?.let { ts ->
                                 Text(
-                                    text = SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date(ts)),
+                                    text = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(ts)),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = GlassTokens.textSecondary(darkTheme),
                                 )
@@ -295,7 +327,7 @@ fun AskAiDestination(
                         )
 
                         Text(
-                            text = stringResource(R.string.ai_context_prefix, askAiScopeLabel(selectedContextScope)),
+                            text = stringResource(R.string.ai_context_prefix, askAiScopeLabel(activeScope ?: selectedContextScope)),
                             style = MaterialTheme.typography.labelSmall,
                             color = GlassTokens.textSecondary(darkTheme),
                         )
@@ -465,8 +497,14 @@ fun AskAiDestination(
                                     )
                                 }
 
+                                val answerContext = activeContext
                                 Text(
-                                    text = stringResource(R.string.ai_sources_synthesized, allItems.take(3).size),
+                                    text = when {
+                                        answerContext == null -> stringResource(R.string.ai_sources_synthesized, 0)
+                                        answerContext.usesPrefilledContent -> stringResource(R.string.ai_grounded_prefilled)
+                                        answerContext.items.isEmpty() -> stringResource(R.string.ai_grounded_query_only)
+                                        else -> stringResource(R.string.ai_sources_synthesized, answerContext.sourceCount)
+                                    },
                                     style = MaterialTheme.typography.labelSmall,
                                     color = GlassTokens.textSecondary(darkTheme),
                                 )
@@ -527,8 +565,9 @@ fun AskAiDestination(
                                 }
                             }
 
-                            // Citations row
-                            if (allItems.isNotEmpty()) {
+                            // Citations row: only the items that were part of the request.
+                            val citedItems = activeContext?.items.orEmpty()
+                            if (citedItems.isNotEmpty()) {
                                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                     Text(
                                         text = stringResource(R.string.ai_citations_grounding),
@@ -537,7 +576,7 @@ fun AskAiDestination(
                                         fontWeight = FontWeight.SemiBold,
                                     )
                                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        items(allItems.take(4)) { sourceItem ->
+                                        items(citedItems) { sourceItem ->
                                             Box(
                                                 modifier = Modifier
                                                     .clip(RoundedCornerShape(8.dp))
@@ -546,10 +585,13 @@ fun AskAiDestination(
                                                     .padding(horizontal = 8.dp, vertical = 4.dp),
                                             ) {
                                                 Text(
-                                                    text = sourceItem.feedTitle,
+                                                    text = sourceItem.title.ifBlank { sourceItem.feedTitle },
                                                     style = MaterialTheme.typography.labelSmall,
                                                     color = GlassTokens.textPrimary(darkTheme),
                                                     fontWeight = FontWeight.Medium,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    modifier = Modifier.widthIn(max = 200.dp),
                                                 )
                                             }
                                         }
@@ -578,7 +620,7 @@ fun AskAiDestination(
                                     ) {
                                         Icon(
                                             imageVector = if (copiedToClipboard) Icons.Rounded.Check else Icons.Rounded.ContentCopy,
-                                            contentDescription = stringResource(if (copiedToClipboard) R.string.ai_copied else R.string.action_save),
+                                            contentDescription = stringResource(if (copiedToClipboard) R.string.ai_copied else R.string.ai_copy_answer),
                                             modifier = Modifier.size(16.dp),
                                             tint = GlassTokens.textPrimary(darkTheme),
                                         )
@@ -596,7 +638,7 @@ fun AskAiDestination(
                                     ) {
                                         Icon(
                                             imageVector = Icons.Rounded.Refresh,
-                                            contentDescription = stringResource(R.string.today_refresh),
+                                            contentDescription = stringResource(R.string.ai_regenerate),
                                             modifier = Modifier.size(16.dp),
                                             tint = GlassTokens.textPrimary(darkTheme),
                                         )

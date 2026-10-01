@@ -10,6 +10,7 @@ import androidx.wear.watchface.complications.data.ComplicationType
 import androidx.wear.watchface.complications.data.LongTextComplicationData
 import androidx.wear.watchface.complications.data.ShortTextComplicationData
 import ink.underflo.wristbrief.complication.UnreadComplicationDataSourceService
+import ink.underflo.wristbrief.complication.buildUnreadComplicationPreview
 import ink.underflo.wristbrief.tile.ContinueListeningTileService
 import ink.underflo.wristbrief.tile.LatestUnreadTileService
 import org.junit.Assert.assertEquals
@@ -62,11 +63,11 @@ class WearSurfaceProviderContractTest {
 
     @Test
     fun complicationPreviewBuildsOnlyDeclaredTextTypes() {
-        val provider = UnreadComplicationDataSourceService()
-
-        assertTrue(provider.getPreviewData(ComplicationType.SHORT_TEXT) is ShortTextComplicationData)
-        assertTrue(provider.getPreviewData(ComplicationType.LONG_TEXT) is LongTextComplicationData)
-        assertNull(provider.getPreviewData(ComplicationType.RANGED_VALUE))
+        // A manually constructed Service has no attached Context. Exercise the
+        // exact service renderer with real installed resources, not an invalid lifecycle.
+        assertTrue(buildUnreadComplicationPreview(context, ComplicationType.SHORT_TEXT) is ShortTextComplicationData)
+        assertTrue(buildUnreadComplicationPreview(context, ComplicationType.LONG_TEXT) is LongTextComplicationData)
+        assertNull(buildUnreadComplicationPreview(context, ComplicationType.RANGED_VALUE))
     }
 
     @Test

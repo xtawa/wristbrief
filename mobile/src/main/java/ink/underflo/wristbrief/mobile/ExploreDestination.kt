@@ -38,6 +38,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -81,25 +85,15 @@ fun ExploreDestination(
         mutableStateOf(feedManager.feeds().map { it.url }.toSet())
     }
     var addingFeedId by remember { mutableStateOf<String?>(null) }
-
-    val categories = listOf("All", "Technology", "Science", "Design", "Podcasts", "News")
+    // Subscribe failures were previously swallowed; keep the last failure per feed
+    // so the card can show it and offer a retry.
+    var subscribeErrors by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
 
     val allCurated = SampleFeeds.curatedFeeds
+    val categories = remember(allCurated) { ExploreCatalog.categories(allCurated) }
 
     val filteredFeeds = remember(searchQuery, selectedCategory, allCurated) {
-        allCurated.filter { feed ->
-            val matchesCategory = selectedCategory == null ||
-                selectedCategory.equals("All", ignoreCase = true) ||
-                feed.category.equals(selectedCategory, ignoreCase = true) ||
-                (selectedCategory.equals("Technology", ignoreCase = true) && feed.category.equals("Tech", ignoreCase = true)) ||
-                (selectedCategory.equals("Podcasts", ignoreCase = true) && feed.isPodcast)
-            val matchesSearch = if (searchQuery.isBlank()) true else {
-                feed.title.contains(searchQuery, ignoreCase = true) ||
-                    feed.description.contains(searchQuery, ignoreCase = true) ||
-                    feed.category.contains(searchQuery, ignoreCase = true)
-            }
-            matchesCategory && matchesSearch
-        }
+        ExploreCatalog.filter(allCurated, searchQuery, selectedCategory)
     }
 
     LazyColumn(
@@ -124,12 +118,14 @@ fun ExploreDestination(
                         color = GlassTokens.textPrimary(darkTheme),
                     )
                     if (onAddFeedDialog != null) {
+                        val addLabel = stringResource(R.string.explore_add_custom_source)
                         Box(
                             modifier = Modifier
-                                .size(44.dp)
+                                .size(48.dp)
                                 .clip(CircleShape)
                                 .background(GlassTokens.surfaceContainerHigh(darkTheme))
-                                .clickable(onClick = onAddFeedDialog),
+                                .clickable(onClick = onAddFeedDialog, role = Role.Button, onClickLabel = addLabel)
+                                .semantics { contentDescription = addLabel },
                             contentAlignment = Alignment.Center,
                         ) {
                             AppIcon(
@@ -207,7 +203,7 @@ fun ExploreDestination(
                 items(categories) { cat ->
                     val isSelected = if (cat == "All") selectedCategory == null else selectedCategory.equals(cat, ignoreCase = true)
                     NeutralFilterChip(
-                        label = cat,
+                        label = exploreCategoryLabel(cat),
                         selected = isSelected,
                         onClick = {
                             selectedCategory = if (cat == "All" || selectedCategory.equals(cat, ignoreCase = true)) null else cat
@@ -300,7 +296,7 @@ fun ExploreDestination(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 modifier = Modifier.padding(top = 2.dp),
                             ) {
-                                listOf("Technology", "Design", "Podcasts").forEach { topic ->
+                                categories.filterNot { it == ExploreCatalog.ALL }.take(3).forEach { topic ->
                                     Surface(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(999.dp))
@@ -328,6 +324,9 @@ fun ExploreDestination(
             items(filteredFeeds) { feed ->
                 val isAdded = feed.url in addedFeedUrls
                 val isAdding = addingFeedId == feed.id
+                val subscribeError = subscribeErrors[feed.id]
+                val subscribedLabel = stringResource(R.string.action_subscribed)
+                val notSubscribedLabel = stringResource(R.string.action_subscribe)
 
                 GlassSurface(
                     modifier = Modifier.fillMaxWidth(),
@@ -387,7 +386,7 @@ fun ExploreDestination(
                                             .padding(horizontal = 6.dp, vertical = 2.dp),
                                     ) {
                                         Text(
-                                            text = if (feed.isPodcast) "Podcast" else "RSS",
+                                            text = stringResource(if (feed.isPodcast) R.string.explore_kind_podcast else R.string.explore_kind_rss),
                                             style = MaterialTheme.typography.labelSmall,
                                             color = GlassTokens.textSecondary(darkTheme),
                                             fontSize = 10.sp,
@@ -416,10 +415,15 @@ fun ExploreDestination(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
+                            // Only derivable metadata: the publisher host. Cadence is unknown
+                            // until the feed is fetched, so nothing is invented here.
                             Text(
-                                text = if (feed.isPodcast) "Weekly show" else "~8 articles / wk",
+                                text = stringResource(R.string.explore_source_host, ExploreCatalog.host(feed.url)),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = GlassTokens.textSecondary(darkTheme),
+                                modifier = Modifier.weight(1f, fill = false),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                             )
 
                             Box(
@@ -434,20 +438,28 @@ fun ExploreDestination(
                                         color = if (isAdded) GlassTokens.hairline(darkTheme) else androidx.compose.ui.graphics.Color.Transparent,
                                         shape = RoundedCornerShape(999.dp),
                                     )
-                                    .clickable(enabled = !isAdded && !isAdding) {
+                                    .clickable(
+                                        enabled = !isAdded && !isAdding,
+                                        role = Role.Button,
+                                        onClickLabel = stringResource(R.string.action_subscribe),
+                                    ) {
                                         scope.launch {
                                             addingFeedId = feed.id
+                                            subscribeErrors = subscribeErrors - feed.id
                                             try {
-                                                val res = feedManager.add(feed.url, feed.title, feed.category)
-                                                if (res is FeedMutationResult.Success) {
-                                                    addedFeedUrls = addedFeedUrls + feed.url
+                                                when (val res = feedManager.add(feed.url, feed.title, feed.category)) {
+                                                    is FeedMutationResult.Success -> addedFeedUrls = addedFeedUrls + feed.url
+                                                    is FeedMutationResult.Error -> subscribeErrors = subscribeErrors + (feed.id to res.message)
                                                 }
                                             } finally {
                                                 addingFeedId = null
                                             }
                                         }
                                     }
-                                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                                    .semantics {
+                                        stateDescription = if (isAdded) subscribedLabel else notSubscribedLabel
+                                    }
+                                    .padding(horizontal = 14.dp, vertical = 10.dp),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 if (isAdding) {
@@ -502,6 +514,14 @@ fun ExploreDestination(
                                     }
                                 }
                             }
+                        }
+
+                        if (subscribeError != null) {
+                            Text(
+                                text = stringResource(R.string.explore_subscribe_failed, subscribeError),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = GlassTokens.semanticError(darkTheme),
+                            )
                         }
                     }
                 }

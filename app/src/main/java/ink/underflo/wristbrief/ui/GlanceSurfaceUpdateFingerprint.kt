@@ -13,7 +13,8 @@ internal data class GlanceSurfaceUpdateFingerprint(
     val tileUnreadCount: Int,
     val tileTitles: List<String>,
     val complicationShortText: String,
-    val complicationLongText: String,
+    /** Long text is a localized function of the count plus this title, so the title is what changes it. */
+    val complicationLatestTitle: String?,
 )
 
 internal fun InboxUiState.glanceSurfaceUpdateFingerprint(): GlanceSurfaceUpdateFingerprint {
@@ -32,6 +33,6 @@ internal fun InboxUiState.glanceSurfaceUpdateFingerprint(): GlanceSurfaceUpdateF
             .take(2)
             .toList(),
         complicationShortText = complication.shortText,
-        complicationLongText = complication.longText,
+        complicationLatestTitle = complication.latestTitle,
     )
 }

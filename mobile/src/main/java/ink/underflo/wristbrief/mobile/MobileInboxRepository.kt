@@ -2,6 +2,8 @@ package ink.underflo.wristbrief.mobile
 
 import android.content.Context
 import java.io.InputStream
+import java.io.FilterInputStream
+import kotlinx.coroutines.CancellationException
 import java.net.URI
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -82,6 +84,8 @@ fun mobileItemId(
 interface MobileInboxStore {
     fun load(): List<MobileFeedItem>
     fun save(items: List<MobileFeedItem>)
+    /** Saved articles are outside the rolling cache's retention budget. */
+    fun saveRetaining(items: List<MobileFeedItem>, protectedIds: Set<String>) = save(items)
     /** Optional capability: drop cached items belonging to one feed (subscription deletion cleanup). */
     fun deleteItemsForFeed(feedId: String) {}
 }
@@ -141,6 +145,7 @@ class HttpFeedItemFetcher(
     private val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
+        .callTimeout(30, TimeUnit.SECONDS)
         .build(),
     private val parser: MobileFeedParser = MobileFeedParser(),
 ) : FeedItemFetcher {
@@ -153,17 +158,38 @@ class HttpFeedItemFetcher(
         response.use { resp ->
             check(resp.isSuccessful) { "HTTP ${resp.code}" }
             check(resp.request.url.isHttps) { "Redirected to insecure URL" }
-            val stream = resp.body?.byteStream() ?: return@withContext emptyList()
-            parser.parse(stream)
+            val body = resp.body ?: return@withContext emptyList()
+            check(body.contentLength() <= MAX_FEED_BYTES) { "Feed exceeds the 4 MiB limit" }
+            parser.parse(BoundedFeedInputStream(body.byteStream(), MAX_FEED_BYTES))
         }
     }
 }
+
+internal const val MAX_FEED_BYTES = 4L * 1024 * 1024
+
+internal class BoundedFeedInputStream(stream: InputStream, private val maxBytes: Long) : FilterInputStream(stream) {
+    private var consumed = 0L
+    override fun read(): Int = `in`.read().also { if (it != -1) checkLimit(1) }
+    override fun read(buffer: ByteArray, offset: Int, length: Int): Int =
+        `in`.read(buffer, offset, length).also { if (it > 0) checkLimit(it.toLong()) }
+    override fun skip(n: Long): Long = `in`.skip(n).also { checkLimit(it) }
+    private fun checkLimit(count: Long) {
+        consumed += count
+        if (consumed > maxBytes) throw java.io.IOException("Feed exceeds the 4 MiB limit")
+    }
+}
+
+data class MobileLibraryItemState(val isRead: Boolean = false, val isSaved: Boolean = false)
 
 interface ItemStateReaderAndWriter {
     fun isRead(itemId: String): Boolean
     fun isSaved(itemId: String): Boolean
     fun setRead(itemId: String, isRead: Boolean)
     fun setSaved(itemId: String, isSaved: Boolean)
+
+    /** Default keeps existing adapters compatible; persistent adapters can batch reads. */
+    fun itemStates(itemIds: Collection<String>): Map<String, MobileLibraryItemState> =
+        itemIds.associateWith { MobileLibraryItemState(isRead(it), isSaved(it)) }
 }
 
 class SyncManagerItemStateAdapter(
@@ -174,6 +200,15 @@ class SyncManagerItemStateAdapter(
 ) : ItemStateReaderAndWriter {
     override fun isRead(itemId: String): Boolean = syncManager.state(itemId)?.read?.value == true
     override fun isSaved(itemId: String): Boolean = syncManager.state(itemId)?.saved?.value == true
+    override fun itemStates(itemIds: Collection<String>): Map<String, MobileLibraryItemState> {
+        val snapshot = syncManager.states()
+        return itemIds.associateWith { id ->
+            MobileLibraryItemState(
+                isRead = snapshot[id]?.read?.value == true,
+                isSaved = snapshot[id]?.saved?.value == true,
+            )
+        }
+    }
     override fun setRead(itemId: String, isRead: Boolean) {
         val now = clock()
         syncManager.recordRead(itemId, isRead, nowEpochMs = now)
@@ -198,12 +233,17 @@ class MobileInboxRepository(
     private val stateAdapter: ItemStateReaderAndWriter,
     private val fetcher: FeedItemFetcher,
     private val clock: () -> Long = System::currentTimeMillis,
+    /** Invoked with the refresh time after every completed [refresh] that contacted at least one feed. */
+    private val onRefreshCompleted: ((Long) -> Unit)? = null,
 ) {
     fun items(): List<MobileFeedItem> = store.load()
 
     fun isRead(itemId: String): Boolean = stateAdapter.isRead(itemId)
 
     fun isSaved(itemId: String): Boolean = stateAdapter.isSaved(itemId)
+
+    fun itemStates(itemIds: Collection<String>): Map<String, MobileLibraryItemState> =
+        stateAdapter.itemStates(itemIds)
 
     fun setRead(itemId: String, isRead: Boolean) {
         stateAdapter.setRead(itemId, isRead)
@@ -220,8 +260,11 @@ class MobileInboxRepository(
     suspend fun refresh(): MobileRefreshResult {
         val feeds = feedManager.feeds().filter { it.enabled }
         if (feeds.isEmpty()) {
-            store.save(emptyList())
-            return MobileRefreshResult(totalCount = 0)
+            val subscribedIds = feedManager.feeds().map { it.id }.toSet()
+            val cached = store.load().filter { it.feedId in subscribedIds }
+            val savedIds = itemStates(cached.map { it.id }).filterValues { it.isSaved }.keys
+            store.saveRetaining(cached, savedIds)
+            return MobileRefreshResult(totalCount = cached.size)
         }
 
         val failedTitles = mutableListOf<String>()
@@ -249,6 +292,8 @@ class MobileInboxRepository(
                                 )
                             }
                             Result.success(Pair(feed, items))
+                        } catch (e: CancellationException) {
+                            throw e
                         } catch (e: Exception) {
                             Result.failure(e)
                         }
@@ -267,22 +312,24 @@ class MobileInboxRepository(
         }
 
         val previous = store.load()
-        val retained = if (failedTitles.isNotEmpty()) {
-            val failedIds = feeds.filter { it.title in failedTitles }.map { it.id }.toSet()
-            previous.filter { it.feedId in failedIds }
-        } else {
-            emptyList()
+        val failedIds = feeds.indices.filter { feedResults[it].isFailure }.map { feeds[it].id }.toSet()
+        val subscribedIds = feedManager.feeds().map { it.id }.toSet()
+        val fetchedFeedIds = feeds.map { it.id }.toSet()
+        val savedIds = itemStates((previous + fetchedItems).map { it.id }).filterValues { it.isSaved }.keys
+        val retained = previous.filter {
+            it.feedId in failedIds || (it.feedId in subscribedIds &&
+                (it.feedId !in fetchedFeedIds || it.id in savedIds))
         }
-
         val combined = (fetchedItems + retained)
             .distinctBy { it.id }
             .sortedByDescending { it.cachedAtEpochMs }
-            .take(500)
-
-        store.save(combined)
+        val stored = (combined.filter { it.id in savedIds } +
+            combined.filterNot { it.id in savedIds }.take(500)).distinctBy { it.id }
+        store.saveRetaining(stored, savedIds)
+        onRefreshCompleted?.invoke(now)
 
         return MobileRefreshResult(
-            totalCount = combined.size,
+            totalCount = stored.size,
             failedFeedTitles = failedTitles,
             isOfflineFallback = failedTitles.isNotEmpty() && combined.isNotEmpty(),
         )

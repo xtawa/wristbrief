@@ -8,7 +8,9 @@ private const val MAX_CONTINUE_TILE_TITLE_CODE_POINTS = 44
 data class ContinueListeningTileData(
     val episodeId: String,
     val title: String,
-    val resumeLabel: String
+    /** Saved position, e.g. "2:05"; the tile service localizes the surrounding "Resume …" copy. */
+    val positionLabel: String,
+    val speedLabel: String,
 )
 
 internal fun mapContinueListeningTileData(
@@ -28,7 +30,8 @@ internal fun mapContinueListeningTileData(
     return ContinueListeningTileData(
         episodeId = item.id,
         title = item.title.compactTileText(),
-        resumeLabel = "Resume ${formatResumeTime(saved.positionMs)} · ${formatSpeed(saved.playbackSpeed)}"
+        positionLabel = formatResumeTime(saved.positionMs),
+        speedLabel = formatSpeed(saved.playbackSpeed),
     )
 }
 

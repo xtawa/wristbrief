@@ -26,7 +26,8 @@ class ContinueListeningTileDataTest {
         requireNotNull(result)
         assertEquals("new", result.episodeId)
         assertEquals("New episode", result.title)
-        assertEquals("Resume 2:05 · 1.5×", result.resumeLabel)
+        assertEquals("2:05", result.positionLabel)
+        assertEquals("1.5×", result.speedLabel)
     }
 
     @Test
@@ -48,7 +49,8 @@ class ContinueListeningTileDataTest {
 
         requireNotNull(result)
         assertEquals("A very long podcast episode title that shou…", result.title)
-        assertEquals("Resume 1:01:01 · 2×", result.resumeLabel)
+        assertEquals("1:01:01", result.positionLabel)
+        assertEquals("2×", result.speedLabel)
     }
 
     @Test

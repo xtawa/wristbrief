@@ -24,7 +24,8 @@ sealed interface AiBriefUiState {
     data class Ready(val brief: AiBrief) : AiBriefUiState
     data object QuotaExceeded : AiBriefUiState
     data object ProviderUnavailable : AiBriefUiState
-    data class Error(val message: String) : AiBriefUiState
+    /** Recoverable failure; [failure] selects localized copy in the Wear presentation. */
+    data class Error(val failure: AiSummaryFailure) : AiBriefUiState
 }
 
 internal fun parseAiBrief(body: String): AiBrief {
@@ -68,7 +69,7 @@ class AiSummaryException(val failure: AiSummaryFailure) : RuntimeException(failu
 fun aiFailureState(failure: AiSummaryFailure): AiBriefUiState = when (failure) {
     AiSummaryFailure.Quota -> AiBriefUiState.QuotaExceeded
     AiSummaryFailure.ProviderUnavailable -> AiBriefUiState.ProviderUnavailable
-    AiSummaryFailure.Unauthorized -> AiBriefUiState.Error("AI access unavailable")
-    AiSummaryFailure.InvalidResponse -> AiBriefUiState.Error("AI brief unavailable")
-    AiSummaryFailure.Network -> AiBriefUiState.Error("AI network issue")
+    AiSummaryFailure.Unauthorized,
+    AiSummaryFailure.InvalidResponse,
+    AiSummaryFailure.Network -> AiBriefUiState.Error(failure)
 }

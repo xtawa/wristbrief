@@ -21,6 +21,7 @@ import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.SwapVert
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.Composable
@@ -56,6 +57,7 @@ fun AppIcon(
         AppIconKind.Back -> Icons.AutoMirrored.Rounded.ArrowBack
         AppIconKind.ChevronRight -> Icons.AutoMirrored.Rounded.KeyboardArrowRight
         AppIconKind.Podcast -> Icons.Rounded.Podcasts
+        AppIconKind.Sort -> Icons.Rounded.SwapVert
     }
 
     Icon(
@@ -87,4 +89,5 @@ enum class AppIconKind {
     Back,
     ChevronRight,
     Podcast,
+    Sort,
 }

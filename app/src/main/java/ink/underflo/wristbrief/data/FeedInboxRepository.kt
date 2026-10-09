@@ -71,13 +71,7 @@ class FeedInboxRepository(
 ) {
     fun subscriptions(): List<FeedSubscription> = store.subscriptions()
 
-    fun cachedItems(): List<CachedFeedItem> {
-        val enabled = store.subscriptions().filter { it.enabled }.associateBy { it.id }
-        if (enabled.isEmpty()) return emptyList()
-        return store.cachedItems().filter { item ->
-            enabled[item.feedId]?.let { subscription -> item.matchesWatchKeywords(subscription.watchKeywords) } == true
-        }
-    }
+    fun cachedItems(): List<CachedFeedItem> = visibleInboxItems(store.subscriptions(), store.cachedItems())
 
     fun savedItems(): List<CachedFeedItem> {
         val savedIds = store.savedItemIds()
@@ -193,6 +187,21 @@ class FeedInboxRepository(
     private fun duplicateSubscriptionId(url: String, excludingId: String?): String? {
         val normalized = normalizeIdentityUrl(url) ?: url.trim()
         return store.subscriptions().firstOrNull { it.id != excludingId && normalizeIdentityUrl(it.url) == normalized }?.id
+    }
+}
+
+/**
+ * Items the Inbox shows: from an enabled subscription and matching that subscription's watch
+ * keywords. Tiles and complications use the same rule so their unread counts match the Inbox.
+ */
+internal fun visibleInboxItems(
+    subscriptions: List<FeedSubscription>,
+    items: List<CachedFeedItem>,
+): List<CachedFeedItem> {
+    val enabled = subscriptions.filter { it.enabled }.associateBy { it.id }
+    if (enabled.isEmpty()) return emptyList()
+    return items.filter { item ->
+        enabled[item.feedId]?.let { subscription -> item.matchesWatchKeywords(subscription.watchKeywords) } == true
     }
 }
 

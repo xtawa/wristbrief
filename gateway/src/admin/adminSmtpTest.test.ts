@@ -100,8 +100,12 @@ describe("SMTP test send", () => {
     expect(response.json.result).toBe("send_failed");
     expect(response.json.errorClass).toBe("EAUTH");
     expect(response.json.error).toBe("smtp_send_failed");
-    // The driver message (which can name the account) is not returned.
-    expect(JSON.stringify(response.json)).not.toContain("535");
+    // The driver message (which can name the account) is not returned. ISO timestamps such as
+    // checkedAt can legitimately contain "535" in their milliseconds, so strip them before the
+    // reply-code check instead of letting the wall clock decide the result.
+    const withoutIsoTimestamps = (value: string) => value.replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/g, "<ts>");
+    expect(JSON.stringify(response.json)).not.toContain("Invalid login");
+    expect(withoutIsoTimestamps(JSON.stringify(response.json))).not.toContain("535");
     expect(JSON.stringify(response.json)).not.toContain("authentication failed");
     expect(fake.state.sent).toHaveLength(0);
 
@@ -109,7 +113,8 @@ describe("SMTP test send", () => {
     expect(row).toMatchObject({ status: "send_failed", error_class: "EAUTH" });
     const audit = await setup.d1.prepare("SELECT after_json FROM admin_audit_log WHERE action = 'smtp_test_failed'").first();
     expect(audit.after_json).toContain("EAUTH");
-    expect(audit.after_json).not.toContain("535");
+    expect(audit.after_json).not.toContain("Invalid login");
+    expect(withoutIsoTimestamps(audit.after_json)).not.toContain("535");
   });
 
   it("falls back to a generic error class when the driver exposes no code", async () => {

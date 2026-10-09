@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Strings added by the mobile product-completion pass. Kept separate from strings.xml to avoid merge conflicts. -->
+<resources>
+    <!-- Ask AI -->
+    <string name="ai_scope_article">This article</string>
+    <string name="ai_scope_empty">No items in this scope. Switch scope or add sources first.</string>
+    <string name="ai_grounded_prefilled">Grounded in the handed-over article</string>
+    <string name="ai_grounded_query_only">No library content included · answered from your question only</string>
+    <string name="ai_copy_answer">Copy answer</string>
+    <string name="ai_regenerate">Regenerate answer</string>
+
+    <!-- Explore -->
+    <string name="explore_add_custom_source">Add a feed URL</string>
+    <string name="explore_subscribe_failed">Could not subscribe: %1$s</string>
+    <string name="explore_subscribe_retry">Retry</string>
+    <string name="explore_source_host">Source: %1$s</string>
+    <string name="explore_kind_podcast">Podcast</string>
+    <string name="explore_kind_rss">RSS</string>
+
+    <!-- Settings -->
+    <string name="settings_refresh_summary">When you open or return to the app, sources are refreshed if the last refresh is older than this. There is no background refresh.</string>
+    <string name="settings_refresh_last_format">Last refresh: %1$s</string>
+    <string name="settings_refresh_never">Not refreshed yet</string>
+    <string name="settings_wear_sync_off_summary">Nothing is sent to the watch while this is off. Turning it back on resends your subscriptions.</string>
+    <string name="settings_diagnostics_status_disabled">Disabled by preference</string>
+</resources>

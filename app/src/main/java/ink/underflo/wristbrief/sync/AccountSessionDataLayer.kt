@@ -6,6 +6,7 @@ import com.google.android.gms.wearable.DataEventBuffer
 import com.google.android.gms.wearable.DataMapItem
 import com.google.android.gms.wearable.WearableListenerService
 import java.time.Instant
+import kotlinx.coroutines.flow.update
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
@@ -15,13 +16,18 @@ internal data class WearAccountSession(val token: String, val expiresAt: Instant
 
 internal object WearAccountSessionRuntime {
     @Volatile private var current: WearAccountSession? = null
+    private val _revision = kotlinx.coroutines.flow.MutableStateFlow(0L)
+
+    /** Increments whenever the session is set or cleared so open screens can re-evaluate AI availability. */
+    val revision: kotlinx.coroutines.flow.StateFlow<Long> = _revision
 
     fun initialize(context: Context, now: Instant = Instant.now()) {
         current = WearAccountSessionStore(context).read(now)
+        _revision.update { it + 1 }
     }
 
-    fun set(session: WearAccountSession) { current = session }
-    fun clear() { current = null }
+    fun set(session: WearAccountSession) { current = session; _revision.update { it + 1 } }
+    fun clear() { current = null; _revision.update { it + 1 } }
 
     fun currentToken(now: Instant = Instant.now()): String? {
         val session = current ?: return null
@@ -125,6 +131,50 @@ internal fun applyWearAccountSessionMessage(
     }
 }
 
+/**
+ * Clears the account-scoped data stored on the watch (subscriptions, cached items, read/saved IDs,
+ * item-state clocks, sync outbox and persisted podcast progress) on sign-out or account switch.
+ *
+ * The whole purge runs inside [PlaybackAccountFence.revokeAndRun]: the generation is bumped and the
+ * stores are cleared under the fence lock, so a playback checkpoint (periodic, pause/seek,
+ * onTaskRemoved, onDestroy) either completed before the purge or is refused; it can never land
+ * between the revoke and the clear. Live sessions are asked to stop afterwards.
+ *
+ * The Continue listening tile reads the raw cached items and podcast progress directly (not the
+ * subscription-filtered inbox), so both must be cleared here, not just subscriptions/read/saved.
+ */
+internal fun purgeWearAccountScopedData(
+    feedStore: ink.underflo.wristbrief.data.FeedStore,
+    progressStore: ink.underflo.wristbrief.media.PodcastProgressStore,
+    clearItemStateClocks: () -> Unit,
+    clearSyncOutbox: () -> Unit,
+    fence: ink.underflo.wristbrief.media.PlaybackAccountFence = ink.underflo.wristbrief.media.PlaybackAccountFence.process,
+) {
+    fence.revokeAndRun {
+        clearItemStateClocks()
+        feedStore.saveSubscriptions(emptyList())
+        feedStore.saveCachedItems(emptyList())
+        feedStore.saveReadItemIds(emptySet())
+        feedStore.saveSavedItemIds(emptySet())
+        progressStore.all().forEach { progressStore.delete(it.episodeId) }
+        clearSyncOutbox()
+    }
+}
+
+/** Production purge wiring shared by the Data Layer service and instrumentation tests. */
+internal fun purgeWearAccountScopedData(context: android.content.Context) {
+    val appContext = context.applicationContext
+    purgeWearAccountScopedData(
+        feedStore = ink.underflo.wristbrief.data.SharedPreferencesFeedStore(appContext),
+        progressStore = ink.underflo.wristbrief.media.SharedPreferencesPodcastProgressStore(appContext),
+        clearItemStateClocks = { WearItemStateClockStore(appContext).save(emptyList()) },
+        clearSyncOutbox = { SharedPreferencesSyncOutboxStore(appContext).clear() },
+    )
+    ink.underflo.wristbrief.tile.requestLatestUnreadTileUpdate(appContext)
+    ink.underflo.wristbrief.tile.requestContinueListeningTileUpdate(appContext)
+    ink.underflo.wristbrief.complication.requestUnreadComplicationUpdate(appContext)
+}
+
 class AccountSessionDataLayerService : WearableListenerService() {
     override fun onDataChanged(events: DataEventBuffer) {
         events.forEach { event ->
@@ -137,16 +187,7 @@ class AccountSessionDataLayerService : WearableListenerService() {
                 currentUserId = currentUserId,
                 write = store::write,
                 clear = store::clear,
-                onAccountPurge = {
-                    WearItemStateClockStore(this).save(emptyList())
-                    val feedStore = ink.underflo.wristbrief.data.SharedPreferencesFeedStore(this)
-                    feedStore.saveSubscriptions(emptyList())
-                    feedStore.saveReadItemIds(emptySet())
-                    feedStore.saveSavedItemIds(emptySet())
-                    SharedPreferencesSyncOutboxStore(this).clear()
-                    ink.underflo.wristbrief.tile.requestLatestUnreadTileUpdate(this)
-                    ink.underflo.wristbrief.complication.requestUnreadComplicationUpdate(this)
-                },
+                onAccountPurge = { purgeWearAccountScopedData(this) },
             )
         }
     }

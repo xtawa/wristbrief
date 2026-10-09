@@ -41,6 +41,7 @@ data class ArticleDocument(
     val canonicalUrl: String,
     val sourceName: String?,
     val blocks: List<ArticleBlock>,
+    val isExcerpt: Boolean = false,
 )
 
 /**
@@ -65,6 +66,7 @@ fun articleDocumentFromRss(
         blocks = sanitized.paragraphs.map { paragraph ->
             ArticleBlock.Paragraph(listOf(ArticleInline.Text(paragraph)))
         },
+        isExcerpt = true,
     )
 }
 
@@ -102,7 +104,10 @@ fun decodeArticleDocument(raw: String): ArticleDocument? = runCatching {
         canonicalUrl = document["canonicalUrl"]?.jsonPrimitive?.contentOrNull ?: "",
         sourceName = document["sourceName"]?.jsonPrimitive?.contentOrNull,
         blocks = blocks,
-    ).takeIf { it.blocks.isNotEmpty() }
+    ).takeIf { it.blocks.isNotEmpty() }?.let { parsed ->
+        // Length cannot prove that feed content is the publisher's full article.
+        parsed.copy(isExcerpt = root["source"]?.jsonPrimitive?.contentOrNull == "rss")
+    }
 }.getOrNull()
 
 private fun kotlinx.serialization.json.JsonObject.decodeSpans(): List<ArticleInline> =

@@ -171,9 +171,13 @@ internal fun wearSyncPayloadFor(feeds: List<MobileFeedSubscription>): WearSyncPa
     },
 )
 
-class GoogleWearFeedSyncPublisher(context: Context) : FeedSyncPublisher {
+class GoogleWearFeedSyncPublisher(
+    context: Context,
+    private val gate: WearSyncGate = WearSyncGate.fromPreferences(context),
+) : FeedSyncPublisher {
     private val dataClient = Wearable.getDataClient(context.applicationContext)
     override fun publish(feeds: List<MobileFeedSubscription>) {
+        if (!gate.isEnabled()) return
         val payload = wearSyncPayloadFor(feeds)
         val request = PutDataMapRequest.create(WearDataLayerContract.PATH).apply {
             dataMap.putString(WearDataLayerContract.PAYLOAD_KEY, WearDataLayerContract.encode(payload))
@@ -191,6 +195,11 @@ class MobileFeedManager(
     private val listener: MobileFeedListener? = null,
 ) {
     fun feeds(): List<MobileFeedSubscription> = store.load()
+
+    /** Re-sends the current subscriptions to the watch (used when Wear sync is re-enabled). */
+    fun republishToWatch() {
+        publisher.publish(store.load())
+    }
 
     suspend fun add(
         rawUrl: String,

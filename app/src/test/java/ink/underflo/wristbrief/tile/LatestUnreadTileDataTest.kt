@@ -1,6 +1,8 @@
 package ink.underflo.wristbrief.tile
 
 import ink.underflo.wristbrief.data.CachedFeedItem
+import ink.underflo.wristbrief.data.FeedSubscription
+import ink.underflo.wristbrief.data.visibleInboxItems
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -87,6 +89,26 @@ class LatestUnreadTileDataTest {
         assertEquals(44, compact.codePointCount(0, compact.length))
         assertFalse(compact.any { Character.isSurrogate(it) } && compact.codePoints().count() == compact.length.toLong())
         assertTrue(Character.isSurrogatePair(compact[42], compact[43]))
+    }
+
+    @Test
+    fun tileUnreadCountMatchesInboxWatchKeywordVisibility() {
+        val subscriptions = listOf(
+            FeedSubscription("enabled", "Enabled", "https://example.com/feed", watchKeywords = listOf("wear")),
+        )
+        val items = listOf(
+            item(id = "match", feedId = "enabled", title = "Wear tiles", cachedAt = 10),
+            item(id = "hidden", feedId = "enabled", title = "Unrelated", cachedAt = 20),
+        )
+
+        val data = mapLatestUnreadTileData(
+            cachedItems = visibleInboxItems(subscriptions, items),
+            enabledFeedIds = setOf("enabled"),
+            readItemIds = emptySet(),
+        )
+
+        assertEquals(1, data.unreadCount)
+        assertEquals(listOf("Wear tiles"), data.titles)
     }
 
     private fun item(

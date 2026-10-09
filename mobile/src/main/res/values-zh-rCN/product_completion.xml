@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Ask AI -->
+    <string name="ai_scope_article">这篇文章</string>
+    <string name="ai_scope_empty">此范围内没有内容。请切换范围或先添加订阅源。</string>
+    <string name="ai_grounded_prefilled">基于传入的文章内容</string>
+    <string name="ai_grounded_query_only">未包含库内容 · 仅根据你的问题作答</string>
+    <string name="ai_copy_answer">复制回答</string>
+    <string name="ai_regenerate">重新生成回答</string>
+
+    <!-- Explore -->
+    <string name="explore_add_custom_source">添加订阅源地址</string>
+    <string name="explore_subscribe_failed">订阅失败：%1$s</string>
+    <string name="explore_subscribe_retry">重试</string>
+    <string name="explore_source_host">来源：%1$s</string>
+    <string name="explore_kind_podcast">播客</string>
+    <string name="explore_kind_rss">RSS</string>
+
+    <!-- Settings -->
+    <string name="settings_refresh_summary">打开或返回应用时，若上次刷新早于此间隔则会刷新订阅源。本版本没有后台刷新。</string>
+    <string name="settings_refresh_last_format">上次刷新：%1$s</string>
+    <string name="settings_refresh_never">尚未刷新</string>
+    <string name="settings_wear_sync_off_summary">关闭后不会向手表发送任何内容；重新开启会重新发送你的订阅。</string>
+    <string name="settings_diagnostics_status_disabled">已在偏好设置中关闭</string>
+</resources>

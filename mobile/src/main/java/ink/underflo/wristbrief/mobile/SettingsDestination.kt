@@ -10,6 +10,9 @@ import ink.underflo.wristbrief.mobile.ui.glass.GlassHeader
 import ink.underflo.wristbrief.mobile.ui.glass.GlassTokens
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,7 +22,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -49,13 +51,14 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import ink.underflo.wristbrief.mobile.ui.TouchTargetTokens
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 internal enum class SettingsTab { Sources, Preferences, Account, About }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 internal fun SettingsDestination(
     onBack: () -> Unit,
@@ -64,6 +67,8 @@ internal fun SettingsDestination(
     appPreferences: AppPreferences? = null,
     onThemeChanged: (AppThemeMode) -> Unit = {},
     feedManager: MobileFeedManager,
+    /** Called after the Wear toggle is switched back on; the shell resends the current snapshot. */
+    onWearSyncReenabled: () -> Unit = { runCatching { feedManager.republishToWatch() } },
     darkTheme: Boolean = androidx.compose.foundation.isSystemInDarkTheme(),
     initialTab: SettingsTab = SettingsTab.Sources,
 ) {
@@ -77,7 +82,8 @@ internal fun SettingsDestination(
     var currentInterval by rememberSaveable { mutableStateOf(preferences.getRefreshInterval()) }
     var wifiOnly by rememberSaveable { mutableStateOf(preferences.isWifiOnly()) }
     var wearSync by rememberSaveable { mutableStateOf(preferences.isWearSyncEnabled()) }
-    var notifications by rememberSaveable { mutableStateOf(preferences.isNotificationsEnabled()) }
+    // Observed value only: null until a refresh has actually completed.
+    val lastRefreshEpochMs = remember(preferences) { preferences.getLastInboxRefreshEpochMs() }
 
     var showLicensesDialog by rememberSaveable { mutableStateOf(false) }
 
@@ -216,36 +222,39 @@ internal fun SettingsDestination(
                                             style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.SemiBold,
                                         )
-                                        Row(
+                                        // Wrapping options: at 320 dp with large fonts a fixed Row squeezed
+                                        // the last chip until its label broke into two lines.
+                                        FlowRow(
                                             modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalArrangement = Arrangement.spacedBy(4.dp),
                                         ) {
-                                            FilterChip(
+                                            PreferenceOptionChip(
+                                                label = stringResource(R.string.settings_theme_system),
                                                 selected = currentTheme == AppThemeMode.SYSTEM,
                                                 onClick = {
                                                     currentTheme = AppThemeMode.SYSTEM
                                                     preferences.setThemeMode(AppThemeMode.SYSTEM)
                                                     onThemeChanged(AppThemeMode.SYSTEM)
                                                 },
-                                                label = { Text(stringResource(R.string.settings_theme_system)) },
                                             )
-                                            FilterChip(
+                                            PreferenceOptionChip(
+                                                label = stringResource(R.string.settings_theme_light),
                                                 selected = currentTheme == AppThemeMode.LIGHT,
                                                 onClick = {
                                                     currentTheme = AppThemeMode.LIGHT
                                                     preferences.setThemeMode(AppThemeMode.LIGHT)
                                                     onThemeChanged(AppThemeMode.LIGHT)
                                                 },
-                                                label = { Text(stringResource(R.string.settings_theme_light)) },
                                             )
-                                            FilterChip(
+                                            PreferenceOptionChip(
+                                                label = stringResource(R.string.settings_theme_dark),
                                                 selected = currentTheme == AppThemeMode.DARK,
                                                 onClick = {
                                                     currentTheme = AppThemeMode.DARK
                                                     preferences.setThemeMode(AppThemeMode.DARK)
                                                     onThemeChanged(AppThemeMode.DARK)
                                                 },
-                                                label = { Text(stringResource(R.string.settings_theme_dark)) },
                                             )
                                         }
                                     }
@@ -268,48 +277,42 @@ internal fun SettingsDestination(
                                             style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.SemiBold,
                                         )
-                                        LazyRow(
+                                        Text(
+                                            text = stringResource(R.string.settings_refresh_summary),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                        Text(
+                                            text = lastRefreshEpochMs?.let { epochMs ->
+                                                val formatted = java.text.DateFormat.getDateTimeInstance(
+                                                    java.text.DateFormat.MEDIUM,
+                                                    java.text.DateFormat.SHORT,
+                                                ).format(java.util.Date(epochMs))
+                                                stringResource(R.string.settings_refresh_last_format, formatted)
+                                            } ?: stringResource(R.string.settings_refresh_never),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                        // Wrapping instead of a horizontally scrolling row: the fourth
+                                        // option used to clip past the right edge with no scroll affordance.
+                                        FlowRow(
                                             modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalArrangement = Arrangement.spacedBy(4.dp),
                                         ) {
-                                            item {
-                                                FilterChip(
-                                                    selected = currentInterval == RefreshInterval.ONE_HOUR,
+                                            listOf(
+                                                RefreshInterval.ONE_HOUR to R.string.settings_refresh_1h,
+                                                RefreshInterval.THREE_HOURS to R.string.settings_refresh_3h,
+                                                RefreshInterval.SIX_HOURS to R.string.settings_refresh_6h,
+                                                RefreshInterval.MANUAL to R.string.settings_refresh_manual,
+                                            ).forEach { (interval, labelRes) ->
+                                                PreferenceOptionChip(
+                                                    label = stringResource(labelRes),
+                                                    selected = currentInterval == interval,
                                                     onClick = {
-                                                        currentInterval = RefreshInterval.ONE_HOUR
-                                                        preferences.setRefreshInterval(RefreshInterval.ONE_HOUR)
+                                                        currentInterval = interval
+                                                        preferences.setRefreshInterval(interval)
                                                     },
-                                                    label = { Text(stringResource(R.string.settings_refresh_1h)) },
-                                                )
-                                            }
-                                            item {
-                                                FilterChip(
-                                                    selected = currentInterval == RefreshInterval.THREE_HOURS,
-                                                    onClick = {
-                                                        currentInterval = RefreshInterval.THREE_HOURS
-                                                        preferences.setRefreshInterval(RefreshInterval.THREE_HOURS)
-                                                    },
-                                                    label = { Text(stringResource(R.string.settings_refresh_3h)) },
-                                                )
-                                            }
-                                            item {
-                                                FilterChip(
-                                                    selected = currentInterval == RefreshInterval.SIX_HOURS,
-                                                    onClick = {
-                                                        currentInterval = RefreshInterval.SIX_HOURS
-                                                        preferences.setRefreshInterval(RefreshInterval.SIX_HOURS)
-                                                    },
-                                                    label = { Text(stringResource(R.string.settings_refresh_6h)) },
-                                                )
-                                            }
-                                            item {
-                                                FilterChip(
-                                                    selected = currentInterval == RefreshInterval.MANUAL,
-                                                    onClick = {
-                                                        currentInterval = RefreshInterval.MANUAL
-                                                        preferences.setRefreshInterval(RefreshInterval.MANUAL)
-                                                    },
-                                                    label = { Text(stringResource(R.string.settings_refresh_manual)) },
                                                 )
                                             }
                                         }
@@ -368,46 +371,28 @@ internal fun SettingsDestination(
                                                     fontWeight = FontWeight.SemiBold,
                                                 )
                                                 Text(
-                                                    text = stringResource(R.string.settings_wear_sync_summary),
+                                                    text = stringResource(
+                                                        if (wearSync) R.string.settings_wear_sync_summary else R.string.settings_wear_sync_off_summary,
+                                                    ),
                                                     style = MaterialTheme.typography.bodySmall,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 )
                                             }
+                                            // Every phone→watch publisher checks this preference through
+                                            // WearSyncGate; re-enabling resends the subscription list so the
+                                            // watch catches up on changes made while it was off.
                                             Switch(
                                                 checked = wearSync,
-                                                onCheckedChange = {
-                                                    wearSync = it
-                                                    preferences.setWearSyncEnabled(it)
+                                                onCheckedChange = { enabled ->
+                                                    wearSync = enabled
+                                                    preferences.setWearSyncEnabled(enabled)
+                                                    if (enabled) onWearSyncReenabled()
                                                 },
                                             )
                                         }
-
-                                        // Notifications toggle
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically,
-                                        ) {
-                                            Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
-                                                Text(
-                                                    text = stringResource(R.string.settings_notifications_title),
-                                                    style = MaterialTheme.typography.titleSmall,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                )
-                                                Text(
-                                                    text = stringResource(R.string.settings_notifications_summary),
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                )
-                                            }
-                                            Switch(
-                                                checked = notifications,
-                                                onCheckedChange = {
-                                                    notifications = it
-                                                    preferences.setNotificationsEnabled(it)
-                                                },
-                                            )
-                                        }
+                                        // The former "Notifications" switch was removed: the only notification
+                                        // this app posts is the mandatory media-playback notification, which a
+                                        // preference cannot disable, and there is no background sync to notify about.
                                     }
                                 }
                             }
@@ -444,7 +429,7 @@ internal fun SettingsDestination(
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
                                         Text(
-                                            text = stringResource(R.string.settings_version_format, "0.1.0"),
+                                            text = stringResource(R.string.settings_version_format, BuildConfig.VERSION_NAME),
                                             style = MaterialTheme.typography.labelMedium,
                                             color = MaterialTheme.colorScheme.primary,
                                         )
@@ -537,8 +522,13 @@ internal fun SettingsDestination(
                                                 style = MaterialTheme.typography.bodySmall,
                                             )
 
+                                            val wearStatus = if (wearSync) {
+                                                stringResource(R.string.settings_diagnostics_status_ready)
+                                            } else {
+                                                stringResource(R.string.settings_diagnostics_status_disabled)
+                                            }
                                             Text(
-                                                text = "${stringResource(R.string.settings_diagnostics_wear_sync)}: ${stringResource(R.string.settings_diagnostics_status_ready)} (ink.underflo.wristbrief)",
+                                                text = "${stringResource(R.string.settings_diagnostics_wear_sync)}: $wearStatus (ink.underflo.wristbrief)",
                                                 style = MaterialTheme.typography.bodySmall,
                                             )
 
@@ -559,4 +549,30 @@ internal fun SettingsDestination(
         }
     }
 }
+}
+
+/**
+ * One option in a single-choice preference group. Labels never wrap (the chip grows
+ * instead and the FlowRow moves it to the next line) and the touch target meets the
+ * 48 dp minimum.
+ */
+@Composable
+private fun PreferenceOptionChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = {
+            Text(
+                text = label,
+                maxLines = 1,
+                softWrap = false,
+            )
+        },
+        // FilterChip already exposes selectable semantics (selected state + role).
+        modifier = Modifier.defaultMinSize(minHeight = TouchTargetTokens.minTouchTarget),
+    )
 }
